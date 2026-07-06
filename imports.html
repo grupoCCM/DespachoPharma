@@ -149,7 +149,13 @@
               <div class="fw-semibold">Preparar nuevos archivos</div>
               <div class="text-muted small">Selecciona los archivos antes de procesarlos para verificar nombre, tamano y huella.</div>
             </div>
-            <button id="btn_clear_files" class="btn btn-outline-secondary btn-sm">Limpiar seleccion</button>
+            <div class="d-flex gap-2">
+              <button id="btn_process_inventory" class="btn btn-success btn-sm" disabled>
+                <span id="btn_process_inventory_text">Procesar inventario</span>
+                <span id="btn_process_inventory_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+              </button>
+              <button id="btn_clear_files" class="btn btn-outline-secondary btn-sm">Limpiar seleccion</button>
+            </div>
           </div>
 
           <div class="row g-3 mt-1">
@@ -189,19 +195,21 @@
           </div>
 
           <div class="alert alert-info mt-3 mb-0">
-            Actualizar solo refresca el resumen. Las compras se procesan con deduplicacion por compra, comprobante, producto, cantidad y total para no duplicar existencia.
+            Actualizar refresca el resumen. Procesar inventario carga la foto oficial, actualiza existencias y refresca lotes/vencimientos; omite productos inactivos.
           </div>
         </div>
       </div>
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script>
     const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
     const ROUTES = { login:"index.html", dispatch:"dispatch.html", cashier:"cashier.html" };
 
     const el = (id) => document.getElementById(id);
+    let selectedFilesCache = [];
 
     function getSession(){
       return {
@@ -211,14 +219,14 @@
       };
     }
 
-    function showAlert(msg){
+    function showAlert(msg, kind="danger"){
       el("alert_page").textContent = msg;
-      el("alert_page").classList.remove("d-none");
+      el("alert_page").className = `alert alert-${kind}`;
     }
 
     function hideAlert(){
       el("alert_page").textContent = "";
-      el("alert_page").classList.add("d-none");
+      el("alert_page").className = "alert alert-danger d-none";
     }
 
     async function callRpc(fnName, body){
@@ -286,6 +294,12 @@
       el("btn_refresh_text").textContent = isLoading ? "Actualizando..." : "Actualizar";
     }
 
+    function setInventoryProcessing(isLoading){
+      el("btn_process_inventory").disabled = isLoading || !selectedFilesCache.some(row => row.source === "inventory");
+      el("btn_process_inventory_spinner").classList.toggle("d-none", !isLoading);
+      el("btn_process_inventory_text").textContent = isLoading ? "Procesando..." : "Procesar inventario";
+    }
+
     function statusBadge(status){
       const s = status || "-";
       const cls = s === "completed" ? "text-bg-success" : s === "failed" ? "text-bg-danger" : "text-bg-warning";
@@ -350,6 +364,49 @@
       return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
     }
 
+    function cleanCellText(value){
+      if(value === null || value === undefined) return "";
+      return String(value).trim();
+    }
+
+    function cleanNumber(value){
+      const text = cleanCellText(value).replace(/\$/g, "").replace(/,/g, "");
+      if(!text) return "";
+      const n = Number(text);
+      return Number.isFinite(n) ? String(n) : "";
+    }
+
+    function cleanCode(value){
+      const text = cleanCellText(value).replace(/,/g, "");
+      if(!/^\d+(\.0+)?$/.test(text)) return "";
+      return String(Math.trunc(Number(text)));
+    }
+
+    async function readInventoryRows(file){
+      if(!window.XLSX) throw new Error("No se pudo cargar el lector de Excel. Revisa la conexion e intenta de nuevo.");
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type:"array", cellDates:false });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:"" });
+      const rows = [];
+      for(const raw of rawRows){
+        const code = cleanCode(raw[0]);
+        if(!code) continue;
+        rows.push([
+          code,
+          cleanCellText(raw[1]),
+          cleanCellText(raw[2]),
+          cleanCellText(raw[3]),
+          cleanCellText(raw[4]),
+          cleanNumber(raw[5]),
+          cleanNumber(raw[6]),
+          cleanNumber(raw[7])
+        ]);
+      }
+      if(!rows.length) throw new Error("No se encontraron filas validas de inventario en el archivo.");
+      return rows;
+    }
+
     async function renderSelectedFiles(){
       const inputs = Array.from(document.querySelectorAll(".file-input"));
       const selected = inputs
@@ -357,6 +414,8 @@
         .map(input => ({ source:input.dataset.source, file:input.files[0] }));
 
       if(!selected.length){
+        selectedFilesCache = [];
+        setInventoryProcessing(false);
         el("tbody_selected").innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">No hay archivos seleccionados.</td></tr>`;
         return;
       }
@@ -367,6 +426,8 @@
         const hash = await hashFile(item.file);
         rows.push({ ...item, hash });
       }
+      selectedFilesCache = rows;
+      setInventoryProcessing(false);
 
       const seen = new Map();
       el("tbody_selected").innerHTML = rows.map(row => {
@@ -385,6 +446,30 @@
       }).join("");
     }
 
+    async function processInventory(){
+      hideAlert();
+      const item = selectedFilesCache.find(row => row.source === "inventory");
+      if(!item) return showAlert("Selecciona un archivo de inventario antes de procesar.");
+      setInventoryProcessing(true);
+      try{
+        const s = getSession();
+        const rows = await readInventoryRows(item.file);
+        const result = await callRpc("rpc_import_inventory_snapshot", {
+          p_session_token:s.token,
+          p_source_file:item.file.name,
+          p_sha256:item.hash,
+          p_size_bytes:item.file.size,
+          p_rows:rows
+        });
+        showAlert(`Inventario procesado: ${result.loaded_rows} productos, ${result.total_units} unidades, ${result.lots_refreshed} lotes refrescados.`, "success");
+        await loadOverview();
+      }catch(err){
+        showAlert(err.message || "No se pudo procesar el inventario.");
+      }finally{
+        setInventoryProcessing(false);
+      }
+    }
+
     async function init(){
       const s = getSession();
       if(!s.token) return window.location.href = ROUTES.login;
@@ -400,8 +485,11 @@
 
       el("btn_logout").addEventListener("click", logoutAndGoLogin);
       el("btn_refresh").addEventListener("click", loadOverview);
+      el("btn_process_inventory").addEventListener("click", processInventory);
       el("btn_clear_files").addEventListener("click", () => {
         document.querySelectorAll(".file-input").forEach(input => { input.value = ""; });
+        selectedFilesCache = [];
+        setInventoryProcessing(false);
         renderSelectedFiles();
       });
       document.querySelectorAll(".file-input").forEach(input => input.addEventListener("change", renderSelectedFiles));
