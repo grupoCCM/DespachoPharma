@@ -1,0 +1,1120 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Botiquín CCM | Auditoria inventario</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root{ --bg:#f8fafc; --card:#fff; --border:#e2e8f0; --text:#0f172a; --muted:#64748b; }
+    body{ background:var(--bg); color:var(--text); }
+    body > .navbar{ position:sticky; top:0; z-index:1030; box-shadow:0 2px 10px rgba(15,23,42,.06); }
+    .app-card{ background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:0 6px 20px rgba(15,23,42,.06); }
+    .brand-dot{ width:10px;height:10px;border-radius:999px;background:#3b82f6;display:inline-block;margin-right:8px; }
+    .metric{ min-height:92px; }
+    .metric-value{ font-size:1.45rem; font-weight:750; }
+    .table td,.table th{ vertical-align:middle; }
+    .truncate{ max-width:380px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .mono{ font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace; }
+    .suggestions{ max-height:360px; overflow:auto; }
+    .count-list{ max-height:560px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
+    .count-list table{ margin-bottom:0; }
+    .count-list thead th{ position:sticky; top:0; z-index:2; background:#f8fafc; }
+    .count-table{ table-layout:fixed; min-width:920px; }
+    .count-product-col{ width:38%; }
+    .count-num-col{ width:94px; text-align:center; }
+    .count-status-col{ width:126px; }
+    .count-user-col{ width:132px; }
+    .count-action-col{ width:154px; text-align:center; }
+    .count-num-cell{ text-align:center; vertical-align:middle; }
+    .count-input{ width:82px; min-width:82px; margin:0 auto; text-align:center; appearance:textfield; -moz-appearance:textfield; }
+    .count-input::-webkit-outer-spin-button,
+    .count-input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+    .count-actions{ justify-content:center; width:100%; }
+    .count-row-pending{ background:#fff; }
+    .count-row-counted{ background:#f8fafc; }
+    .count-row-applied{ background:#f0fdf4; }
+    .variance-card{ border:1px solid var(--border); border-radius:10px; padding:12px; min-height:104px; background:#fff; }
+    .variance-card.danger{ border-color:#fecaca; background:#fff7f7; }
+    .variance-card.success{ border-color:#bbf7d0; background:#f7fff9; }
+    .variance-card.neutral{ background:#f8fafc; }
+    .variance-label{ color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.02em; }
+    .variance-main{ font-size:1.55rem; font-weight:800; line-height:1.1; }
+    .variance-main small{ font-size:.78rem; font-weight:600; color:var(--muted); }
+    .variance-sub{ color:var(--muted); font-size:.86rem; margin-top:4px; }
+  </style>
+</head>
+<body>
+  <nav class="navbar bg-white border-bottom">
+    <div class="container">
+      <a id="brand_home" class="navbar-brand d-flex align-items-center" href="dashboard.html">
+        <span class="brand-dot"></span><span class="fw-semibold">Botiquín CCM</span>
+      </a>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <a class="btn btn-outline-secondary btn-sm nav-admin-only" href="dashboard.html">Dashboard</a>
+        <a class="btn btn-outline-secondary btn-sm nav-admin-only" href="purchasing.html">Compras</a>
+        <a class="btn btn-outline-secondary btn-sm nav-admin-only" href="imports.html">Importaciones</a>
+        <a class="btn btn-outline-secondary btn-sm nav-admin-only" href="expiration-dashboard.html">Vencimientos</a>
+        <a class="btn btn-outline-secondary btn-sm nav-ops-only d-none" href="dispatch.html">Despacho</a>
+        <a class="btn btn-outline-secondary btn-sm" href="availability.html">Disponibilidad</a>
+        <span class="badge text-bg-light border"><span class="text-muted">Usuario:</span> <span id="nav_user" class="ms-1 fw-semibold">-</span></span>
+        <button id="btn_logout" class="btn btn-outline-secondary btn-sm">Salir</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
+      <div>
+        <h1 id="page_title" class="h4 mb-1">Auditoria de inventario</h1>
+        <div id="page_subtitle" class="text-muted">Kardex de descuentos, entradas por compra y diferencias contra la foto de existencia.</div>
+      </div>
+      <button id="btn_refresh" class="btn btn-primary admin-panel">
+        <span id="btn_refresh_text">Actualizar</span>
+        <span id="btn_refresh_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+      </button>
+    </div>
+
+    <div id="alert_page" class="alert alert-danger d-none" role="alert"></div>
+    <div id="ok_page" class="alert alert-success d-none" role="alert"></div>
+
+    <div class="app-card p-3 mb-3 admin-panel">
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-lg-6">
+          <label class="form-label" for="q">Buscar movimiento</label>
+          <input id="q" class="form-control" placeholder="Medicamento, principio activo, casa, codigo o barra" autocomplete="off">
+          <div id="suggestions" class="list-group mt-2 suggestions d-none"></div>
+        </div>
+        <div class="col-12 col-md-3 col-lg-2">
+          <label class="form-label" for="limit">Filas</label>
+          <select id="limit" class="form-select">
+            <option value="40">40</option>
+            <option value="80" selected>80</option>
+            <option value="150">150</option>
+            <option value="200">200</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-3 col-lg-2 d-grid">
+          <button id="btn_search" class="btn btn-outline-primary">Buscar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="app-card p-3 mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <div class="fw-semibold">Conteo manual</div>
+          <div id="count_help" class="text-muted small">Registra un conteo fisico con usuario, hora y diferencia. Aplicar ajuste cambia la existencia viva.</div>
+        </div>
+        <span id="count_selected_status" class="badge text-bg-light border">Sin producto</span>
+      </div>
+      <div class="row g-3 align-items-end mt-1">
+        <div class="col-12 col-lg-4">
+          <label class="form-label" for="count_q">Producto</label>
+          <input id="count_q" class="form-control" placeholder="Medicamento, codigo, barra, casa o principio activo" autocomplete="off">
+          <div id="count_suggestions" class="list-group mt-2 suggestions d-none"></div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label">Esperado</label>
+          <div id="count_expected" class="form-control bg-light">-</div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label" for="count_qty">Conteo fisico</label>
+          <input id="count_qty" class="form-control" type="number" min="0" step="1" placeholder="0">
+        </div>
+        <div class="col-12 col-lg-3">
+          <label class="form-label" for="count_note">Comentario</label>
+          <input id="count_note" class="form-control" placeholder="Motivo o referencia opcional">
+        </div>
+        <div class="col-12 col-lg-1 d-grid">
+          <button id="btn_save_count" class="btn btn-success" disabled>Guardar</button>
+        </div>
+      </div>
+
+      <div class="table-responsive mt-3">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Producto</th>
+              <th class="text-center">Esperado</th>
+              <th class="text-end">Contado</th>
+              <th class="text-end">Dif.</th>
+              <th>Usuario</th>
+              <th>Estado</th>
+              <th class="text-end">Accion</th>
+            </tr>
+          </thead>
+          <tbody id="tbody_counts">
+            <tr><td colspan="8" class="text-center text-muted py-4">Sin conteos recientes.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="app-card p-3 mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <div class="fw-semibold">Sesion de conteo fisico</div>
+          <div id="session_meta" class="text-muted small">Valida todos los productos activos. Campo vacio = pendiente; 0 = contado y confirmado en cero.</div>
+          <div id="session_progress" class="small fw-semibold mt-1">Sin sesion activa.</div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <button id="btn_new_session" class="btn btn-outline-primary btn-sm admin-action">Nuevo conteo</button>
+          <button id="btn_reload_session" class="btn btn-outline-secondary btn-sm">Recargar</button>
+          <button id="btn_close_session" class="btn btn-outline-success btn-sm admin-action" disabled>Cerrar</button>
+          <button id="btn_cancel_session" class="btn btn-outline-danger btn-sm admin-action" disabled>Cancelar</button>
+          <button id="btn_print_session" class="btn btn-outline-dark btn-sm" disabled>Imprimir PDF</button>
+        </div>
+      </div>
+
+      <div class="row g-2 align-items-end mt-2">
+        <div class="col-12 col-lg-5">
+          <label class="form-label" for="session_q">Buscar en lista</label>
+          <input id="session_q" class="form-control" placeholder="Producto, codigo, casa o principio activo">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label" for="session_status">Estado</label>
+          <select id="session_status" class="form-select">
+            <option value="all">Todos</option>
+            <option value="pending" selected>Pendientes</option>
+            <option value="counted">Contados</option>
+            <option value="applied">Aplicados</option>
+          </select>
+        </div>
+        <div class="col-6 col-lg-2 admin-action">
+          <label class="form-label" for="session_scope">Alcance nuevo</label>
+          <select id="session_scope" class="form-select">
+            <option value="all_active" selected>Todos activos</option>
+            <option value="active_with_stock">Solo con existencia</option>
+          </select>
+        </div>
+        <div class="col-12 col-lg-3 admin-action">
+          <label class="form-label" for="session_title">Nombre</label>
+          <input id="session_title" class="form-control" placeholder="Conteo fisico">
+        </div>
+      </div>
+
+      <div class="count-list mt-3">
+      <table class="table table-sm align-middle count-table">
+        <thead>
+          <tr>
+            <th class="count-product-col">Producto</th>
+            <th class="count-num-col">Esperado</th>
+            <th class="count-num-col">Conteo</th>
+            <th class="count-num-col">Dif.</th>
+            <th class="count-status-col">Estado</th>
+            <th class="count-user-col">Usuario</th>
+            <th class="count-action-col">Accion</th>
+          </tr>
+        </thead>
+          <tbody id="tbody_session_items">
+            <tr><td colspan="7" class="text-center text-muted py-4">Crea o recarga una sesion de conteo.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3 admin-panel">
+      <div class="col-6 col-lg-3">
+        <div class="app-card p-3 metric">
+          <div class="text-muted small">Unidades vivas</div>
+          <div id="metric_live_units" class="metric-value">0</div>
+          <div id="metric_items" class="small text-muted">0 productos</div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="app-card p-3 metric">
+          <div class="text-muted small">Movimientos netos</div>
+          <div id="metric_net" class="metric-value">0</div>
+          <div id="metric_in_out" class="small text-muted">+0 / -0</div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="app-card p-3 metric">
+          <div class="text-muted small">Sin cruce</div>
+          <div id="metric_unresolved" class="metric-value">0</div>
+          <div class="small text-muted">requieren equivalencia</div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="app-card p-3 metric">
+          <div class="text-muted small">Ultimo movimiento</div>
+          <div id="metric_last" class="fs-6 fw-semibold">-</div>
+          <div id="metric_negative" class="small text-muted">0 negativos</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="app-card p-3 mb-3 admin-panel">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <div class="fw-semibold">Control de diferencias de inventario</div>
+          <div id="variance_snapshot" class="text-muted small">Compara la ultima foto fisica contra lo esperado por movimientos.</div>
+          <div id="variance_headline" class="small fw-semibold mt-1">Esperando datos...</div>
+        </div>
+        <span id="variance_count" class="badge text-bg-light border">0 diferencias</span>
+      </div>
+      <div class="row g-3 mt-1">
+        <div class="col-6 col-lg-3">
+          <div class="variance-card danger">
+            <div class="variance-label">Faltantes</div>
+            <div class="variance-main text-danger"><span id="variance_shortage">0</span> <small>unid.</small></div>
+            <div id="variance_shortage_value" class="small text-muted">0 productos - $0.00</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="variance-card success">
+            <div class="variance-label">Sobrantes</div>
+            <div class="variance-main text-success"><span id="variance_surplus">0</span> <small>unid.</small></div>
+            <div id="variance_surplus_value" class="small text-muted">0 productos - $0.00</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="variance-card neutral">
+            <div class="variance-label">Diferencia neta</div>
+            <div class="variance-main"><span id="variance_net">0</span> <small>unid.</small></div>
+            <div id="variance_net_hint" class="variance-sub">sobrantes - faltantes</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="variance-card neutral">
+            <div class="variance-label">Valor revisable</div>
+            <div id="variance_abs_value" class="variance-main">$0.00</div>
+            <div class="variance-sub">impacto absoluto</div>
+          </div>
+        </div>
+      </div>
+      <div class="table-responsive mt-3">
+        <table class="table table-sm">
+          <thead class="table-light">
+            <tr>
+              <th>Producto</th>
+              <th class="text-end">Esperado</th>
+              <th class="text-end">Fisico</th>
+              <th class="text-end">Dif.</th>
+              <th class="text-end">Valor</th>
+              <th>Causa probable</th>
+            </tr>
+          </thead>
+          <tbody id="tbody_variance">
+            <tr><td colspan="6" class="text-center text-muted py-4">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="row g-3 admin-panel">
+      <div class="col-12 col-xl-8">
+        <div class="app-card p-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="fw-semibold">Movimientos recientes</div>
+            <span id="movement_count" class="badge text-bg-light border">0</span>
+          </div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm">
+              <thead class="table-light">
+                <tr>
+                  <th>Fecha</th>
+                  <th>Producto</th>
+                  <th>Origen</th>
+                  <th class="text-end">Cant.</th>
+                  <th>Referencia</th>
+                </tr>
+              </thead>
+              <tbody id="tbody_movements">
+                <tr><td colspan="5" class="text-center text-muted py-4">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-4">
+        <div class="app-card p-3 mb-3">
+          <div class="fw-semibold">Pendientes sin cruce</div>
+          <div class="text-muted small">Movimientos que no encontraron producto en catalogo.</div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm">
+              <thead class="table-light"><tr><th>Detalle</th><th class="text-end">Neto</th></tr></thead>
+              <tbody id="tbody_unresolved">
+                <tr><td colspan="2" class="text-center text-muted py-4">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="app-card p-3">
+          <div class="fw-semibold">Productos con cambios</div>
+          <div class="text-muted small">Diferencia entre foto de existencia y movimientos posteriores.</div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm">
+              <thead class="table-light"><tr><th>Producto</th><th class="text-end">Delta</th><th class="text-end">Vivo</th></tr></thead>
+              <tbody id="tbody_changed">
+                <tr><td colspan="3" class="text-center text-muted py-4">Sin movimientos.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
+    const ROUTES = { login:"index.html", dispatch:"dispatch.html", cashier:"cashier.html" };
+    const el = id => document.getElementById(id);
+    let suggestionRows = [];
+    let suggestTimer = null;
+    let countSuggestionRows = [];
+    let countSuggestTimer = null;
+    let selectedCountProduct = null;
+    let activeCountSession = null;
+    let printableCountSessionId = null;
+    let sessionItems = [];
+    let sessionFilterTimer = null;
+
+    function getSession(){ return { token:localStorage.getItem("dp_session_token")||"", role:(localStorage.getItem("dp_role")||"").toLowerCase(), name:localStorage.getItem("dp_display_name")||"" }; }
+    function num(v,d=0){ return new Intl.NumberFormat("es-SV",{maximumFractionDigits:d}).format(Number(v || 0)); }
+    function units(v){ return new Intl.NumberFormat("es-SV",{maximumFractionDigits:0}).format(Math.trunc(Number(v || 0))); }
+    function money(v){ return v === null || v === undefined ? "-" : new Intl.NumberFormat("es-SV",{style:"currency",currency:"USD"}).format(Number(v || 0)); }
+    function esc(value){ return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch])); }
+    function fmtDate(value){ if(!value) return "-"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString("es-SV"); }
+    function plural(n, one, many){ return Number(n || 0) === 1 ? one : many; }
+    function showAlert(msg){ el("alert_page").textContent=msg; el("alert_page").classList.remove("d-none"); }
+    function hideAlert(){ el("alert_page").textContent=""; el("alert_page").classList.add("d-none"); }
+    function showOk(msg){ el("ok_page").textContent=msg; el("ok_page").classList.remove("d-none"); }
+    function hideOk(){ el("ok_page").textContent=""; el("ok_page").classList.add("d-none"); }
+    function setLoading(v){ el("btn_refresh").disabled=v; el("btn_search").disabled=v; el("btn_refresh_spinner").classList.toggle("d-none",!v); el("btn_refresh_text").textContent=v?"Actualizando...":"Actualizar"; }
+    function isAdmin(){ return getSession().role === "admin"; }
+    function applyRoleUi(){
+      const admin = isAdmin();
+      document.querySelectorAll(".admin-panel").forEach(node => node.classList.toggle("d-none", !admin));
+      document.querySelectorAll(".admin-action").forEach(node => node.classList.toggle("d-none", !admin));
+      if(!admin){
+        el("page_title").textContent = "Conteo fisico de inventario";
+        el("page_subtitle").textContent = "Registra conteos fisicos con usuario y hora. El administrador revisa y aplica ajustes.";
+        el("count_help").textContent = "Registra un conteo puntual con usuario y hora. El administrador revisa y aplica el ajuste si corresponde.";
+      }
+    }
+    function availabilityBadge(status){
+      if(status === "Inactivo") return "text-bg-secondary";
+      if(status === "Agotado" || status === "Sin existencia") return "text-bg-danger";
+      if(status === "Pocas unidades") return "text-bg-warning";
+      if(status === "Disponible") return "text-bg-success";
+      return "text-bg-light border";
+    }
+
+    async function callRpc(fnName, body){
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${SUPABASE_ANON_KEY}` },
+        body:JSON.stringify(body || {})
+      });
+      const text = await res.text();
+      let data = null;
+      try{ data = text ? JSON.parse(text) : null; }catch{ data = null; }
+      if(!res.ok) throw new Error(data?.message || data?.details || "Error de conexion.");
+      return data;
+    }
+
+    async function touchSession(){
+      const s = getSession();
+      if(!s.token) return false;
+      const rows = await callRpc("rpc_session_touch", { p_session_token:s.token });
+      return Array.isArray(rows) && rows.length > 0;
+    }
+
+    async function logoutAndGoLogin(){
+      try{
+        const s = getSession();
+        if(s.token) await callRpc("rpc_logout", { p_session_token:s.token });
+      }catch(_){}
+      ["dp_session_token","dp_role","dp_display_name","dp_user_id","dp_expires_at","dp_last_activity"].forEach(k => localStorage.removeItem(k));
+      window.location.href = ROUTES.login;
+    }
+
+    function movementBadge(type){
+      if(String(type).includes("purchase")) return "text-bg-success";
+      if(String(type).includes("return")) return "text-bg-primary";
+      if(String(type).includes("out")) return "text-bg-danger";
+      return "text-bg-secondary";
+    }
+
+    function shortDate(value){
+      return value ? String(value).slice(0,10) : "-";
+    }
+
+    function renderVariance(data){
+      const snapshot = data?.snapshot || {};
+      const summary = data?.summary || {};
+      const rows = data?.rows || [];
+      const latestDate = snapshot.latest_snapshot_date || snapshot.latest_date;
+      const previousDate = snapshot.previous_snapshot_date || snapshot.previous_date;
+      const latestFile = snapshot.latest_snapshot_file || snapshot.latest_file;
+      const previousFile = snapshot.previous_snapshot_file || snapshot.previous_file;
+      const shortageItems = Number(summary.shortage_items || 0);
+      const surplusItems = Number(summary.surplus_items || 0);
+      const hasPrevious = snapshot.has_previous !== false && previousDate;
+
+      el("variance_snapshot").textContent = hasPrevious
+        ? `Foto ${shortDate(latestDate)} (${latestFile || "archivo reciente"}) contra ${shortDate(previousDate)} (${previousFile || "archivo anterior"}).`
+        : "Se necesita al menos una foto anterior para calcular diferencias.";
+      el("variance_count").textContent = `${num(summary.variance_items)} diferencias`;
+      el("variance_headline").textContent = hasPrevious
+        ? `${num(summary.variance_items)} productos con diferencia: ${units(summary.surplus_qty)} unidades sobrantes y ${units(summary.shortage_qty)} faltantes. Impacto revisable ${money(summary.variance_abs_value)}.`
+        : "Carga otra foto para activar el comparativo.";
+      el("variance_shortage").textContent = units(summary.shortage_qty);
+      el("variance_surplus").textContent = units(summary.surplus_qty);
+      el("variance_net").textContent = units(summary.net_variance_qty);
+      el("variance_shortage_value").textContent = `${num(shortageItems)} ${plural(shortageItems, "producto", "productos")} - ${money(summary.shortage_value)}`;
+      el("variance_surplus_value").textContent = `${num(surplusItems)} ${plural(surplusItems, "producto", "productos")} - ${money(summary.surplus_value)}`;
+      el("variance_net_hint").textContent = Number(summary.net_variance_qty || 0) >= 0 ? "neto sobrante" : "neto faltante";
+      el("variance_abs_value").textContent = money(summary.variance_abs_value);
+
+      if(!hasPrevious){
+        el("tbody_variance").innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">Carga otra foto de existencia para poder comparar contra la anterior.</td></tr>`;
+        return;
+      }
+
+      el("tbody_variance").innerHTML = rows.length ? rows.map(row => {
+        const diff = Number(row.variance_qty || 0);
+        const diffClass = diff < 0 ? "text-danger" : "text-success";
+        return `<tr>
+          <td><div class="fw-semibold truncate">${esc(row.medicine_name || "-")}</div><div class="small text-muted">${esc(row.external_code || "")} - ${esc(row.model || "")}</div></td>
+          <td class="text-end">${units(row.expected_qty)}</td>
+          <td class="text-end">${units(row.physical_qty)}</td>
+          <td class="text-end fw-semibold ${diffClass}">${units(row.variance_qty)}</td>
+          <td class="text-end">${money(row.variance_value)}</td>
+          <td><span class="badge text-bg-light border">${esc(row.probable_cause || "Revisar")}</span><div class="small text-muted">Mov: +${units(row.in_qty)} / -${units(row.out_qty)}</div></td>
+        </tr>`;
+      }).join("") : `<tr><td colspan="6" class="text-center text-muted py-4">Sin diferencias contra la foto fisica.</td></tr>`;
+    }
+
+    function renderAudit(data){
+      const summary = data?.summary || {};
+      const live = data?.live_summary || {};
+      const movements = data?.movements || [];
+      const unresolved = data?.unresolved || [];
+      const changed = data?.changed_stock || [];
+
+      el("metric_live_units").textContent = units(live.live_units);
+      el("metric_items").textContent = `${num(live.items)} productos`;
+      el("metric_net").textContent = units(summary.net_qty);
+      el("metric_in_out").textContent = `+${units(summary.in_qty)} / -${units(summary.out_qty)}`;
+      el("metric_unresolved").textContent = num(summary.unresolved_count);
+      el("metric_last").textContent = fmtDate(summary.last_movement_at);
+      el("metric_negative").textContent = `${num(live.negative_items)} negativos`;
+
+      el("movement_count").textContent = movements.length;
+      el("tbody_movements").innerHTML = movements.length ? movements.map(row => {
+        const ref = row.delivery_no ? `Despacho ${row.delivery_no}` : row.external_purchase_no ? `Compra ${row.external_purchase_no} ${row.voucher_no || ""}` : row.source_type;
+        return `
+          <tr>
+            <td class="small">${fmtDate(row.created_at)}</td>
+            <td><div class="fw-semibold truncate">${esc(row.medicine_name)}</div><div class="small text-muted">${esc(row.external_code || row.barcode || "")} ${row.resolved ? "" : "- sin cruce"}</div></td>
+            <td><span class="badge ${movementBadge(row.movement_type)}">${esc(row.movement_type)}</span><div class="small text-muted">${esc(row.created_by_name || row.note || "")}</div></td>
+            <td class="text-end fw-semibold ${Number(row.qty_delta) < 0 ? "text-danger" : "text-success"}">${units(row.qty_delta)}</td>
+            <td class="small">${esc(ref)}</td>
+          </tr>`;
+      }).join("") : `<tr><td colspan="5" class="text-center text-muted py-4">No hay movimientos.</td></tr>`;
+
+      el("tbody_unresolved").innerHTML = unresolved.length ? unresolved.map(row => `
+        <tr>
+          <td><div class="fw-semibold">${esc(row.description)}</div><div class="small text-muted mono">${esc(row.barcode || row.external_code || "")}</div></td>
+          <td class="text-end">${units(row.net_qty)}</td>
+        </tr>`).join("") : `<tr><td colspan="2" class="text-center text-muted py-4">Todo cruzado.</td></tr>`;
+
+      el("tbody_changed").innerHTML = changed.length ? changed.map(row => `
+        <tr>
+          <td><div class="fw-semibold truncate">${esc(row.medicine_name)}</div><div class="small text-muted">${esc(row.model || "")}</div></td>
+          <td class="text-end ${Number(row.movement_qty) < 0 ? "text-danger" : "text-success"}">${units(row.movement_qty)}</td>
+          <td class="text-end fw-semibold">${units(row.stock_qty)}</td>
+        </tr>`).join("") : `<tr><td colspan="3" class="text-center text-muted py-4">Sin movimientos posteriores.</td></tr>`;
+    }
+
+    function hideSuggestions(){
+      el("suggestions").classList.add("d-none");
+      el("suggestions").innerHTML = "";
+    }
+
+    function hideCountSuggestions(){
+      el("count_suggestions").classList.add("d-none");
+      el("count_suggestions").innerHTML = "";
+    }
+
+    function renderSuggestions(rows){
+      suggestionRows = rows.slice(0, 8);
+      if(!suggestionRows.length){
+        el("suggestions").innerHTML = `<div class="list-group-item text-muted small">Sin coincidencias.</div>`;
+        el("suggestions").classList.remove("d-none");
+        return;
+      }
+      el("suggestions").innerHTML = suggestionRows.map((row, idx) => `
+        <button type="button" class="list-group-item list-group-item-action" data-suggest="${idx}">
+          <div class="d-flex justify-content-between gap-2">
+            <span class="fw-semibold">${esc(row.medicine_name || "-")}</span>
+            <span class="badge ${availabilityBadge(row.availability_status)}">${esc(row.availability_status || "-")}</span>
+          </div>
+          <div class="small text-muted">${esc(row.secondary_name || "Sin componente")} - Casa: ${esc(row.model || "-")} - Codigo: ${esc(row.external_code || row.barcode || "")}</div>
+        </button>`).join("");
+      el("suggestions").classList.remove("d-none");
+      document.querySelectorAll("[data-suggest]").forEach(btn => {
+        btn.addEventListener("click", () => chooseSuggestion(suggestionRows[Number(btn.dataset.suggest)]));
+      });
+    }
+
+    function chooseSuggestion(row){
+      if(!row) return;
+      el("q").value = row.external_code || row.medicine_name || "";
+      hideSuggestions();
+      if(isAdmin()) loadAudit();
+    }
+
+    function renderCountProduct(row){
+      selectedCountProduct = row || null;
+      el("btn_save_count").disabled = !row;
+      el("count_expected").textContent = row ? units(row.expected_qty) : "-";
+      el("count_selected_status").textContent = row ? `Codigo ${row.external_code}` : "Sin producto";
+      el("count_selected_status").className = row ? "badge text-bg-primary" : "badge text-bg-light border";
+    }
+
+    function renderCountSuggestions(rows){
+      countSuggestionRows = rows.slice(0, 8);
+      if(!countSuggestionRows.length){
+        el("count_suggestions").innerHTML = `<div class="list-group-item text-muted small">Sin coincidencias.</div>`;
+        el("count_suggestions").classList.remove("d-none");
+        return;
+      }
+      el("count_suggestions").innerHTML = countSuggestionRows.map((row, idx) => `
+        <button type="button" class="list-group-item list-group-item-action" data-count-suggest="${idx}">
+          <div class="d-flex justify-content-between gap-2">
+            <span class="fw-semibold">${esc(row.medicine_name || "-")}</span>
+            <span class="badge text-bg-light border">Esperado: ${units(row.expected_qty)}</span>
+          </div>
+          <div class="small text-muted">${esc(row.secondary_name || "Sin componente")} - Casa: ${esc(row.model || "-")} - Codigo: ${esc(row.external_code || row.barcode || "")}</div>
+        </button>`).join("");
+      el("count_suggestions").classList.remove("d-none");
+      document.querySelectorAll("[data-count-suggest]").forEach(btn => {
+        btn.addEventListener("click", () => chooseCountSuggestion(countSuggestionRows[Number(btn.dataset.countSuggest)]));
+      });
+    }
+
+    function chooseCountSuggestion(row){
+      if(!row) return;
+      el("count_q").value = row.medicine_name || row.external_code || "";
+      renderCountProduct(row);
+      hideCountSuggestions();
+      el("count_qty").focus();
+    }
+
+    async function suggestCountSearch(){
+      const q = el("count_q").value.trim();
+      renderCountProduct(null);
+      if(q.length < 2){ hideCountSuggestions(); return; }
+      try{
+        const s = getSession();
+        const rows = await callRpc("rpc_inventory_count_search", { p_session_token:s.token, p_query:q, p_limit:12 });
+        renderCountSuggestions(Array.isArray(rows) ? rows : []);
+      }catch(_){
+        hideCountSuggestions();
+      }
+    }
+
+    function renderManualCounts(rows){
+      el("tbody_counts").innerHTML = rows.length ? rows.map(row => {
+        const diff = Number(row.variance_qty || 0);
+        const diffClass = diff < 0 ? "text-danger" : diff > 0 ? "text-success" : "";
+        const statusClass = row.status === "applied" ? "text-bg-success" : row.status === "voided" ? "text-bg-secondary" : "text-bg-warning";
+        const canApply = row.status === "pending" && getSession().role === "admin";
+        return `<tr>
+          <td class="small">${fmtDate(row.counted_at)}</td>
+          <td><div class="fw-semibold truncate">${esc(row.medicine_name || "-")}</div><div class="small text-muted">${esc(row.external_code || "")} - ${esc(row.model || "")}</div></td>
+          <td class="text-end">${units(row.expected_qty)}</td>
+          <td class="text-end fw-semibold">${units(row.counted_qty)}</td>
+          <td class="text-end fw-semibold ${diffClass}">${units(row.variance_qty)}</td>
+          <td class="small">${esc(row.counted_by_name || getSession().name || "-")}</td>
+          <td><span class="badge ${statusClass}">${esc(row.status || "-")}</span></td>
+          <td class="text-end"><button class="btn btn-sm btn-outline-primary" data-apply-count="${row.id}" ${canApply ? "" : "disabled"}>Aplicar</button></td>
+        </tr>`;
+      }).join("") : `<tr><td colspan="8" class="text-center text-muted py-4">Sin conteos recientes.</td></tr>`;
+      document.querySelectorAll("[data-apply-count]").forEach(btn => {
+        btn.addEventListener("click", () => applyManualCount(btn.dataset.applyCount));
+      });
+    }
+
+    async function loadManualCounts(){
+      const s = getSession();
+      try{
+        const rows = await callRpc("rpc_inventory_manual_count_list", { p_session_token:s.token, p_status:"", p_limit:40 });
+        renderManualCounts(Array.isArray(rows) ? rows : []);
+      }catch(err){
+        if(isAdmin()) showAlert(err.message || "No se pudieron cargar los conteos recientes.");
+        else el("tbody_counts").innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Los conteos recientes quedan para revision administrativa.</td></tr>`;
+      }
+    }
+
+    async function saveManualCount(){
+      hideAlert();
+      hideOk();
+      if(!selectedCountProduct){
+        showAlert("Selecciona un producto para registrar conteo.");
+        return;
+      }
+      const countedQty = Math.trunc(Number(el("count_qty").value || 0));
+      if(!Number.isFinite(countedQty) || countedQty < 0){
+        showAlert("El conteo debe ser un numero entero igual o mayor a 0.");
+        return;
+      }
+      try{
+        const s = getSession();
+        const row = await callRpc("rpc_inventory_manual_count_create", {
+          p_session_token:s.token,
+          p_external_code:Number(selectedCountProduct.external_code),
+          p_counted_qty:countedQty,
+          p_note:el("count_note").value.trim()
+        });
+        showOk(`Conteo registrado: ${row?.medicine_name || "producto"} diferencia ${units(row?.variance_qty)}.`);
+        el("count_qty").value = "";
+        el("count_note").value = "";
+        if(isAdmin()) await Promise.all([loadManualCounts(), loadAudit()]);
+        else await loadManualCounts();
+      }catch(err){
+        showAlert(err.message || "No se pudo registrar el conteo.");
+      }
+    }
+
+    async function applyManualCount(countId){
+      hideAlert();
+      hideOk();
+      if(!countId) return;
+      try{
+        const s = getSession();
+        const row = await callRpc("rpc_inventory_manual_count_apply", { p_session_token:s.token, p_count_id:countId });
+        showOk(`Ajuste aplicado: ${row?.medicine_name || "producto"} diferencia ${units(row?.variance_qty)}.`);
+        if(isAdmin()) await Promise.all([loadManualCounts(), loadAudit()]);
+        else await loadManualCounts();
+      }catch(err){
+        showAlert(err.message || "No se pudo aplicar el ajuste.");
+      }
+    }
+
+    function renderSessionSummary(session){
+      activeCountSession = session || null;
+      if(!session){
+        el("session_meta").textContent = isAdmin()
+          ? "Valida todos los productos activos. Campo vacio = pendiente; 0 = contado y confirmado en cero."
+          : "Cuando el administrador abra una sesion, aqui podras registrar el conteo fisico producto por producto.";
+        el("session_progress").textContent = "Sin sesion activa.";
+        el("tbody_session_items").innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">${isAdmin() ? "Crea o recarga una sesion de conteo." : "No hay sesion activa. Puedes usar Conteo manual para revisar productos puntuales."}</td></tr>`;
+        el("btn_close_session").disabled = true;
+        el("btn_cancel_session").disabled = true;
+        el("btn_print_session").disabled = !printableCountSessionId;
+        return;
+      }
+      const total = Number(session.total_items || 0);
+      const counted = Number(session.counted_items || 0);
+      const pending = Number(session.pending_items || 0);
+      const applied = Number(session.applied_items || 0);
+      const pct = total ? Math.round((counted / total) * 100) : 0;
+      el("session_meta").textContent = `${session.title || "Conteo fisico"} - iniciado ${fmtDate(session.started_at)} por ${session.started_by_name || "-"}.`;
+      el("session_progress").textContent = `${counted}/${total} productos contados (${pct}%). Pendientes: ${pending}. Ajustes aplicados: ${applied}. Ultimo codigo: ${session.last_counted_code || "-"}.`;
+      const canFinish = session.status === "open" && getSession().role === "admin";
+      el("btn_close_session").disabled = !canFinish;
+      el("btn_cancel_session").disabled = !canFinish;
+      el("btn_print_session").disabled = false;
+    }
+
+    function renderSessionItems(payload){
+      const session = payload?.session || activeCountSession;
+      const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+      renderSessionSummary(session);
+      sessionItems = rows;
+      if(!activeCountSession){
+        return;
+      }
+      el("tbody_session_items").innerHTML = rows.length ? rows.map((row, idx) => {
+        const countedValue = row.counted_qty === null || row.counted_qty === undefined ? "" : Math.trunc(Number(row.counted_qty || 0));
+        const diff = row.variance_qty === null || row.variance_qty === undefined ? null : Number(row.variance_qty || 0);
+        const diffClass = diff === null ? "" : diff < 0 ? "text-danger" : diff > 0 ? "text-success" : "text-muted";
+        const statusClass = row.status === "applied" ? "text-bg-success" : row.status === "counted" ? "text-bg-primary" : "text-bg-warning";
+        const rowClass = row.status === "applied" ? "count-row-applied" : row.status === "counted" ? "count-row-counted" : "count-row-pending";
+        const canEdit = row.status !== "applied";
+        const canApply = row.status === "counted" && isAdmin();
+        const applyButton = isAdmin() ? `<button class="btn btn-outline-primary" data-session-apply="${idx}" ${canApply ? "" : "disabled"}>Aplicar</button>` : "";
+        const countedBy = row.counted_by_name || (row.status === "pending" ? "Pendiente" : getSession().name || "-");
+        const countedByClass = row.status === "pending" ? "small text-muted" : "small fw-semibold";
+        return `<tr class="${rowClass}">
+        <td><div class="fw-semibold truncate">${esc(row.medicine_name || "-")}</div><div class="small text-muted">${esc(row.external_code || "")} - ${esc(row.model || "")} - ${esc(row.secondary_name || "")}</div></td>
+        <td class="count-num-cell fw-semibold">${units(row.expected_qty)}</td>
+        <td class="count-num-cell"><input class="form-control form-control-sm count-input" type="number" min="0" step="1" value="${countedValue}" data-session-count="${idx}" ${canEdit ? "" : "disabled"}></td>
+        <td class="count-num-cell fw-semibold ${diffClass}">${diff === null ? "-" : units(diff)}</td>
+        <td><span class="badge ${statusClass}">${esc(row.status || "-")}</span><div class="small text-muted">${row.counted_at ? fmtDate(row.counted_at) : ""}</div></td>
+        <td class="${countedByClass}">${esc(countedBy)}</td>
+        <td class="count-action-col">
+          <div class="btn-group btn-group-sm count-actions">
+            <button class="btn btn-outline-success" data-session-save="${idx}" ${canEdit ? "" : "disabled"}>Guardar</button>
+            ${applyButton}
+          </div>
+          </td>
+        </tr>`;
+      }).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin productos para este filtro.</td></tr>`;
+      document.querySelectorAll("[data-session-save]").forEach(btn => {
+        btn.addEventListener("click", () => saveSessionItem(Number(btn.dataset.sessionSave)));
+      });
+      document.querySelectorAll("[data-session-apply]").forEach(btn => {
+        btn.addEventListener("click", () => applySessionItem(Number(btn.dataset.sessionApply)));
+      });
+    }
+
+    async function loadCurrentSession(){
+      const s = getSession();
+      try{
+        const session = await callRpc("rpc_inventory_count_session_current", { p_session_token:s.token });
+        if(session){
+          activeCountSession = session;
+          await loadSessionItems();
+        }else{
+          renderSessionSummary(null);
+        }
+      }catch(err){
+        renderSessionSummary(null);
+        if(isAdmin()) showAlert(err.message || "No se pudo cargar la sesion de conteo.");
+      }
+    }
+
+    async function createCountSession(){
+      hideAlert();
+      hideOk();
+      try{
+        const s = getSession();
+        const session = await callRpc("rpc_inventory_count_session_create", {
+          p_session_token:s.token,
+          p_title:el("session_title").value.trim(),
+          p_scope:el("session_scope").value
+        });
+        activeCountSession = session;
+        showOk(`Sesion creada con ${num(session?.total_items)} productos. Los productos con esperado 0 quedan pendientes hasta confirmar conteo 0.`);
+        await loadSessionItems();
+      }catch(err){
+        showAlert(err.message || "No se pudo crear la sesion de conteo.");
+      }
+    }
+
+    async function fetchSessionPrintPayload(sessionId){
+      const s = getSession();
+      return await callRpc("rpc_inventory_count_session_items", {
+        p_session_token:s.token,
+        p_session_id:sessionId,
+        p_query:"",
+        p_status:"all",
+        p_limit:1000
+      });
+    }
+
+    function printSessionPayload(payload){
+      const session = payload?.session || {};
+      const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+      const countedRows = rows.filter(row => row.status === "counted" || row.status === "applied");
+      const pendingRows = rows.filter(row => row.status === "pending");
+      const diffRows = rows.filter(row => Number(row.variance_qty || 0) !== 0);
+      const shortageQty = diffRows.reduce((sum,row) => sum + Math.max(0, -Number(row.variance_qty || 0)), 0);
+      const surplusQty = diffRows.reduce((sum,row) => sum + Math.max(0, Number(row.variance_qty || 0)), 0);
+      const nowText = new Date().toLocaleString("es-SV");
+      const statusText = session.status === "closed" ? "Finalizado" : session.status === "cancelled" ? "Cancelado" : "Abierto";
+      const title = `Conteo fisico ${statusText} - Botiquín CCM`;
+      const rowsHtml = rows.map(row => {
+        const counted = row.counted_qty === null || row.counted_qty === undefined ? "" : units(row.counted_qty);
+        const diff = row.variance_qty === null || row.variance_qty === undefined ? "" : units(row.variance_qty);
+        const diffClass = Number(row.variance_qty || 0) < 0 ? "neg" : Number(row.variance_qty || 0) > 0 ? "pos" : "";
+        const countedBy = row.counted_by_name || (row.status === "pending" ? "Pendiente" : getSession().name || "-");
+        return `<tr>
+          <td>${esc(row.external_code || "")}</td>
+          <td><strong>${esc(row.medicine_name || "-")}</strong><br><span>${esc(row.model || "")} ${esc(row.secondary_name || "")}</span></td>
+          <td class="num">${units(row.expected_qty)}</td>
+          <td class="num">${counted}</td>
+          <td class="num ${diffClass}">${diff}</td>
+          <td>${esc(row.status || "-")}</td>
+          <td>${esc(countedBy)}<br><span>${row.counted_at ? fmtDate(row.counted_at) : ""}</span></td>
+        </tr>`;
+      }).join("");
+      const html = `<!doctype html>
+      <html><head><meta charset="utf-8"><title>${esc(title)}</title>
+      <style>
+        @page{ size:letter; margin:14mm; }
+        body{ font-family:Arial,Helvetica,sans-serif; color:#0f172a; font-size:12px; }
+        h1{ font-size:24px; margin:0 0 6px; }
+        h2{ font-size:15px; margin:18px 0 8px; }
+        .muted{ color:#64748b; }
+        .header{ display:flex; justify-content:space-between; gap:16px; border-bottom:2px solid #0f172a; padding-bottom:12px; margin-bottom:14px; }
+        .brand{ font-weight:700; font-size:13px; letter-spacing:.04em; color:#2563eb; text-transform:uppercase; }
+        .summary{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0 14px; }
+        .box{ border:1px solid #cbd5e1; border-radius:8px; padding:8px; min-height:58px; }
+        .label{ color:#64748b; font-size:10px; text-transform:uppercase; letter-spacing:.04em; }
+        .value{ font-size:18px; font-weight:800; margin-top:2px; }
+        table{ width:100%; border-collapse:collapse; }
+        th{ background:#f1f5f9; border-bottom:1px solid #94a3b8; text-align:left; padding:7px 6px; font-size:11px; }
+        td{ border-bottom:1px solid #e2e8f0; padding:6px; vertical-align:top; }
+        td span{ color:#64748b; font-size:10px; }
+        .num{ text-align:right; white-space:nowrap; }
+        .pos{ color:#15803d; font-weight:700; }
+        .neg{ color:#b91c1c; font-weight:700; }
+        .footer{ margin-top:18px; display:grid; grid-template-columns:1fr 1fr; gap:28px; }
+        .sign{ border-top:1px solid #94a3b8; padding-top:6px; color:#64748b; min-height:32px; }
+      </style></head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="brand">Botiquín CCM</div>
+            <h1>Conteo fisico ${esc(statusText)}</h1>
+            <div class="muted">Documento generado: ${esc(nowText)}</div>
+          </div>
+          <div>
+            <div><strong>Sesion:</strong> ${esc(session.title || session.id || "-")}</div>
+            <div><strong>Estado:</strong> ${esc(statusText)}</div>
+            <div><strong>Inicio:</strong> ${esc(fmtDate(session.started_at))}</div>
+            <div><strong>Cierre:</strong> ${esc(fmtDate(session.closed_at))}</div>
+            <div><strong>Usuario inicio:</strong> ${esc(session.started_by_name || "-")}</div>
+          </div>
+        </div>
+        <div class="summary">
+          <div class="box"><div class="label">Productos</div><div class="value">${units(session.total_items)}</div><div class="muted">${units(countedRows.length)} contados</div></div>
+          <div class="box"><div class="label">Pendientes</div><div class="value">${units(pendingRows.length)}</div><div class="muted">sin conteo guardado</div></div>
+          <div class="box"><div class="label">Sobrante</div><div class="value">${units(surplusQty)}</div><div class="muted">unidades</div></div>
+          <div class="box"><div class="label">Faltante</div><div class="value">${units(shortageQty)}</div><div class="muted">unidades</div></div>
+        </div>
+        <h2>Detalle del conteo</h2>
+        <table>
+          <thead><tr><th>Codigo</th><th>Producto</th><th class="num">Esperado</th><th class="num">Contado</th><th class="num">Dif.</th><th>Estado</th><th>Conteo</th></tr></thead>
+          <tbody>${rowsHtml || `<tr><td colspan="7" class="muted">Sin productos.</td></tr>`}</tbody>
+        </table>
+        <div class="footer">
+          <div class="sign">Firma responsable de conteo</div>
+          <div class="sign">Firma revision/admin</div>
+        </div>
+      </body></html>`;
+      const win = window.open("", "_blank");
+      if(!win){
+        showAlert("El navegador bloqueo la ventana de impresion. Permite ventanas emergentes para generar el PDF.");
+        return;
+      }
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 350);
+    }
+
+    async function printCountSession(){
+      hideAlert();
+      const sessionId = activeCountSession?.id || printableCountSessionId;
+      if(!sessionId){
+        showAlert("No hay sesion de conteo para imprimir.");
+        return;
+      }
+      try{
+        const payload = await fetchSessionPrintPayload(sessionId);
+        printSessionPayload(payload);
+      }catch(err){
+        showAlert(err.message || "No se pudo generar el PDF del conteo.");
+      }
+    }
+
+    async function finishCountSession(action){
+      hideAlert();
+      hideOk();
+      if(!activeCountSession?.id){
+        showAlert("No hay sesion activa.");
+        return;
+      }
+      const label = action === "cancel" ? "cancelar" : "cerrar";
+      const note = window.prompt(`Motivo para ${label} conteo`, action === "cancel" ? "Prueba cancelada" : "Conteo finalizado");
+      if(note === null) return;
+      try{
+        const s = getSession();
+        const session = await callRpc("rpc_inventory_count_session_finish", {
+          p_session_token:s.token,
+          p_session_id:activeCountSession.id,
+          p_action:action,
+          p_note:note
+        });
+        showOk(action === "cancel" ? "Sesion de conteo cancelada." : "Sesion de conteo cerrada.");
+        printableCountSessionId = session?.id || activeCountSession.id;
+        if(action === "close"){
+          const payload = await fetchSessionPrintPayload(printableCountSessionId);
+          printSessionPayload(payload);
+        }
+        activeCountSession = null;
+        renderSessionSummary(null);
+        await loadCurrentSession();
+        await loadManualCounts();
+      }catch(err){
+        showAlert(err.message || "No se pudo finalizar la sesion.");
+      }
+    }
+
+    async function loadSessionItems(){
+      if(!activeCountSession?.id){
+        await loadCurrentSession();
+        return;
+      }
+      const s = getSession();
+      const payload = await callRpc("rpc_inventory_count_session_items", {
+        p_session_token:s.token,
+        p_session_id:activeCountSession.id,
+        p_query:el("session_q").value.trim(),
+        p_status:el("session_status").value,
+        p_limit:1000
+      });
+      renderSessionItems(payload || {});
+    }
+
+    async function saveSessionItem(idx){
+      const row = sessionItems[idx];
+      if(!row) return;
+      const input = document.querySelector(`[data-session-count="${idx}"]`);
+      const raw = String(input?.value ?? "").trim();
+      if(raw === ""){
+        showAlert("Campo vacio significa pendiente. Digita 0 si confirmaste que fisicamente no hay producto.");
+        return;
+      }
+      const countedQty = Math.trunc(Number(raw));
+      if(!Number.isFinite(countedQty) || countedQty < 0){
+        showAlert("El conteo debe ser entero y mayor o igual a 0.");
+        return;
+      }
+      try{
+        const s = getSession();
+        const saved = await callRpc("rpc_inventory_count_session_item_save", {
+          p_session_token:s.token,
+          p_item_id:row.id,
+          p_counted_qty:countedQty,
+          p_note:""
+        });
+        showOk(`Conteo guardado: ${saved?.medicine_name || "producto"} contado ${units(saved?.counted_qty)}.`);
+        await loadSessionItems();
+      }catch(err){
+        showAlert(err.message || "No se pudo guardar el conteo.");
+      }
+    }
+
+    async function applySessionItem(idx){
+      const row = sessionItems[idx];
+      if(!row) return;
+      try{
+        const s = getSession();
+        const applied = await callRpc("rpc_inventory_count_session_item_apply", { p_session_token:s.token, p_item_id:row.id });
+        showOk(`Ajuste aplicado: ${applied?.medicine_name || "producto"} diferencia ${units(applied?.variance_qty)}.`);
+        if(isAdmin()) await Promise.all([loadSessionItems(), loadAudit()]);
+        else await loadSessionItems();
+      }catch(err){
+        showAlert(err.message || "No se pudo aplicar el ajuste.");
+      }
+    }
+
+    async function suggestSearch(){
+      const q = el("q").value.trim();
+      if(q.length < 2){ hideSuggestions(); return; }
+      try{
+        const rows = await callRpc("rpc_public_availability_search", { p_query:q, p_limit:12 });
+        renderSuggestions(Array.isArray(rows) ? rows : []);
+      }catch(_){
+        hideSuggestions();
+      }
+    }
+
+    async function loadAudit(){
+      hideAlert();
+      hideSuggestions();
+      setLoading(true);
+      try{
+        const s = getSession();
+        const payload = {
+          p_session_token:s.token,
+          p_query:el("q").value.trim(),
+          p_limit:Number(el("limit").value || 80)
+        };
+        const [data, variance] = await Promise.all([
+          callRpc("rpc_inventory_audit", payload),
+          callRpc("rpc_inventory_variance_control", payload)
+        ]);
+        renderAudit(data || {});
+        renderVariance(variance || {});
+      }catch(err){
+        showAlert(err.message || "No se pudo cargar la auditoria.");
+      }finally{
+        setLoading(false);
+      }
+    }
+
+    async function init(){
+      const s = getSession();
+      if(!s.token) return window.location.href = ROUTES.login;
+      if(!["admin","dispatch","cashier"].includes(s.role)){
+        return window.location.href = ROUTES.login;
+      }
+      const ok = await touchSession();
+      if(!ok) return logoutAndGoLogin();
+      el("nav_user").textContent = s.name || "-";
+      if(s.role !== "admin"){
+        document.querySelectorAll(".nav-admin-only").forEach(node => node.classList.add("d-none"));
+        document.querySelectorAll(".nav-ops-only").forEach(node => node.classList.remove("d-none"));
+        el("brand_home").href = s.role === "cashier" ? ROUTES.cashier : ROUTES.dispatch;
+      }
+      applyRoleUi();
+      el("btn_logout").addEventListener("click", logoutAndGoLogin);
+      if(isAdmin()){
+        el("btn_refresh").addEventListener("click", loadAudit);
+        el("btn_search").addEventListener("click", loadAudit);
+      }
+      el("btn_save_count").addEventListener("click", saveManualCount);
+      el("btn_new_session").addEventListener("click", createCountSession);
+      el("btn_reload_session").addEventListener("click", loadCurrentSession);
+      el("btn_close_session").addEventListener("click", () => finishCountSession("close"));
+      el("btn_cancel_session").addEventListener("click", () => finishCountSession("cancel"));
+      el("btn_print_session").addEventListener("click", printCountSession);
+      el("session_status").addEventListener("change", loadSessionItems);
+      el("session_q").addEventListener("input", () => {
+        clearTimeout(sessionFilterTimer);
+        sessionFilterTimer = setTimeout(loadSessionItems, 250);
+      });
+      el("q").addEventListener("input", () => {
+        clearTimeout(suggestTimer);
+        suggestTimer = setTimeout(suggestSearch, 250);
+      });
+      el("q").addEventListener("keydown", e => {
+        if(e.key === "Enter"){
+          e.preventDefault();
+          if(!el("suggestions").classList.contains("d-none") && suggestionRows.length) chooseSuggestion(suggestionRows[0]);
+          else if(isAdmin()) loadAudit();
+        }
+        if(e.key === "Escape") hideSuggestions();
+      });
+      el("count_q").addEventListener("input", () => {
+        clearTimeout(countSuggestTimer);
+        countSuggestTimer = setTimeout(suggestCountSearch, 250);
+      });
+      el("count_q").addEventListener("keydown", e => {
+        if(e.key === "Enter"){
+          e.preventDefault();
+          if(!el("count_suggestions").classList.contains("d-none") && countSuggestionRows.length) chooseCountSuggestion(countSuggestionRows[0]);
+        }
+        if(e.key === "Escape") hideCountSuggestions();
+      });
+      document.addEventListener("click", e => {
+        if(!el("q").contains(e.target) && !el("suggestions").contains(e.target)) hideSuggestions();
+        if(!el("count_q").contains(e.target) && !el("count_suggestions").contains(e.target)) hideCountSuggestions();
+      });
+      if(isAdmin()){
+        el("limit").addEventListener("change", loadAudit);
+        await loadAudit();
+      }
+      await loadManualCounts();
+      await loadCurrentSession();
+    }
+
+    init().catch(err => showAlert(err.message || "Error inicializando auditoria."));
+  </script>
+</body>
+</html>

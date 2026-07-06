@@ -1,1 +1,1 @@
-# DespachoPharma
+# Botiquín CCM

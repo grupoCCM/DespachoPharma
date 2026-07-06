@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Botiquín CCM | Apoyo de pedido</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root{ --bg:#f8fafc; --card:#fff; --border:#e2e8f0; --text:#0f172a; --muted:#64748b; }
+    body{ background:var(--bg); color:var(--text); }
+    .app-card{ background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:0 6px 20px rgba(15,23,42,.06); }
+    .brand-dot{ width:10px;height:10px;border-radius:999px;background:#3b82f6;display:inline-block;margin-right:8px; }
+    .table td,.table th{ vertical-align:middle; }
+    .truncate{ max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .metric-value{ font-size:1.35rem; font-weight:700; }
+    .analysis-metric{ min-height:58px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#f8fafc; }
+    .analysis-metric .fw-semibold{ font-size:1.02rem; }
+    .order-table{ border-bottom:1px solid var(--border); }
+    .order-summary{ max-width:420px; margin-left:auto; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+    .order-summary-row{ display:grid; grid-template-columns:1fr auto; gap:18px; padding:9px 14px; border-bottom:1px solid var(--border); }
+    .order-summary-row:last-child{ border-bottom:0; }
+    .order-summary-row.grand{ font-size:1.08rem; font-weight:700; background:#f8fafc; }
+    @media print{
+      nav,.no-print,#search_panel,#results_panel{ display:none !important; }
+      body{ background:#fff; }
+      .app-card{ box-shadow:none; border:0; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar bg-white border-bottom">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center" href="dashboard.html">
+        <span class="brand-dot"></span><span class="fw-semibold">Botiquín CCM</span>
+      </a>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <a class="btn btn-outline-secondary btn-sm" href="dashboard.html">Dashboard</a>
+        <a class="btn btn-outline-secondary btn-sm" href="inventory-audit.html">Inventario</a>
+        <a class="btn btn-outline-secondary btn-sm" href="expiration-dashboard.html">Vencimientos</a>
+        <a class="btn btn-outline-secondary btn-sm" href="availability.html">Disponibilidad</a>
+        <a class="btn btn-outline-secondary btn-sm" href="imports.html">Importaciones</a>
+        <span class="badge text-bg-light border"><span class="text-muted">Admin:</span> <span id="nav_user" class="ms-1 fw-semibold">-</span></span>
+        <button id="btn_logout" class="btn btn-outline-secondary btn-sm">Salir</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3 no-print">
+      <div>
+        <h1 class="h4 mb-1">Apoyo de pedido</h1>
+        <div class="text-muted">Decision de compra con rotacion, proveedor, costos y precio de referencia.</div>
+      </div>
+      <div class="d-flex gap-2">
+        <button id="btn_print" class="btn btn-outline-primary" disabled>Imprimir pedido</button>
+        <button id="btn_download" class="btn btn-outline-secondary" disabled>Guardar pedido imprimible</button>
+      </div>
+    </div>
+
+    <div id="alert_page" class="alert alert-danger d-none no-print"></div>
+
+    <div class="row g-3">
+      <div class="col-12 col-xl-4" id="search_panel">
+        <div class="app-card p-3">
+          <div class="fw-semibold">Buscar</div>
+          <div class="text-muted small">Medicamento, codigo, casa farmaceutica o proveedor.</div>
+          <div class="mt-3">
+            <label class="form-label" for="q">Consulta</label>
+            <input id="q" class="form-control" placeholder="Ej: metformina / 776 / casa / proveedor" autocomplete="off">
+            <div id="suggestions" class="list-group mt-2 d-none"></div>
+          </div>
+          <div class="mt-3">
+            <label class="form-label" for="house_filter">Casa farmaceutica</label>
+            <select id="house_filter" class="form-select">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="d-grid gap-2 mt-3">
+            <button id="btn_search" class="btn btn-primary">
+              <span id="btn_search_text">Buscar</span>
+              <span id="btn_search_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+            </button>
+            <button id="btn_suggested" class="btn btn-outline-secondary">Ver sugeridos</button>
+          </div>
+        </div>
+
+        <div class="app-card p-3 mt-3">
+          <div class="fw-semibold">Vista filtrada</div>
+          <div class="row g-2 mt-2">
+            <div class="col-4"><div class="text-muted small">Items</div><div id="visible_items" class="metric-value">0</div></div>
+            <div class="col-4"><div class="text-muted small">Unidades</div><div id="visible_qty" class="metric-value">0</div></div>
+            <div class="col-4"><div class="text-muted small">Valor</div><div id="visible_value" class="metric-value">$0.00</div></div>
+          </div>
+        </div>
+
+        <div class="app-card p-3 mt-3">
+          <div class="fw-semibold">Analisis de precio</div>
+          <div class="text-muted small">Formula: Costo / (1 - GM) y luego IVA.</div>
+          <div class="mt-3">
+            <label class="form-label" for="selected_med">Medicamento</label>
+            <input id="selected_med" class="form-control" readonly placeholder="Selecciona un resultado">
+          </div>
+          <div class="row g-2 mt-1">
+            <div class="col-6">
+              <label class="form-label" for="calc_cost">Costo sin IVA</label>
+              <input id="calc_cost" class="form-control" type="number" min="0" step="0.0001">
+              <div id="calc_cost_source" class="form-text">Selecciona un producto.</div>
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="calc_qty">Cantidad</label>
+              <input id="calc_qty" class="form-control" type="number" min="1" step="1" value="1">
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="calc_margin">GM deseado %</label>
+              <input id="calc_margin" class="form-control" type="number" min="0" max="95" step="0.1" value="25">
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="calc_iva">IVA %</label>
+              <input id="calc_iva" class="form-control" type="number" min="0" step="0.01" value="13">
+            </div>
+          </div>
+          <div class="row g-2 mt-3">
+            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Venta sin IVA</div><div id="calc_sale_no_tax" class="fw-semibold">-</div></div></div>
+            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Venta con IVA</div><div id="calc_sale_tax" class="fw-semibold">-</div></div></div>
+            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Precio referencia</div><div id="calc_reference_price" class="fw-semibold">-</div></div></div>
+            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Ref - venta</div><div id="calc_vs_ref" class="fw-semibold">-</div></div></div>
+            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Ref - actual</div><div id="calc_ref_actual" class="fw-semibold">-</div></div></div>
+            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Vs minimo</div><div id="calc_vs_min" class="fw-semibold">-</div></div></div>
+            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Costo minimo</div><div id="calc_min_cost" class="fw-semibold">-</div></div></div>
+            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Costo promedio</div><div id="calc_avg_cost" class="fw-semibold">-</div></div></div>
+          </div>
+          <div class="d-grid gap-2 mt-3">
+            <button id="btn_add_calc" class="btn btn-success" disabled>Agregar calculado al pedido</button>
+          </div>
+        </div>
+
+        <div class="app-card p-3 mt-3">
+          <div class="fw-semibold">Pedido actual</div>
+          <div class="row g-2 mt-2">
+            <div class="col-4"><div class="text-muted small">Productos</div><div id="cart_lines" class="metric-value">0</div></div>
+            <div class="col-4"><div class="text-muted small">Unidades</div><div id="cart_units" class="metric-value">0</div></div>
+            <div class="col-4"><div class="text-muted small">Total</div><div id="cart_total" class="metric-value">$0.00</div></div>
+          </div>
+          <button id="btn_clear_cart" class="btn btn-outline-danger btn-sm mt-3">Vaciar pedido</button>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-8" id="results_panel">
+        <div class="app-card p-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="fw-semibold">Resultado de compra</div>
+            <span id="count" class="badge text-bg-light border">0</span>
+          </div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm order-table">
+              <thead class="table-light">
+                <tr>
+                  <th>Medicamento</th>
+                  <th>Decision</th>
+                  <th class="text-end">Cant.</th>
+                  <th>Proveedor distribuidor</th>
+                  <th class="text-end">Costos</th>
+                  <th class="text-end">Ref.</th>
+                  <th class="text-end">Accion</th>
+                </tr>
+              </thead>
+              <tbody id="tbody_results">
+                <tr><td colspan="7" class="text-center text-muted py-4">Busca o carga sugeridos.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="app-card p-3" id="order_card">
+          <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start">
+            <div>
+              <h2 class="h5 mb-1">Pedido Botiquín CCM</h2>
+              <div id="order_meta" class="text-muted small">Sin lineas agregadas.</div>
+            </div>
+          </div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm">
+              <thead class="table-light">
+                <tr>
+                  <th>Codigo</th>
+                  <th>Medicamento</th>
+                  <th class="text-end">Cant.</th>
+                  <th class="text-end">Costo unitario</th>
+                  <th class="text-end">Subtotal</th>
+                  <th class="no-print"></th>
+                </tr>
+              </thead>
+              <tbody id="tbody_cart">
+                <tr><td colspan="6" class="text-center text-muted py-4">Pedido vacio.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="order-summary mt-3">
+            <div class="order-summary-row"><span>Total productos</span><strong id="summary_products">0</strong></div>
+            <div class="order-summary-row"><span>Total unidades</span><strong id="summary_units">0</strong></div>
+            <div class="order-summary-row"><span>Subtotal</span><strong id="summary_subtotal">$0.00</strong></div>
+            <div class="order-summary-row"><span>IVA</span><strong id="summary_iva">$0.00</strong></div>
+            <div class="order-summary-row grand"><span>Gran total</span><strong id="summary_total">$0.00</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
+    const ROUTES = { login:"index.html", dispatch:"dispatch.html", cashier:"cashier.html" };
+    const el = id => document.getElementById(id);
+    let rows = [];
+    let visibleRows = [];
+    let suggestionRows = [];
+    let suggestTimer = null;
+    let cart = [];
+    let selectedRow = null;
+
+    function getSession(){ return { token:localStorage.getItem("dp_session_token")||"", role:(localStorage.getItem("dp_role")||"").toLowerCase(), name:localStorage.getItem("dp_display_name")||"" }; }
+    function money(v){ return new Intl.NumberFormat("es-SV",{style:"currency",currency:"USD"}).format(Number(v || 0)); }
+    function num(v,d=0){ return new Intl.NumberFormat("es-SV",{maximumFractionDigits:d}).format(Number(v || 0)); }
+    function showAlert(msg){ el("alert_page").textContent=msg; el("alert_page").classList.remove("d-none"); }
+    function hideAlert(){ el("alert_page").textContent=""; el("alert_page").classList.add("d-none"); }
+    function costUsed(row){ return Number(row.last_cost || row.avg_cost || row.min_cost || row.unit_cost || 0); }
+    function setLoading(v){ el("btn_search").disabled=v; el("btn_search_spinner").classList.toggle("d-none",!v); el("btn_search_text").textContent=v?"Buscando...":"Buscar"; }
+    function setTone(id, value){
+      const node = el(id);
+      node.classList.remove("text-danger","text-success","text-primary");
+      if(value < 0) node.classList.add("text-danger");
+      else if(value > 0) node.classList.add("text-primary");
+      else node.classList.add("text-success");
+    }
+
+    async function callRpc(fnName, body){
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${SUPABASE_ANON_KEY}` }, body:JSON.stringify(body||{}) });
+      const text = await res.text();
+      let data=null; try{ data=text?JSON.parse(text):null; }catch{ data=null; }
+      if(!res.ok) throw new Error(data?.message || data?.details || "Error de conexion.");
+      return data;
+    }
+    async function touchSession(){ const s=getSession(); if(!s.token) return false; const r=await callRpc("rpc_session_touch",{p_session_token:s.token}); return Array.isArray(r)&&r.length>0; }
+    async function logoutAndGoLogin(){ try{ const s=getSession(); if(s.token) await callRpc("rpc_logout",{p_session_token:s.token}); }catch(_){} ["dp_session_token","dp_role","dp_display_name","dp_user_id","dp_expires_at","dp_last_activity"].forEach(k=>localStorage.removeItem(k)); window.location.href=ROUTES.login; }
+
+    function decisionBadge(decision){
+      if(decision === "Pedir") return "text-bg-danger";
+      if(decision === "Vigilar") return "text-bg-warning";
+      return "text-bg-secondary";
+    }
+
+    function renderResults(){
+      const house = el("house_filter").value;
+      visibleRows = house ? rows.filter(r => (r.model || "") === house) : rows.slice();
+      const totalQty = visibleRows.reduce((sum,r)=>sum + Number(r.suggested_qty || 0), 0);
+      const totalValue = visibleRows.reduce((sum,r)=>sum + Number(r.estimated_purchase_value || 0), 0);
+      el("count").textContent = visibleRows.length;
+      el("visible_items").textContent = visibleRows.length;
+      el("visible_qty").textContent = num(totalQty);
+      el("visible_value").textContent = money(totalValue);
+      el("tbody_results").innerHTML = visibleRows.length ? visibleRows.map((r,idx)=>`
+        <tr>
+          <td><div class="fw-semibold truncate">${r.medicine_name||"-"}</div><div class="small text-muted">${r.external_code||""} - Casa: ${r.model||"-"}</div></td>
+          <td><span class="badge ${decisionBadge(r.decision)}">${r.decision||"-"}</span><div class="small text-muted">${r.action||""}</div></td>
+          <td class="text-end fw-semibold">${num(r.suggested_qty)}</td>
+          <td>${r.supplier_name||"-"}<div class="small text-muted">${r.last_purchase_date||""}</div></td>
+          <td class="text-end small">Ult ${money(r.last_cost)}<br>Prom ${money(r.avg_cost)}<br>Min ${money(r.min_cost)}</td>
+          <td class="text-end">${money(r.reference_price)}<div class="small text-muted">${r.reference_is_manual ? "manual" : "archivo"}</div></td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-primary" data-analyze="${idx}">Analizar</button>
+            <button class="btn btn-sm btn-success mt-1" data-add="${idx}">Agregar</button>
+            <button class="btn btn-sm btn-outline-primary mt-1" data-ref="${idx}">Ref.</button>
+          </td>
+        </tr>`).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin resultados.</td></tr>`;
+      document.querySelectorAll("[data-analyze]").forEach(btn=>btn.addEventListener("click",()=>selectForAnalysis(visibleRows[Number(btn.dataset.analyze)])));
+      document.querySelectorAll("[data-add]").forEach(btn=>btn.addEventListener("click",()=>addToCart(visibleRows[Number(btn.dataset.add)])));
+      document.querySelectorAll("[data-ref]").forEach(btn=>btn.addEventListener("click",()=>editReference(visibleRows[Number(btn.dataset.ref)])));
+    }
+
+    function renderHouseFilter(){
+      const current = el("house_filter").value;
+      const houses = Array.from(new Set(rows.map(r => r.model).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"es"));
+      el("house_filter").innerHTML = `<option value="">Todas</option>` + houses.map(h => `<option value="${h.replaceAll('"','&quot;')}">${h}</option>`).join("");
+      if(houses.includes(current)) el("house_filter").value = current;
+    }
+
+    function esc(value){
+      return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
+    }
+
+    function hideSuggestions(){
+      el("suggestions").classList.add("d-none");
+      el("suggestions").innerHTML = "";
+    }
+
+    function renderSuggestions(items){
+      suggestionRows = items.slice(0, 8);
+      if(!suggestionRows.length){
+        el("suggestions").innerHTML = `<div class="list-group-item text-muted small">Sin coincidencias.</div>`;
+        el("suggestions").classList.remove("d-none");
+        return;
+      }
+      el("suggestions").innerHTML = suggestionRows.map((r,idx)=>`
+        <button type="button" class="list-group-item list-group-item-action" data-suggest="${idx}">
+          <div class="d-flex justify-content-between gap-2">
+            <span class="fw-semibold">${esc(r.medicine_name || "-")}</span>
+            <span class="badge ${decisionBadge(r.decision)}">${esc(r.decision || "-")}</span>
+          </div>
+          <div class="small text-muted">${esc(r.external_code || "")} - Casa: ${esc(r.model || "-")} - Proveedor: ${esc(r.supplier_name || "-")}</div>
+        </button>`).join("");
+      el("suggestions").classList.remove("d-none");
+      document.querySelectorAll("[data-suggest]").forEach(btn => {
+        btn.addEventListener("click", () => chooseSuggestion(suggestionRows[Number(btn.dataset.suggest)]));
+      });
+    }
+
+    function chooseSuggestion(row){
+      if(!row) return;
+      el("q").value = row.medicine_name || row.external_code || "";
+      rows = suggestionRows.length ? suggestionRows.slice() : [row];
+      renderHouseFilter();
+      renderResults();
+      selectForAnalysis(row);
+      hideSuggestions();
+    }
+
+    async function suggestSearch(){
+      const q = el("q").value.trim();
+      if(q.length < 2){ hideSuggestions(); return; }
+      try{
+        const payload = await callRpc("rpc_purchasing_support", { p_session_token:getSession().token, p_query:q, p_limit:12 });
+        const items = Array.isArray(payload?.rows) ? payload.rows : [];
+        renderSuggestions(items);
+      }catch(_){
+        hideSuggestions();
+      }
+    }
+
+    async function search(suggestedOnly=false){
+      hideAlert(); hideSuggestions(); setLoading(true);
+      try{
+        const payload = await callRpc("rpc_purchasing_support", { p_session_token:getSession().token, p_query:suggestedOnly ? "" : el("q").value.trim(), p_limit:100 });
+        rows = Array.isArray(payload?.rows) ? payload.rows : [];
+        if(suggestedOnly) rows = rows.filter(r => r.decision === "Pedir" || Number(r.suggested_qty||0) > 0);
+        renderHouseFilter();
+        renderResults();
+        selectForAnalysis(null);
+      }catch(err){ showAlert(err.message || "No se pudo cargar apoyo de pedido."); }
+      finally{ setLoading(false); }
+    }
+
+    function selectForAnalysis(row){
+      selectedRow = row;
+      el("selected_med").value = row ? `${row.external_code || ""} - ${row.medicine_name || ""}` : "";
+      const lastCost = row ? Number(row.last_cost || 0) : 0;
+      el("calc_cost").value = row && lastCost > 0 ? lastCost.toFixed(4) : "";
+      el("calc_cost_source").textContent = row ? (lastCost > 0 ? "Ultimo costo sin IVA. Puedes modificarlo para negociar." : "Sin ultimo costo registrado. Ingresa el costo negociado.") : "Selecciona un producto.";
+      el("calc_qty").value = row && Number(row.suggested_qty || 0) > 0 ? Math.round(Number(row.suggested_qty)) : 1;
+      el("btn_add_calc").disabled = !row;
+      calculateAnalysis();
+    }
+
+    function calculateAnalysis(){
+      const row = selectedRow;
+      const cost = Number(el("calc_cost").value || 0);
+      const gm = Number(el("calc_margin").value || 0);
+      const iva = Number(el("calc_iva").value || 0);
+      if(!row || !Number.isFinite(cost) || cost <= 0 || !Number.isFinite(gm) || gm >= 100 || gm < 0 || !Number.isFinite(iva) || iva < 0){
+        ["calc_sale_no_tax","calc_sale_tax","calc_reference_price","calc_vs_min","calc_vs_ref","calc_ref_actual","calc_min_cost","calc_avg_cost"].forEach(id=>el(id).textContent="-");
+        return null;
+      }
+      const saleNoTax = cost / (1 - (gm / 100));
+      const saleTax = saleNoTax * (1 + iva / 100);
+      const minCost = Number(row.min_cost || 0);
+      const avgCost = Number(row.avg_cost || 0);
+      const ref = Number(row.reference_price || 0);
+      const actual = Number(row.current_price || 0);
+      const vsMin = minCost ? minCost - cost : null;
+      const vsRef = ref ? ref - saleTax : null;
+      const refActual = ref && actual ? ref - actual : null;
+
+      el("calc_sale_no_tax").textContent = money(saleNoTax);
+      el("calc_sale_tax").textContent = money(saleTax);
+      el("calc_reference_price").textContent = ref ? money(ref) : "-";
+      el("calc_min_cost").textContent = minCost ? `${money(minCost)} ${row.min_cost_date ? "(" + row.min_cost_date + ")" : ""}` : "-";
+      el("calc_avg_cost").textContent = avgCost ? money(avgCost) : "-";
+      el("calc_vs_min").textContent = vsMin === null ? "-" : (vsMin >= 0 ? `Mejor por ${money(vsMin)}` : `Mayor por ${money(Math.abs(vsMin))}`);
+      el("calc_vs_ref").textContent = vsRef === null ? "-" : money(vsRef);
+      el("calc_ref_actual").textContent = refActual === null ? "-" : money(refActual);
+      if(vsMin !== null) setTone("calc_vs_min", vsMin);
+      if(vsRef !== null) setTone("calc_vs_ref", vsRef);
+      if(refActual !== null) setTone("calc_ref_actual", refActual);
+      return { cost, gm, iva, saleNoTax, saleTax };
+    }
+
+    function addToCart(row){
+      const qty = Number(row.suggested_qty || 0) > 0 ? Math.round(Number(row.suggested_qty)) : 1;
+      const cost = costUsed(row);
+      if(!Number.isFinite(cost) || cost <= 0){
+        showAlert(`No se puede agregar ${row.medicine_name || "el producto"} al pedido. Costo unitario: $0.00.`);
+        return;
+      }
+      const existing = cart.find(x=>x.external_code === row.external_code);
+      if(existing){ existing.qty += qty; }
+      else cart.push({ ...row, qty });
+      renderCart();
+    }
+
+    function addCalculatedToCart(){
+      if(!selectedRow) return;
+      const calc = calculateAnalysis();
+      if(!calc){ showAlert("Completa costo, GM e IVA validos."); return; }
+      if(!Number.isFinite(calc.cost) || calc.cost <= 0){ showAlert("El costo unitario debe ser mayor que 0."); return; }
+      const qty = Math.round(Number(el("calc_qty").value || 0));
+      if(!Number.isFinite(qty) || qty <= 0){ showAlert("Cantidad invalida."); return; }
+      cart.push({
+        ...selectedRow,
+        qty,
+        manual_cost_no_tax: calc.cost,
+        manual_cost_tax: calc.cost * (1 + calc.iva / 100),
+        calculated_sale_tax: calc.saleTax,
+        gm: calc.gm,
+        iva: calc.iva
+      });
+      renderCart();
+    }
+
+    async function editReference(row){
+      const current = row.reference_price ?? "";
+      const value = prompt(`Nuevo precio de referencia para ${row.medicine_name}`, current);
+      if(value === null) return;
+      const price = Number(String(value).replace(",", "."));
+      if(!Number.isFinite(price) || price < 0){ showAlert("Precio de referencia invalido."); return; }
+      try{
+        await callRpc("rpc_reference_price_set", { p_session_token:getSession().token, p_external_code:row.external_code, p_reference_price:price, p_note:"Editado desde apoyo de pedido" });
+        await search(false);
+      }catch(err){ showAlert(err.message || "No se pudo actualizar referencia."); }
+    }
+
+    function renderCart(){
+      const totalQty = cart.reduce((sum,row)=>sum + Number(row.qty||0), 0);
+      const total = cart.reduce((sum,row)=>sum + (Number(row.qty||0) * (row.manual_cost_no_tax || costUsed(row))), 0);
+      const totalTax = cart.reduce((sum,row)=>sum + (Number(row.qty||0) * (row.manual_cost_tax || ((costUsed(row)) * 1.13))), 0);
+      const ivaTotal = Math.max(0, totalTax - total);
+      el("cart_lines").textContent = cart.length;
+      el("cart_units").textContent = num(totalQty);
+      el("cart_total").textContent = money(totalTax);
+      el("summary_products").textContent = num(cart.length);
+      el("summary_units").textContent = num(totalQty);
+      el("summary_subtotal").textContent = money(total);
+      el("summary_iva").textContent = money(ivaTotal);
+      el("summary_total").textContent = money(totalTax);
+      el("order_meta").textContent = cart.length ? `Generado ${new Date().toLocaleString("es-SV")} - ${cart.length} productos - ${num(totalQty)} unidades` : "Sin productos agregados.";
+      el("btn_print").disabled = cart.length === 0;
+      el("btn_download").disabled = cart.length === 0;
+      el("tbody_cart").innerHTML = cart.length ? cart.map((row,idx)=>{
+        const cost = row.manual_cost_no_tax || costUsed(row), sub = cost * Number(row.qty||0);
+        return `<tr>
+          <td>${row.external_code||""}</td>
+          <td><div class="fw-semibold">${row.medicine_name||"-"}</div></td>
+          <td class="text-end"><input class="form-control form-control-sm text-end no-print" style="width:90px;display:inline-block" type="number" min="0" step="1" value="${Math.round(Number(row.qty || 0))}" data-qty="${idx}"><span class="d-none d-print-inline">${num(row.qty)}</span></td>
+          <td class="text-end">${money(cost)}</td>
+          <td class="text-end">${money(sub)}</td>
+          <td class="text-end no-print"><button class="btn btn-sm btn-outline-danger" data-remove="${idx}">Quitar</button></td>
+        </tr>`;
+      }).join("") : `<tr><td colspan="6" class="text-center text-muted py-4">Pedido vacio.</td></tr>`;
+      document.querySelectorAll("[data-remove]").forEach(btn=>btn.addEventListener("click",()=>{ cart.splice(Number(btn.dataset.remove),1); renderCart(); }));
+      document.querySelectorAll("[data-qty]").forEach(input=>input.addEventListener("input",()=>{ cart[Number(input.dataset.qty)].qty = Math.max(0, Math.round(Number(input.value||0))); renderCart(); }));
+    }
+
+    function downloadOrder(){
+      const date = new Date().toISOString().slice(0,10);
+      const styles = `<style>
+        body{font-family:Arial,sans-serif;color:#0f172a;margin:28px}
+        .app-card{border:0;box-shadow:none}
+        h2{font-size:24px;margin:0 0 6px}
+        .text-muted{color:#64748b}.small{font-size:13px}.fw-semibold{font-weight:700}
+        table{width:100%;border-collapse:collapse;margin-top:22px}
+        th,td{padding:9px 8px;border-bottom:1px solid #dbe3ef;text-align:left}
+        th{font-weight:700;border-bottom:2px solid #cbd5e1}
+        .text-end{text-align:right}.no-print{display:none!important}
+        .order-summary{max-width:360px;margin:18px 0 0 auto;border:1px solid #dbe3ef;border-radius:8px;overflow:hidden}
+        .order-summary-row{display:grid;grid-template-columns:1fr auto;gap:18px;padding:9px 12px;border-bottom:1px solid #dbe3ef}
+        .order-summary-row:last-child{border-bottom:0}.order-summary-row.grand{font-weight:700;background:#f8fafc}
+      </style>`;
+      const html = `<!doctype html><meta charset="utf-8"><title>Pedido Botiquín CCM ${date}</title>${styles}${document.getElementById("order_card").outerHTML}`;
+      const blob = new Blob([html], {type:"text/html;charset=utf-8"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `Pedido Botiquín CCM ${date}.html`; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function init(){
+      const s=getSession();
+      if(!s.token) return window.location.href=ROUTES.login;
+      if(s.role !== "admin") return window.location.href=s.role==="dispatch"?ROUTES.dispatch:s.role==="cashier"?ROUTES.cashier:ROUTES.login;
+      if(!(await touchSession())) return logoutAndGoLogin();
+      el("nav_user").textContent=s.name||"-";
+      el("btn_logout").addEventListener("click",logoutAndGoLogin);
+      el("btn_search").addEventListener("click",()=>search(false));
+      el("btn_suggested").addEventListener("click",()=>search(true));
+      el("q").addEventListener("input",()=>{
+        clearTimeout(suggestTimer);
+        suggestTimer = setTimeout(suggestSearch, 260);
+      });
+      el("q").addEventListener("keydown",e=>{
+        if(e.key==="Enter"){
+          e.preventDefault();
+          search(false);
+        }
+        if(e.key==="Escape") hideSuggestions();
+      });
+      document.addEventListener("click",e=>{
+        if(!el("search_panel").contains(e.target)) hideSuggestions();
+      });
+      el("house_filter").addEventListener("change",()=>{ renderResults(); selectForAnalysis(null); });
+      el("btn_clear_cart").addEventListener("click",()=>{ cart=[]; renderCart(); });
+      ["calc_cost","calc_margin","calc_iva","calc_qty"].forEach(id=>el(id).addEventListener("input", calculateAnalysis));
+      el("btn_add_calc").addEventListener("click", addCalculatedToCart);
+      el("btn_print").addEventListener("click",()=>window.print());
+      el("btn_download").addEventListener("click",downloadOrder);
+      await search(true);
+    }
+    init().catch(err=>showAlert(err.message || "Error inicializando apoyo de pedido."));
+  </script>
+</body>
+</html>
+

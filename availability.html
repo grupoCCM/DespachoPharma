@@ -1,0 +1,412 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BotiquÃ­n CCM | Disponibilidad</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root{ --bg:#f8fafc; --card:#fff; --border:#e2e8f0; --text:#0f172a; --muted:#64748b; }
+    body{ background:var(--bg); color:var(--text); }
+    .app-card{ background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:0 6px 20px rgba(15,23,42,.06); }
+    .brand-dot{ width:10px;height:10px;border-radius:999px;background:#3b82f6;display:inline-block;margin-right:8px; }
+    .result-row{ cursor:pointer; }
+    .result-row:hover{ background:#f8fafc; }
+    .big-stock{ font-size:2rem; font-weight:750; }
+    .muted-label{ color:var(--muted); font-size:.82rem; }
+    .truncate{ max-width:520px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .table td,.table th{ vertical-align:middle; }
+    .suggestions{ max-height:420px; overflow:auto; }
+    .stock-pill{ min-width:92px; text-align:center; white-space:normal; line-height:1.15; }
+    .modal-backdrop-lite{ position:fixed; inset:0; background:rgba(15,23,42,.42); display:none; align-items:center; justify-content:center; padding:16px; z-index:1050; }
+    .modal-backdrop-lite.show{ display:flex; }
+    .sale-modal{ width:min(760px,100%); max-height:90vh; overflow:auto; background:#fff; border-radius:16px; box-shadow:0 24px 60px rgba(15,23,42,.28); }
+    .qty-input{ width:82px; display:inline-block; }
+  </style>
+</head>
+<body>
+  <nav class="navbar bg-white border-bottom">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center" href="availability.html">
+        <span class="brand-dot"></span>
+        <span class="fw-semibold">BotiquÃ­n CCM</span>
+      </a>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <button id="btn_sale_open" class="btn btn-primary btn-sm">Venta <span id="sale_count" class="badge text-bg-light text-primary ms-1">0</span></button>
+        <a class="btn btn-outline-secondary btn-sm" href="index.html">Ingresar</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <div class="row g-3">
+      <div class="col-12 col-lg-4" id="search_panel">
+        <div class="app-card p-3">
+          <div class="fw-semibold">Disponibilidad</div>
+          <div class="text-muted small">Consulta comercial y operativa sin PIN.</div>
+          <div id="alert_page" class="alert alert-danger d-none mt-3 mb-0"></div>
+          <div class="mt-3">
+            <label class="form-label" for="q">Medicamento</label>
+            <input id="q" class="form-control form-control-lg" placeholder="Nombre, componente, casa, subgrupo o codigo" autocomplete="off" autofocus>
+            <div id="suggestions" class="list-group mt-2 suggestions d-none"></div>
+          </div>
+          <div class="d-grid gap-2 mt-3">
+            <button id="btn_search" class="btn btn-primary">
+              <span id="btn_search_text">Buscar</span>
+              <span id="btn_search_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+            </button>
+            <button id="btn_clear" class="btn btn-outline-secondary">Limpiar</button>
+          </div>
+          <hr>
+          <div class="small text-muted">Muestra precio de venta y existencia. No muestra costos, utilidad ni proveedores.</div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-8">
+        <div class="app-card p-3 mb-3">
+          <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start">
+            <div>
+              <div id="detail_name" class="h5 mb-1">Busca un medicamento</div>
+              <div id="detail_meta" class="text-muted small">Existencia, precio de venta y datos comerciales.</div>
+            </div>
+            <div class="d-flex gap-2 align-items-start">
+              <button id="btn_add_selected" class="btn btn-success btn-sm" disabled>Agregar</button>
+              <span id="detail_status" class="badge text-bg-light border">-</span>
+            </div>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-6 col-md-3">
+              <div class="muted-label">Existencia</div>
+              <div id="detail_stock" class="big-stock">-</div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="muted-label">Precio venta</div>
+              <div id="detail_price" class="fs-5 fw-semibold">-</div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="muted-label">Componente activo</div>
+              <div id="detail_component" class="fs-6 fw-semibold">-</div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="muted-label">Presentacion</div>
+              <div id="detail_presentation" class="fs-6 fw-semibold">-</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="app-card p-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="fw-semibold">Resultados</div>
+            <span id="count" class="badge text-bg-light border">0</span>
+          </div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm">
+              <thead class="table-light">
+                <tr>
+                  <th>Medicamento</th>
+                  <th>Componente</th>
+                  <th>Casa</th>
+                  <th class="text-end">Exist.</th>
+                  <th>Estado</th>
+                  <th class="text-end">Precio</th>
+                  <th class="text-end">Venta</th>
+                </tr>
+              </thead>
+              <tbody id="tbody">
+                <tr><td colspan="7" class="text-center text-muted py-4">Escribe y busca.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="sale_modal" class="modal-backdrop-lite" aria-hidden="true">
+    <div class="sale-modal">
+      <div class="p-3 border-bottom d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <div class="h5 mb-1">Apoyo operativo de venta</div>
+          <div class="text-muted small">Suma productos, cantidades y precios de venta.</div>
+        </div>
+        <button id="btn_sale_close" class="btn btn-outline-secondary btn-sm">Cerrar</button>
+      </div>
+      <div class="p-3">
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead class="table-light">
+              <tr>
+                <th>Medicamento</th>
+                <th class="text-end">Cant.</th>
+                <th class="text-end">Precio</th>
+                <th class="text-end">Subtotal</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tbody_sale">
+              <tr><td colspan="5" class="text-center text-muted py-4">Sin productos agregados.</td></tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <th colspan="3" class="text-end">Total</th>
+                <th id="sale_total" class="text-end">$0.00</th>
+                <th></th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center gap-2">
+          <div class="d-flex gap-2">
+            <button id="btn_sale_copy" class="btn btn-outline-primary btn-sm">Copiar resumen</button>
+            <button id="btn_sale_clear" class="btn btn-outline-danger btn-sm">Vaciar</button>
+          </div>
+          <div id="sale_meta" class="small text-muted">0 productos</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
+    const el = id => document.getElementById(id);
+    let currentRows = [];
+    let suggestionRows = [];
+    let suggestTimer = null;
+    let selectedRow = null;
+    let saleCart = [];
+
+    function money(v){ return v === null || v === undefined ? "-" : new Intl.NumberFormat("es-SV",{style:"currency",currency:"USD"}).format(Number(v || 0)); }
+    function num(v,d=0){ return v === null || v === undefined ? "-" : new Intl.NumberFormat("es-SV",{maximumFractionDigits:d}).format(Number(v || 0)); }
+    function units(v){ return v === null || v === undefined ? "-" : new Intl.NumberFormat("es-SV",{maximumFractionDigits:0}).format(Math.trunc(Number(v || 0))); }
+    function esc(value){ return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch])); }
+    function badge(status){
+      if(status === "Inactivo") return "text-bg-secondary";
+      if(status === "Agotado" || status === "Sin existencia") return "text-bg-danger";
+      if(status === "Pocas unidades") return "text-bg-warning";
+      if(status === "Disponible") return "text-bg-success";
+      return "text-bg-light border";
+    }
+    function stockLabel(row){
+      const qty = Math.max(0, Math.trunc(Number(row?.stock_qty || 0)));
+      return qty > 0 ? `Existencia: ${units(qty)}` : "Sin existencia: 0";
+    }
+    function stockBadge(row){
+      const qty = Math.max(0, Math.trunc(Number(row?.stock_qty || 0)));
+      if(row?.active === false) return "text-bg-secondary";
+      if(qty <= 0) return "text-bg-danger";
+      if(qty < 15) return "text-bg-warning";
+      return "text-bg-success";
+    }
+    function showAlert(msg){ el("alert_page").textContent = msg; el("alert_page").classList.remove("d-none"); }
+    function hideAlert(){ el("alert_page").textContent = ""; el("alert_page").classList.add("d-none"); }
+    function setLoading(v){ el("btn_search").disabled=v; el("btn_search_spinner").classList.toggle("d-none",!v); el("btn_search_text").textContent=v?"Buscando...":"Buscar"; }
+    function canSell(row){ return Number(row?.stock_qty || 0) > 0 && Number(row?.sale_price || 0) > 0; }
+
+    async function callRpc(fnName, body){
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${SUPABASE_ANON_KEY}` },
+        body:JSON.stringify(body || {})
+      });
+      const text = await res.text();
+      let data = null;
+      try{ data = text ? JSON.parse(text) : null; }catch{ data = null; }
+      if(!res.ok) throw new Error(data?.message || data?.details || "Error de conexion.");
+      return data;
+    }
+
+    function renderDetail(row){
+      if(!row){
+        selectedRow = null;
+        el("detail_name").textContent = "Busca un medicamento";
+        el("detail_meta").textContent = "Existencia, precio de venta y datos comerciales.";
+        el("detail_status").textContent = "-";
+        el("detail_status").className = "badge text-bg-light border";
+        el("btn_add_selected").disabled = true;
+        ["detail_stock","detail_price","detail_component","detail_presentation"].forEach(id => el(id).textContent = "-");
+        return;
+      }
+      selectedRow = row;
+      el("detail_name").textContent = row.medicine_name || "-";
+      el("detail_meta").textContent = `${row.external_code || ""} - ${row.barcode || "sin barra"} - Casa: ${row.model || "-"} - ${row.subgroup_name || "-"}`;
+      el("detail_status").textContent = stockLabel(row);
+      el("detail_status").className = `badge ${stockBadge(row)}`;
+      el("detail_stock").textContent = units(row.stock_qty);
+      el("detail_price").textContent = money(row.sale_price);
+      el("detail_component").textContent = row.secondary_name || "-";
+      el("detail_presentation").textContent = row.presentation_name || "-";
+      el("btn_add_selected").disabled = !canSell(row);
+    }
+
+    function renderRows(rows){
+      el("count").textContent = rows.length;
+      el("tbody").innerHTML = rows.length ? rows.map((row, idx) => `
+        <tr class="result-row" data-idx="${idx}">
+          <td><div class="fw-semibold truncate">${esc(row.medicine_name || "-")}</div><div class="small text-muted">${esc(row.external_code || "")} - ${esc(row.presentation_name || row.barcode || "")}</div></td>
+          <td class="small">${esc(row.secondary_name || "-")}</td>
+          <td>${esc(row.model || "-")}</td>
+          <td class="text-end fw-semibold">${units(row.stock_qty)}</td>
+          <td><span class="badge ${badge(row.availability_status)}">${esc(row.availability_status || "-")}</span></td>
+          <td class="text-end">${money(row.sale_price)}</td>
+          <td class="text-end"><button class="btn btn-sm btn-outline-success" data-add-sale="${idx}" ${canSell(row) ? "" : "disabled"}>Agregar</button></td>
+        </tr>`).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin resultados.</td></tr>`;
+      document.querySelectorAll(".result-row").forEach(tr => tr.addEventListener("click", () => renderDetail(currentRows[Number(tr.dataset.idx)])));
+      document.querySelectorAll("[data-add-sale]").forEach(btn => btn.addEventListener("click", e => {
+        e.stopPropagation();
+        addSaleItem(currentRows[Number(btn.dataset.addSale)]);
+      }));
+      renderDetail(rows[0] || null);
+    }
+
+    function addSaleItem(row){
+      if(!canSell(row)) return;
+      const code = row.external_code || row.barcode || row.medicine_name;
+      const existing = saleCart.find(item => item.code === code);
+      if(existing){
+        const nextQty = existing.qty + 1;
+        existing.qty = Math.min(nextQty, Math.max(0, Math.trunc(Number(row.stock_qty || 0))));
+      }else{
+        saleCart.push({
+          code,
+          medicine_name: row.medicine_name || "-",
+          model: row.model || "",
+          stock_qty: Math.max(0, Math.trunc(Number(row.stock_qty || 0))),
+          sale_price: Number(row.sale_price || 0),
+          qty: 1
+        });
+      }
+      renderSaleCart();
+    }
+
+    function renderSaleCart(){
+      const totalQty = saleCart.reduce((sum,row)=>sum + Number(row.qty || 0), 0);
+      const total = saleCart.reduce((sum,row)=>sum + Number(row.qty || 0) * Number(row.sale_price || 0), 0);
+      el("sale_count").textContent = units(totalQty);
+      el("sale_total").textContent = money(total);
+      el("sale_meta").textContent = `${saleCart.length} productos - ${units(totalQty)} unidades`;
+      el("tbody_sale").innerHTML = saleCart.length ? saleCart.map((row, idx) => `
+        <tr>
+          <td><div class="fw-semibold">${esc(row.medicine_name)}</div><div class="small text-muted">${esc(row.code)} - ${esc(row.model)} - Disp: ${units(row.stock_qty)}</div></td>
+          <td class="text-end"><input class="form-control form-control-sm text-end qty-input" type="number" min="1" max="${row.stock_qty}" step="1" value="${row.qty}" data-sale-qty="${idx}"></td>
+          <td class="text-end">${money(row.sale_price)}</td>
+          <td class="text-end fw-semibold">${money(Number(row.qty || 0) * Number(row.sale_price || 0))}</td>
+          <td class="text-end"><button class="btn btn-sm btn-outline-danger" data-sale-remove="${idx}">Quitar</button></td>
+        </tr>`).join("") : `<tr><td colspan="5" class="text-center text-muted py-4">Sin productos agregados.</td></tr>`;
+      document.querySelectorAll("[data-sale-remove]").forEach(btn => btn.addEventListener("click", () => {
+        saleCart.splice(Number(btn.dataset.saleRemove), 1);
+        renderSaleCart();
+      }));
+      document.querySelectorAll("[data-sale-qty]").forEach(input => input.addEventListener("input", () => {
+        const idx = Number(input.dataset.saleQty);
+        const max = Math.max(1, Number(input.max || 1));
+        const value = Math.max(1, Math.min(max, Math.trunc(Number(input.value || 1))));
+        saleCart[idx].qty = value;
+        renderSaleCart();
+      }));
+    }
+
+    function hideSuggestions(){
+      el("suggestions").classList.add("d-none");
+      el("suggestions").innerHTML = "";
+    }
+
+    function renderSuggestions(rows){
+      suggestionRows = rows.slice(0, 8);
+      if(!suggestionRows.length){
+        el("suggestions").innerHTML = `<div class="list-group-item text-muted small">Sin coincidencias.</div>`;
+        el("suggestions").classList.remove("d-none");
+        return;
+      }
+      el("suggestions").innerHTML = suggestionRows.map((row, idx) => `
+        <button type="button" class="list-group-item list-group-item-action" data-suggest="${idx}">
+          <div class="d-flex justify-content-between gap-2">
+            <span class="fw-semibold">${esc(row.medicine_name || "-")}</span>
+            <span class="badge stock-pill ${stockBadge(row)}">${esc(stockLabel(row))}</span>
+          </div>
+          <div class="small text-muted">${esc(row.secondary_name || "Sin componente")} - Casa: ${esc(row.model || "-")} - ${money(row.sale_price)}</div>
+        </button>`).join("");
+      el("suggestions").classList.remove("d-none");
+      document.querySelectorAll("[data-suggest]").forEach(btn => {
+        btn.addEventListener("click", () => chooseSuggestion(suggestionRows[Number(btn.dataset.suggest)]));
+      });
+    }
+
+    function clearSaleCart(){
+      saleCart = [];
+      renderSaleCart();
+    }
+
+    async function copySaleSummary(){
+      if(!saleCart.length){
+        showAlert("No hay productos agregados a la venta.");
+        return;
+      }
+      hideAlert();
+      const total = saleCart.reduce((sum,row)=>sum + Number(row.qty || 0) * Number(row.sale_price || 0), 0);
+      const lines = saleCart.map(row => `${units(row.qty)} x ${row.medicine_name} - ${money(row.sale_price)} = ${money(Number(row.qty || 0) * Number(row.sale_price || 0))}`);
+      const summary = ["Resumen de venta", ...lines, `Total: ${money(total)}`].join("\n");
+      try{
+        await navigator.clipboard.writeText(summary);
+        el("sale_meta").textContent = "Resumen copiado.";
+      }catch(_){
+        window.prompt("Resumen de venta", summary);
+      }
+    }
+
+    function chooseSuggestion(row){
+      if(!row) return;
+      el("q").value = row.medicine_name || row.external_code || "";
+      currentRows = suggestionRows.length ? suggestionRows.slice() : [row];
+      renderRows(currentRows);
+      renderDetail(row);
+      hideSuggestions();
+    }
+
+    async function suggestSearch(){
+      const q = el("q").value.trim();
+      if(q.length < 2){ hideSuggestions(); return; }
+      try{
+        const rows = await callRpc("rpc_public_availability_suggest", { p_query:q, p_limit:12 });
+        renderSuggestions(Array.isArray(rows) ? rows : []);
+      }catch(_){
+        hideSuggestions();
+      }
+    }
+
+    async function search(){
+      hideAlert();
+      hideSuggestions();
+      setLoading(true);
+      try{
+        currentRows = await callRpc("rpc_public_availability_search", { p_query:el("q").value.trim(), p_limit:50 });
+        renderRows(Array.isArray(currentRows) ? currentRows : []);
+      }catch(err){ showAlert(err.message || "No se pudo buscar."); }
+      finally{ setLoading(false); }
+    }
+
+    el("btn_search").addEventListener("click", search);
+    el("btn_clear").addEventListener("click", () => { el("q").value=""; currentRows=[]; suggestionRows=[]; hideSuggestions(); renderRows([]); renderDetail(null); clearSaleCart(); el("q").focus(); });
+    el("btn_add_selected").addEventListener("click", () => addSaleItem(selectedRow));
+    el("btn_sale_open").addEventListener("click", () => { el("sale_modal").classList.add("show"); el("sale_modal").setAttribute("aria-hidden","false"); });
+    el("btn_sale_close").addEventListener("click", () => { el("sale_modal").classList.remove("show"); el("sale_modal").setAttribute("aria-hidden","true"); });
+    el("btn_sale_copy").addEventListener("click", copySaleSummary);
+    el("btn_sale_clear").addEventListener("click", clearSaleCart);
+    el("sale_modal").addEventListener("click", e => { if(e.target === el("sale_modal")) el("btn_sale_close").click(); });
+    el("q").addEventListener("input", () => {
+      clearTimeout(suggestTimer);
+      suggestTimer = setTimeout(suggestSearch, 250);
+    });
+    el("q").addEventListener("keydown", e => {
+      if(e.key === "Enter"){
+        e.preventDefault();
+        search();
+      }
+      if(e.key === "Escape") hideSuggestions();
+    });
+    document.addEventListener("click", e => {
+      if(!el("search_panel").contains(e.target)) hideSuggestions();
+    });
+  </script>
+</body>
+</html>

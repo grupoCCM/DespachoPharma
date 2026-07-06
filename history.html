@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>DespachoPharma | Histórico</title>
+  <title>Botiquín CCM | Histórico</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -33,10 +33,15 @@
     <div class="container">
       <a class="navbar-brand d-flex align-items-center" href="#">
         <span class="brand-dot"></span>
-        <span class="fw-semibold">DespachoPharma</span>
+        <span class="fw-semibold">Botiquín CCM</span>
       </a>
 
       <div class="ms-auto d-flex align-items-center gap-2">
+        <a class="btn btn-outline-secondary btn-sm" href="dashboard.html">Dashboard</a>
+        <a class="btn btn-outline-secondary btn-sm" href="purchasing.html">Compras</a>
+        <a class="btn btn-outline-secondary btn-sm" href="imports.html">Importaciones</a>
+        <a class="btn btn-outline-secondary btn-sm" href="expiration-dashboard.html">Vencimientos</a>
+        <a class="btn btn-outline-secondary btn-sm" href="catalog.html">Catalogo</a>
         <span class="badge text-bg-light border">
           <span class="text-muted">Usuario:</span>
           <span id="nav_user" class="ms-1 fw-semibold">—</span>
@@ -967,7 +972,7 @@
       });
 
       return `<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>Reporte DespachoPharma</title>
+<title>Reporte Botiquín CCM</title>
 <style>
   @media print { @page { size: landscape; margin: 10mm; } }
   body { font-family: Arial, sans-serif; font-size: 12px; color: #333; margin: 20px; }
@@ -984,7 +989,7 @@
   tr:hover { background: #f8fafc; }
   .footer { margin-top: 20px; font-size: 10px; color: #999; text-align: center; }
 </style></head><body>
-<h1>DespachoPharma — Reporte de Despachos</h1>
+<h1>Botiquín CCM — Reporte de Despachos</h1>
 <div class="subtitle">Período: ${escapeHtml(summary.dateFrom || '—')} al ${escapeHtml(summary.dateTo || '—')} | Generado: ${fmtTime(new Date().toISOString())}</div>
 <div class="summary">
   <div>Registros: <span>${summary.count}</span></div>
@@ -1001,7 +1006,7 @@
   </thead>
   <tbody>${rows}</tbody>
 </table>
-<div class="footer">DespachoPharma — Reporte generado automáticamente. Los despachos anulados aparecen tachados.</div>
+<div class="footer">Botiquín CCM — Reporte generado automáticamente. Los despachos anulados aparecen tachados.</div>
 </body></html>`;
     }
 

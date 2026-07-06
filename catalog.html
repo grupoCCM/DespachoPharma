@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>DespachoPharma | Catálogo</title>
+  <title>Botiquín CCM | Catalogo</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -28,13 +28,17 @@
     <div class="container">
       <a class="navbar-brand d-flex align-items-center" href="history.html">
         <span class="brand-dot"></span>
-        <span class="fw-semibold">DespachoPharma</span>
+        <span class="fw-semibold">Botiquín CCM</span>
       </a>
 
       <div class="ms-auto d-flex align-items-center gap-2">
-        <a class="btn btn-outline-secondary btn-sm" href="history.html">Histórico</a>
+        <a class="btn btn-outline-secondary btn-sm" href="dashboard.html">Dashboard</a>
+        <a class="btn btn-outline-secondary btn-sm" href="purchasing.html">Compras</a>
+        <a class="btn btn-outline-secondary btn-sm" href="imports.html">Importaciones</a>
+        <a class="btn btn-outline-secondary btn-sm" href="expiration-dashboard.html">Vencimientos</a>
+        <a class="btn btn-outline-secondary btn-sm" href="history.html">Historico</a>
         <span class="badge text-bg-light border">
-          <span class="text-muted">Admin:</span> <span id="nav_user" class="ms-1 fw-semibold">—</span>
+          <span class="text-muted">Admin:</span> <span id="nav_user" class="ms-1 fw-semibold">-</span>
         </span>
         <button id="btn_logout" class="btn btn-outline-secondary btn-sm">Salir</button>
       </div>
@@ -44,7 +48,7 @@
   <main class="container py-4">
     <div class="row g-3">
       <!-- LEFT: filtros / acciones -->
-      <div class="col-12 col-lg-4">
+      <div class="col-12 col-lg-4" id="product_search_panel">
         <div class="app-card p-3">
           <div class="fw-semibold">Buscar</div>
           <div class="text-muted small">Por nombre o barcode.</div>
@@ -54,7 +58,8 @@
           <div class="mt-3">
             <label class="form-label" for="q">Consulta</label>
             <input id="q" class="form-control" placeholder="Ej: Metformina / 750123..." autocomplete="off" />
-            <div class="form-text">Enter para buscar.</div>
+            <div id="product_suggestions" class="list-group mt-2 d-none"></div>
+            <div class="form-text">Escribe y elige una opcion, o presiona Enter.</div>
           </div>
 
           <div class="mt-3">
@@ -71,11 +76,11 @@
               <span id="btn_search_text">Buscar</span>
               <span id="btn_search_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
             </button>
-            <button id="btn_new" class="btn btn-success">Nuevo producto</button>
+            <button id="btn_new" class="btn btn-success">Nuevo articulo</button>
           </div>
 
           <hr class="my-4">
-          <div class="small text-muted">Sesión: se cierra tras 30 min sin uso.</div>
+          <div class="small text-muted">Sesion: se cierra tras 30 min sin uso.</div>
         </div>
       </div>
 
@@ -84,8 +89,8 @@
         <div class="app-card p-3">
           <div class="d-flex justify-content-between align-items-start">
             <div>
-              <div class="fw-semibold">Administración</div>
-              <div class="text-muted small">Productos (tabla: <span class="mono">pharma_catalog</span>) y usuarios (tabla: <span class="mono">app_users</span>).</div>
+              <div class="fw-semibold">Administracion</div>
+              <div class="text-muted small">Articulos del catalogo y usuarios administrativos.</div>
             </div>
             <div class="text-end">
               <div class="text-muted small">Total</div>
@@ -96,7 +101,7 @@
           <ul class="nav nav-tabs mt-3" id="tabs" role="tablist">
             <li class="nav-item" role="presentation">
               <button class="nav-link active" id="tab-products" data-bs-toggle="tab" data-bs-target="#panel-products" type="button" role="tab">
-                Productos
+                Articulos
               </button>
             </li>
             <li class="nav-item" role="presentation">
@@ -115,14 +120,15 @@
                 <table class="table table-sm">
                   <thead class="table-light">
                     <tr>
-                      <th style="width:30%">Barcode</th>
-                      <th style="width:45%">Producto</th>
+                      <th style="width:14%">Codigo</th>
+                      <th style="width:24%">Barcode</th>
+                      <th style="width:42%">Producto</th>
                       <th style="width:10%">Estado</th>
-                      <th style="width:15%" class="text-end">Acción</th>
+                      <th style="width:15%" class="text-end">Accion</th>
                     </tr>
                   </thead>
                   <tbody id="tbody">
-                    <tr><td colspan="4" class="text-center text-muted py-4">Busca para ver resultados.</td></tr>
+                    <tr><td colspan="5" class="text-center text-muted py-4">Busca para ver resultados.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -167,13 +173,13 @@
                     </tr>
                   </thead>
                   <tbody id="u_tbody">
-                    <tr><td colspan="5" class="text-center text-muted py-4">Cargando usuarios…</td></tr>
+                    <tr><td colspan="5" class="text-center text-muted py-4">Cargando usuarios...</td></tr>
                   </tbody>
                 </table>
               </div>
 
               <div class="small text-muted mt-2">
-                Nota: el PIN no se muestra por seguridad. Puedes resetearlo desde “Reset PIN”.
+                Nota: el PIN no se muestra por seguridad. Puedes resetearlo desde "Reset PIN".
               </div>
             </div>
 
@@ -184,28 +190,61 @@
     </div>
   </main>
 
-  <!-- Modal: Upsert Producto -->
+  <!-- Modal: Upsert Articulo -->
   <div class="modal fade" id="modal_upsert" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Producto</h5>
+          <h5 class="modal-title">Articulo</h5>
           <button class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
         </div>
         <div class="modal-body">
           <div id="alert_modal" class="alert alert-danger d-none"></div>
 
-          <div class="mb-3">
-            <label class="form-label" for="m_barcode">Barcode</label>
-            <input id="m_barcode" class="form-control mono" placeholder="Ej: 7501234567890" autocomplete="off" />
+          <div class="row g-3">
+            <div class="col-12 col-md-4">
+              <label class="form-label" for="m_external_code">Codigo interno</label>
+              <input id="m_external_code" class="form-control mono" inputmode="numeric" placeholder="Ej: 797" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-8">
+              <label class="form-label" for="m_barcode">Barcode</label>
+              <input id="m_barcode" class="form-control mono" placeholder="Ej: 7501234567890" autocomplete="off" />
+            </div>
+
+            <div class="col-12">
+              <label class="form-label" for="m_name">Nombre del producto</label>
+              <input id="m_name" class="form-control" placeholder="Ej: Metformina 850mg x 30 tabletas" autocomplete="off" />
+            </div>
+
+            <div class="col-12">
+              <label class="form-label" for="m_secondary_name">Principio activo / componente</label>
+              <input id="m_secondary_name" class="form-control" placeholder="Ej: Metformina clorhidrato" autocomplete="off" />
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="m_model">Casa farmaceutica</label>
+              <input id="m_model" class="form-control" placeholder="Ej: Glaxo / La Fage" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="m_subgroup_name">Subgrupo</label>
+              <input id="m_subgroup_name" class="form-control" placeholder="Ej: Antihipertensivos" autocomplete="off" />
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label class="form-label" for="m_group_name">Grupo</label>
+              <input id="m_group_name" class="form-control" placeholder="Ej: Farmacos" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label" for="m_price_1">Precio venta oficina</label>
+              <input id="m_price_1" class="form-control" type="number" min="0" step="0.01" placeholder="0.00" />
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label" for="m_reference_price">Precio referencia</label>
+              <input id="m_reference_price" class="form-control" type="number" min="0" step="0.01" placeholder="0.00" />
+            </div>
           </div>
 
-          <div class="mb-3">
-            <label class="form-label" for="m_name">Nombre del producto</label>
-            <input id="m_name" class="form-control" placeholder="Ej: Metformina 850mg" autocomplete="off" />
-          </div>
-
-          <div class="form-check">
+          <div class="form-check mt-3">
             <input id="m_active" class="form-check-input" type="checkbox" checked />
             <label class="form-check-label" for="m_active">Activo</label>
           </div>
@@ -223,7 +262,7 @@
 
   <!-- Modal: Crear Usuario -->
   <div class="modal fade" id="modal_user_create" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">Nuevo usuario</h5>
@@ -247,7 +286,7 @@
           </div>
 
           <div class="mb-2">
-            <label class="form-label" for="uc_pin">PIN (4 dígitos)</label>
+            <label class="form-label" for="uc_pin">PIN (4 digitos)</label>
             <div class="input-group">
               <input id="uc_pin" class="form-control mono" inputmode="numeric" placeholder="Ej: 1187" autocomplete="off" />
               <button class="btn btn-outline-secondary" id="btn_uc_gen" type="button">Generar</button>
@@ -268,7 +307,7 @@
 
   <!-- Modal: Reset PIN -->
   <div class="modal fade" id="modal_user_pin" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">Reset PIN</h5>
@@ -279,12 +318,12 @@
 
           <div class="mb-2">
             <div class="text-muted small">Usuario</div>
-            <div class="fw-semibold" id="up_user_label">—</div>
-            <div class="text-muted small mono" id="up_user_id">—</div>
+            <div class="fw-semibold" id="up_user_label">-</div>
+            <div class="text-muted small mono" id="up_user_id">-</div>
           </div>
 
           <div class="mt-3">
-            <label class="form-label" for="up_pin">Nuevo PIN (4 dígitos)</label>
+            <label class="form-label" for="up_pin">Nuevo PIN (4 digitos)</label>
             <div class="input-group">
               <input id="up_pin" class="form-control mono" inputmode="numeric" placeholder="Ej: 2249" autocomplete="off" />
               <button class="btn btn-outline-secondary" id="btn_up_gen" type="button">Generar</button>
@@ -361,6 +400,16 @@
     function normalizeBarcode(v){
       return String(v||"").trim().replace(/\D/g,"");
     }
+    function normalizeInteger(v){
+      const raw = String(v||"").trim().replace(/\D/g,"");
+      return raw ? Number(raw) : null;
+    }
+    function numberOrNull(v){
+      const raw = String(v||"").trim().replace(",", ".");
+      if(!raw) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : NaN;
+    }
     function normalizePin(v){
       return String(v||"").trim().replace(/\D/g,"").slice(0,4);
     }
@@ -419,7 +468,7 @@
         const last = localStorage.getItem("dp_last_activity");
         if(!last) return;
         if(Date.now() - new Date(last).getTime() > IDLE_MS){
-          alert("Sesión cerrada por inactividad (30 min).");
+          alert("Sesion cerrada por inactividad (30 min).");
           await logoutAndGoLogin();
         }
       }, 30_000);
@@ -451,6 +500,8 @@
      * Productos
      ***********************/
     let currentRows = [];
+    let productSuggestionRows = [];
+    let productSuggestTimer = null;
 
     function renderProducts(rows){
       currentRows = rows;
@@ -460,15 +511,16 @@
       tb.innerHTML = "";
 
       if(!rows.length){
-        tb.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Sin resultados.</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Sin resultados.</td></tr>`;
         return;
       }
 
       rows.forEach(r=>{
         const tr = document.createElement("tr");
         tr.innerHTML = `
+          <td class="mono">${esc(r.external_code||"")}</td>
           <td class="mono">${esc(r.barcode||"")}</td>
-          <td class="fw-semibold">${esc(r.product_name||"")}</td>
+          <td><div class="fw-semibold">${esc(r.product_name||"")}</div><div class="small text-muted">${esc(r.secondary_name || "")}${r.model ? " - Casa: " + esc(r.model) : ""}</div></td>
           <td>${statusBadge(!!r.active)}</td>
           <td class="text-end">
             <button class="btn btn-outline-primary btn-sm" data-act="edit" data-bc="${esc(r.barcode)}">Editar</button>
@@ -489,15 +541,77 @@
       });
     }
 
+    function hideProductSuggestions(){
+      el("product_suggestions").classList.add("d-none");
+      el("product_suggestions").innerHTML = "";
+    }
+
+    function renderProductSuggestions(rows){
+      productSuggestionRows = rows.slice(0, 8);
+      if(!productSuggestionRows.length){
+        el("product_suggestions").innerHTML = `<div class="list-group-item text-muted small">Sin coincidencias.</div>`;
+        el("product_suggestions").classList.remove("d-none");
+        return;
+      }
+      el("product_suggestions").innerHTML = productSuggestionRows.map((r, idx) => `
+        <button type="button" class="list-group-item list-group-item-action" data-product-suggest="${idx}">
+          <div class="d-flex justify-content-between gap-2">
+            <span class="fw-semibold">${esc(r.product_name || "")}</span>
+            ${statusBadge(!!r.active)}
+          </div>
+          <div class="small text-muted mono">Codigo: ${esc(r.external_code || "")} - ${esc(r.barcode || "")}</div>
+        </button>`).join("");
+      el("product_suggestions").classList.remove("d-none");
+      document.querySelectorAll("[data-product-suggest]").forEach(btn => {
+        btn.addEventListener("click", () => chooseProductSuggestion(productSuggestionRows[Number(btn.dataset.productSuggest)]));
+      });
+    }
+
+    function chooseProductSuggestion(row){
+      if(!row) return;
+      el("q").value = row.product_name || row.barcode || "";
+      renderProducts(productSuggestionRows.length ? productSuggestionRows : [row]);
+      hideProductSuggestions();
+    }
+
+    async function suggestProductSearch(){
+      const q = (el("q").value || "").trim();
+      if(q.length < 2){ hideProductSuggestions(); return; }
+      try{
+        const s = getSession();
+        const af = el("active_filter").value;
+        const p_active = (af === "all") ? null : (af === "true") ? true : false;
+        const rows = await callRpc(RPC.search, {
+          p_session_token: s.token,
+          p_q: q,
+          p_barcode: null,
+          p_active,
+          p_limit: 12,
+          p_offset: 0
+        });
+        renderProductSuggestions(Array.isArray(rows) ? rows : []);
+      }catch(_){
+        hideProductSuggestions();
+      }
+    }
+
     function openNewProduct(){
       hideAlert("alert_modal");
+      el("m_external_code").value = "";
       el("m_barcode").value = "";
       el("m_name").value = "";
+      el("m_secondary_name").value = "";
+      el("m_model").value = "";
+      el("m_subgroup_name").value = "";
+      el("m_group_name").value = "";
+      el("m_price_1").value = "";
+      el("m_reference_price").value = "";
       el("m_active").checked = true;
       el("m_barcode").disabled = false;
+      el("m_external_code").disabled = false;
 
       bootstrap.Modal.getOrCreateInstance(el("modal_upsert")).show();
-      setTimeout(()=>el("m_barcode").focus(), 150);
+      setTimeout(()=>el("m_external_code").focus(), 150);
     }
 
     function openEdit(barcode){
@@ -505,17 +619,26 @@
       if(!row) return;
 
       hideAlert("alert_modal");
+      el("m_external_code").value = row.external_code || "";
       el("m_barcode").value = row.barcode || "";
       el("m_name").value = row.product_name || "";
+      el("m_secondary_name").value = row.secondary_name || "";
+      el("m_model").value = row.model || "";
+      el("m_subgroup_name").value = row.subgroup_name || "";
+      el("m_group_name").value = row.group_name || "";
+      el("m_price_1").value = row.price_1 ?? "";
+      el("m_reference_price").value = row.reference_price ?? "";
       el("m_active").checked = !!row.active;
 
       el("m_barcode").disabled = true;
+      el("m_external_code").disabled = false;
 
       bootstrap.Modal.getOrCreateInstance(el("modal_upsert")).show();
       setTimeout(()=>el("m_name").focus(), 150);
     }
 
     async function doProductSearch(){
+      hideProductSuggestions();
       hideAlert("alert_search");
       hideAlert("alert_table");
 
@@ -549,21 +672,38 @@
       if(!ok) return logoutAndGoLogin();
 
       const s = getSession();
+      const externalCode = normalizeInteger(el("m_external_code").value);
       const bc = normalizeBarcode(el("m_barcode").value);
       const nm = (el("m_name").value||"").trim();
+      const secondary = (el("m_secondary_name").value||"").trim();
+      const model = (el("m_model").value||"").trim();
+      const subgroup = (el("m_subgroup_name").value||"").trim();
+      const groupName = (el("m_group_name").value||"").trim();
+      const price1 = numberOrNull(el("m_price_1").value);
+      const referencePrice = numberOrNull(el("m_reference_price").value);
       const ac = !!el("m_active").checked;
 
-      if(!bc) return showAlert("alert_modal","Barcode requerido (solo dígitos).");
+      if(!externalCode || externalCode <= 0) return showAlert("alert_modal","Codigo interno requerido.");
+      if(!bc) return showAlert("alert_modal","Barcode requerido (solo digitos).");
       if(!nm) return showAlert("alert_modal","Nombre requerido.");
+      if(Number.isNaN(price1)) return showAlert("alert_modal","Precio venta oficina invalido.");
+      if(Number.isNaN(referencePrice)) return showAlert("alert_modal","Precio referencia invalido.");
 
       try{
-        btnLoad("btn_save","btn_save_text","btn_save_spinner", true, "Guardando…", "Guardar");
+        btnLoad("btn_save","btn_save_text","btn_save_spinner", true, "Guardando...", "Guardar");
 
         await callRpc(RPC.upsert, {
           p_session_token: s.token,
           p_barcode: bc,
           p_product_name: nm,
-          p_active: ac
+          p_active: ac,
+          p_external_code: externalCode,
+          p_secondary_name: secondary || null,
+          p_model: model || null,
+          p_group_name: groupName || null,
+          p_subgroup_name: subgroup || null,
+          p_price_1: price1,
+          p_reference_price: referencePrice
         });
 
         bootstrap.Modal.getOrCreateInstance(el("modal_upsert")).hide();
@@ -571,7 +711,7 @@
       } catch(err){
         showAlert("alert_modal", err.message || "No se pudo guardar.");
       } finally {
-        btnLoad("btn_save","btn_save_text","btn_save_spinner", false, "Guardando…", "Guardar");
+        btnLoad("btn_save","btn_save_text","btn_save_spinner", false, "Guardando...", "Guardar");
       }
     }
 
@@ -697,11 +837,11 @@
       const pin = normalizePin(el("uc_pin").value);
 
       if(name.length < 3) return showAlert("alert_user_create","Nombre muy corto.");
-      if(!["admin","dispatch","cashier"].includes(role)) return showAlert("alert_user_create","Rol inválido.");
-      if(!/^\d{4}$/.test(pin)) return showAlert("alert_user_create","PIN debe ser 4 dígitos.");
+      if(!["admin","dispatch","cashier"].includes(role)) return showAlert("alert_user_create","Rol invalido.");
+      if(!/^\d{4}$/.test(pin)) return showAlert("alert_user_create","PIN debe ser 4 digitos.");
 
       try{
-        btnLoad("btn_uc_create","btn_uc_create_text","btn_uc_create_spinner", true, "Creando…", "Crear");
+        btnLoad("btn_uc_create","btn_uc_create_text","btn_uc_create_spinner", true, "Creando...", "Crear");
 
         await callRpc(RPC.userCreate, {
           p_session_token: s.token,
@@ -716,7 +856,7 @@
       } catch(err){
         showAlert("alert_user_create", err.message || "No se pudo crear.");
       } finally {
-        btnLoad("btn_uc_create","btn_uc_create_text","btn_uc_create_spinner", false, "Creando…", "Crear");
+        btnLoad("btn_uc_create","btn_uc_create_text","btn_uc_create_spinner", false, "Creando...", "Crear");
       }
     }
 
@@ -724,8 +864,8 @@
       hideAlert("alert_user_pin");
       pinTargetUserId = userId;
 
-      el("up_user_label").textContent = displayName || "—";
-      el("up_user_id").textContent = userId || "—";
+      el("up_user_label").textContent = displayName || "-";
+      el("up_user_id").textContent = userId || "-";
       el("up_pin").value = "";
 
       bootstrap.Modal.getOrCreateInstance(el("modal_user_pin")).show();
@@ -741,11 +881,11 @@
       const s = getSession();
       const pin = normalizePin(el("up_pin").value);
 
-      if(!pinTargetUserId) return showAlert("alert_user_pin","Usuario inválido.");
-      if(!/^\d{4}$/.test(pin)) return showAlert("alert_user_pin","PIN debe ser 4 dígitos.");
+      if(!pinTargetUserId) return showAlert("alert_user_pin","Usuario invalido.");
+      if(!/^\d{4}$/.test(pin)) return showAlert("alert_user_pin","PIN debe ser 4 digitos.");
 
       try{
-        btnLoad("btn_up_save","btn_up_save_text","btn_up_save_spinner", true, "Guardando…", "Guardar");
+        btnLoad("btn_up_save","btn_up_save_text","btn_up_save_spinner", true, "Guardando...", "Guardar");
 
         await callRpc(RPC.userSetPin, {
           p_session_token: s.token,
@@ -759,7 +899,7 @@
       } catch(err){
         showAlert("alert_user_pin", err.message || "No se pudo guardar.");
       } finally {
-        btnLoad("btn_up_save","btn_up_save_text","btn_up_save_spinner", false, "Guardando…", "Guardar");
+        btnLoad("btn_up_save","btn_up_save_text","btn_up_save_spinner", false, "Guardando...", "Guardar");
       }
     }
 
@@ -801,7 +941,7 @@
         return window.location.href = ROUTES.login;
       }
 
-      el("nav_user").textContent = s.name || "—";
+      el("nav_user").textContent = s.name || "-";
 
       setLastActivity();
       ["mousemove","mousedown","keydown","touchstart","wheel"].forEach(ev =>
@@ -810,29 +950,44 @@
       startIdleWatcher();
 
       el("btn_logout").addEventListener("click", async ()=>{
-        if(!confirm("¿Cerrar sesión?")) return;
+        if(!confirm("Cerrar sesion?")) return;
         await logoutAndGoLogin();
       });
 
       // Productos
       el("btn_search").addEventListener("click", async ()=>{
         try{
-          btnLoad("btn_search","btn_search_text","btn_search_spinner", true, "Buscando…", "Buscar");
+          btnLoad("btn_search","btn_search_text","btn_search_spinner", true, "Buscando...", "Buscar");
           await doProductSearch();
         } catch(err){
           showAlert("alert_search", err.message || "No se pudo buscar.");
         } finally {
-          btnLoad("btn_search","btn_search_text","btn_search_spinner", false, "Buscando…", "Buscar");
+          btnLoad("btn_search","btn_search_text","btn_search_spinner", false, "Buscando...", "Buscar");
         }
       });
 
+      el("q").addEventListener("input",()=>{
+        clearTimeout(productSuggestTimer);
+        productSuggestTimer = setTimeout(suggestProductSearch, 260);
+      });
+
       el("q").addEventListener("keydown",(e)=>{
-        if(e.key==="Enter"){ e.preventDefault(); el("btn_search").click(); }
+        if(e.key==="Enter"){
+          e.preventDefault();
+          if(!el("product_suggestions").classList.contains("d-none") && productSuggestionRows.length) chooseProductSuggestion(productSuggestionRows[0]);
+          else el("btn_search").click();
+        }
+        if(e.key==="Escape") hideProductSuggestions();
+      });
+
+      document.addEventListener("click",e=>{
+        if(!el("product_search_panel").contains(e.target)) hideProductSuggestions();
       });
 
       el("btn_new").addEventListener("click", openNewProduct);
       el("btn_save").addEventListener("click", saveProduct);
 
+      el("m_external_code").addEventListener("input",(e)=>{ e.target.value = String(e.target.value||"").replace(/\D/g,""); });
       el("m_barcode").addEventListener("input",(e)=>{ e.target.value = normalizeBarcode(e.target.value); });
 
       // Usuarios
@@ -848,12 +1003,12 @@
       el("btn_users_refresh").addEventListener("click", async ()=>{
         hideAlert("alert_users");
         try{
-          btnLoad("btn_users_refresh","btn_users_refresh_text","btn_users_refresh_spinner", true, "Actualizando…", "Actualizar");
+          btnLoad("btn_users_refresh","btn_users_refresh_text","btn_users_refresh_spinner", true, "Actualizando...", "Actualizar");
           await loadUsers();
         } catch(err){
           showAlert("alert_users", err.message || "No se pudo cargar usuarios.");
         } finally {
-          btnLoad("btn_users_refresh","btn_users_refresh_text","btn_users_refresh_spinner", false, "Actualizando…", "Actualizar");
+          btnLoad("btn_users_refresh","btn_users_refresh_text","btn_users_refresh_spinner", false, "Actualizando...", "Actualizar");
         }
       });
 
@@ -875,3 +1030,4 @@
   </script>
 </body>
 </html>
+

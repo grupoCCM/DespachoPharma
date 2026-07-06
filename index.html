@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>DespachoPharma | Ingreso</title>
+  <title>Botiquín CCM | Ingreso</title>
 
   <!-- Bootstrap 5 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -42,9 +42,9 @@
           <div class="mb-3">
             <div class="d-flex align-items-center mb-1">
               <span class="brand-dot"></span>
-              <h1 class="h5 mb-0">DespachoPharma</h1>
+              <h1 class="h5 mb-0">Botiquín CCM</h1>
             </div>
-            <div class="text-muted small">Ingreso por PIN (4 dígitos)</div>
+            <div class="text-muted small">Ingreso por PIN (4 digitos)</div>
           </div>
 
           <div id="alert_login" class="alert alert-danger d-none" role="alert"></div>
@@ -58,11 +58,11 @@
                 type="password"
                 inputmode="numeric"
                 maxlength="4"
-                placeholder="••••"
-                aria-label="PIN de 4 dígitos"
+                placeholder="----"
+                aria-label="PIN de 4 digitos"
                 required
               />
-              <div class="form-text">Si no tienes PIN, solicítalo al administrador.</div>
+              <div class="form-text">Si no tienes PIN, solicitalo al administrador.</div>
             </div>
 
             <div class="d-grid gap-2">
@@ -70,6 +70,7 @@
                 <span id="btn_login_text">Ingresar</span>
                 <span id="btn_login_spinner" class="spinner-border spinner-border-sm ms-2 d-none" aria-hidden="true"></span>
               </button>
+              <a class="btn btn-outline-primary" href="availability.html">Consultar disponibilidad</a>
               <button id="btn_clear" type="button" class="btn btn-outline-secondary">Limpiar</button>
             </div>
           </form>
@@ -78,15 +79,15 @@
 
           <div class="small text-muted">
             <div class="d-flex justify-content-between">
-              <span>Sesión:</span>
-              <span>Se cerrará tras 30 min sin uso</span>
+              <span>Sesion:</span>
+              <span>Se cerrara tras 30 min sin uso</span>
             </div>
           </div>
 
         </div>
 
         <div class="text-center mt-3 small text-muted">
-          CCM • Control de despachos y validación
+          CCM - Control de despachos y validacion
         </div>
       </div>
     </div>
@@ -96,8 +97,8 @@
     /***********************
      * CONFIG (RELLENAR)
      ***********************/
-    const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co"; // <- pega aquí
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";                // <- pega aquí
+    const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co"; // <- pega aqui
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";                // <- pega aqui
 
     // Rutas (ajusta si usas subcarpeta en GitHub Pages)
     const ROUTES = {
@@ -131,6 +132,14 @@
 
     function pinSanitize(v){
       return (v || "").replace(/\D/g, "").slice(0, 4);
+    }
+
+    function preparePinRetry(){
+      pinInput.value = "";
+      setTimeout(() => {
+        pinInput.focus();
+        try{ pinInput.setSelectionRange(0, 0); }catch(_){}
+      }, 0);
     }
 
     function saveSession(payload){
@@ -169,7 +178,7 @@
       try { data = text ? JSON.parse(text) : null; } catch { data = null; }
 
       if (!res.ok) {
-        const msg = (data && (data.message || data.error || data.details)) ? (data.message || data.error || data.details) : "Error de conexión con Supabase.";
+        const msg = (data && (data.message || data.error || data.details)) ? (data.message || data.error || data.details) : "Error de conexion con Supabase.";
         throw new Error(msg);
       }
       return data;
@@ -178,8 +187,8 @@
     /***********************
      * INIT
      ***********************/
-    // En login, si había sesión vieja, la limpiamos para evitar confusión.
-    // (Luego, si quieres “auto-redirect”, lo hacemos en un paso aparte.)
+    // En login, si habia sesion vieja, la limpiamos para evitar confusion.
+    // (Luego, si quieres "auto-redirect", lo hacemos en un paso aparte.)
     ["dp_session_token","dp_role","dp_display_name","dp_user_id","dp_expires_at","dp_last_activity"].forEach(k => localStorage.removeItem(k));
 
     const pinInput = el("pin_input");
@@ -203,11 +212,12 @@
 
       const pin = pinSanitize(pinInput.value);
       if (pin.length !== 4) {
-        showAlert("Ingresa un PIN válido de 4 dígitos.");
-        pinInput.focus();
+        showAlert("Ingresa un PIN valido de 4 digitos.");
+        preparePinRetry();
         return;
       }
 
+      let resetPinAfterSubmit = false;
       try{
         setLoading(true);
 
@@ -216,7 +226,7 @@
 
         if (!Array.isArray(rows) || rows.length === 0) {
           showAlert("PIN incorrecto.");
-          pinInput.select();
+          resetPinAfterSubmit = true;
           return;
         }
 
@@ -225,11 +235,13 @@
         redirectByRole(session.role);
 
       } catch(err){
-        showAlert(err.message || "No se pudo iniciar sesión.");
+        showAlert(err.message || "No se pudo iniciar sesion.");
       } finally {
         setLoading(false);
+        if(resetPinAfterSubmit) preparePinRetry();
       }
     });
   </script>
 </body>
 </html>
+

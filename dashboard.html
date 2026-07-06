@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Botiquín CCM | Dashboard</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg:#f8fafc; --card:#fff; --border:#e2e8f0; --text:#0f172a; --muted:#64748b;
+      --blue:#2563eb; --green:#16a34a; --amber:#d97706; --red:#dc2626;
+    }
+    body{ background:var(--bg); color:var(--text); }
+    .app-card{ background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:0 6px 20px rgba(15,23,42,.06); }
+    .brand-dot{ width:10px;height:10px;border-radius:999px;background:#3b82f6;display:inline-block;margin-right:8px; }
+    .metric{ min-height:104px; }
+    .metric-value{ font-size:1.45rem; font-weight:700; line-height:1.15; }
+    .metric-label{ color:var(--muted); font-size:.82rem; }
+    .table td,.table th{ vertical-align:middle; }
+    .bar-row{ display:grid; grid-template-columns:82px minmax(120px,1fr) minmax(140px,max-content); gap:.75rem; align-items:center; }
+    .bar-track{ height:10px; background:#e2e8f0; border-radius:999px; overflow:hidden; }
+    .bar-fill{ height:100%; background:var(--blue); border-radius:999px; }
+    .bar-fill.green{ background:var(--green); }
+    .bar-fill.amber{ background:var(--amber); }
+    .truncate{ max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .delta-up{ color:var(--green); font-weight:600; }
+    .delta-down{ color:var(--red); font-weight:600; }
+    .delta-flat{ color:var(--muted); font-weight:600; }
+    .insight-grid{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; }
+    .insight-box{ border:1px solid var(--border); border-radius:8px; padding:.75rem; background:#fff; }
+    @media (max-width: 768px){
+      .insight-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .bar-row{ grid-template-columns:64px 1fr; }
+      .bar-row > div:last-child{ grid-column:2; text-align:left !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <nav class="navbar bg-white border-bottom">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center" href="history.html">
+        <span class="brand-dot"></span>
+        <span class="fw-semibold">Botiquín CCM</span>
+      </a>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <a class="btn btn-outline-secondary btn-sm" href="history.html">Historico</a>
+        <a class="btn btn-outline-secondary btn-sm" href="purchasing.html">Compras</a>
+        <a class="btn btn-outline-secondary btn-sm" href="inventory-audit.html">Inventario</a>
+        <a class="btn btn-outline-secondary btn-sm" href="expiration-dashboard.html">Vencimientos</a>
+        <a class="btn btn-outline-secondary btn-sm" href="imports.html">Importaciones</a>
+        <a class="btn btn-outline-secondary btn-sm" href="catalog.html">Catalogo</a>
+        <span class="badge text-bg-light border">
+          <span class="text-muted">Usuario:</span> <span id="nav_user" class="ms-1 fw-semibold">-</span>
+        </span>
+        <button id="btn_logout" class="btn btn-outline-secondary btn-sm">Salir</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
+      <div>
+        <h1 class="h4 mb-1">Dashboard Botiquín CCM</h1>
+        <div class="text-muted">Ventas, utilidad, penetracion, inventario y compra sugerida.</div>
+      </div>
+      <button id="btn_refresh" class="btn btn-primary">
+        <span id="btn_refresh_text">Actualizar</span>
+        <span id="btn_refresh_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+      </button>
+    </div>
+
+    <div id="alert_page" class="alert alert-danger d-none" role="alert"></div>
+
+    <div class="app-card p-3 mb-3">
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-md-4">
+          <label class="form-label" for="month_filter">Mes a analizar</label>
+          <select id="month_filter" class="form-select">
+            <option value="">Todos los meses</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-8">
+          <div id="month_filter_hint" class="text-muted small">Selecciona un mes para comparar contra el mes anterior.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Venta neta</div>
+          <div id="m_net_sales" class="metric-value">$0.00</div>
+          <div id="m_sales_range" class="small text-muted">-</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Utilidad</div>
+          <div id="m_profit" class="metric-value">$0.00</div>
+          <div id="m_margin" class="small text-muted">Margen -</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Productos por dia</div>
+          <div id="m_products_day" class="metric-value">0</div>
+          <div id="m_products_day_detail" class="small text-muted">segun filtro</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Inventario valorizado</div>
+          <div id="m_inventory_value" class="metric-value">$0.00</div>
+          <div id="m_inventory_units" class="small text-muted">0 unidades</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Penetracion</div>
+          <div id="m_penetration" class="metric-value">0%</div>
+          <div id="m_penetration_detail" class="small text-muted">-</div>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Pacientes con venta</div>
+          <div id="m_consulted" class="metric-value">0</div>
+          <div id="m_consult_date" class="small text-muted">-</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Lineas con utilidad negativa</div>
+          <div id="m_negative" class="metric-value text-danger">0</div>
+          <div id="m_negative_detail" class="small text-muted">segun filtro</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Compra sugerida</div>
+          <div id="m_recommended_value" class="metric-value">$0.00</div>
+          <div id="m_recommended_qty" class="small text-muted">0 unidades</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Articulos pedir ya</div>
+          <div id="m_recommended_now" class="metric-value">0</div>
+          <div id="m_recommended_items" class="small text-muted">0 recomendaciones</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Productos por paciente</div>
+          <div id="m_products_patient" class="metric-value">0</div>
+          <div id="m_products_patient_detail" class="small text-muted">segun filtro</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Productos vendidos</div>
+          <div id="m_products_sold" class="metric-value">0</div>
+          <div id="m_products_sold_detail" class="small text-muted">segun filtro</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-12 col-xl-6">
+        <div class="app-card p-3">
+          <div class="fw-semibold">Ventas mensuales</div>
+          <div class="text-muted small">Venta neta por mes; maximo 12 meses en pantalla.</div>
+          <div id="monthly_sales" class="d-grid gap-2 mt-3"></div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-6">
+        <div class="app-card p-3">
+          <div class="fw-semibold">Penetracion farmacia / consulta</div>
+          <div class="text-muted small">Pacientes convertidos sobre pacientes atendidos.</div>
+          <div id="penetration_rows" class="d-grid gap-2 mt-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-12 col-xl-6">
+        <div class="app-card p-3">
+          <div class="fw-semibold">Ventas anuales</div>
+          <div class="text-muted small">Venta neta y cantidad de productos vendidos por periodo anual.</div>
+          <div id="annual_sales" class="d-grid gap-2 mt-3"></div>
+        </div>
+      </div>
+      <div class="col-12 col-xl-6">
+        <div class="app-card p-3">
+          <div class="fw-semibold">Penetracion anual</div>
+          <div class="text-muted small">Pacientes convertidos sobre pacientes atendidos por periodo anual.</div>
+          <div id="annual_penetration" class="d-grid gap-2 mt-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12">
+        <div class="app-card p-3">
+          <div class="fw-semibold">Comparativo mensual de ventas</div>
+          <div class="text-muted small">Productos vendidos y venta neta, con variacion contra el mes anterior.</div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm">
+              <thead class="table-light">
+                <tr>
+                  <th>Mes</th>
+                  <th class="text-end">Productos</th>
+                  <th class="text-end">Var. productos</th>
+                  <th class="text-end">Venta neta</th>
+                  <th class="text-end">Var. venta</th>
+                  <th class="text-end">Utilidad</th>
+                  <th class="text-end">Margen</th>
+                </tr>
+              </thead>
+              <tbody id="tbody_monthly_compare"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="app-card p-3">
+          <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start">
+            <div>
+              <div class="fw-semibold">Diagnostico del mes</div>
+              <div id="insight_title" class="text-muted small">Ultimo mes disponible contra mes anterior.</div>
+            </div>
+            <span id="insight_status" class="badge text-bg-light border">-</span>
+          </div>
+          <div class="insight-grid mt-3">
+            <div class="insight-box">
+              <div class="metric-label">Venta neta</div>
+              <div id="insight_net" class="metric-value">$0.00</div>
+              <div id="insight_net_delta" class="small">-</div>
+            </div>
+            <div class="insight-box">
+              <div class="metric-label">Productos</div>
+              <div id="insight_units" class="metric-value">0</div>
+              <div id="insight_units_delta" class="small">-</div>
+            </div>
+            <div class="insight-box">
+              <div class="metric-label">Promedio por producto</div>
+              <div id="insight_avg" class="metric-value">$0.00</div>
+              <div id="insight_avg_delta" class="small">-</div>
+            </div>
+            <div class="insight-box">
+              <div class="metric-label">Penetracion</div>
+              <div id="insight_pen" class="metric-value">-</div>
+              <div id="insight_pen_delta" class="small">-</div>
+            </div>
+          </div>
+          <div id="insight_explanation" class="alert alert-light border mt-3 mb-0">Sin datos suficientes.</div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-6">
+        <div class="app-card p-3">
+          <div class="fw-semibold">Top articulos por unidades</div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm">
+              <thead class="table-light"><tr><th>Articulo</th><th class="text-end">Unid.</th><th class="text-end">Venta</th></tr></thead>
+              <tbody id="tbody_top_units"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-6">
+        <div class="app-card p-3">
+          <div class="fw-semibold">Top articulos por utilidad</div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm">
+              <thead class="table-light"><tr><th>Articulo</th><th class="text-end">Utilidad</th><th class="text-end">Margen</th></tr></thead>
+              <tbody id="tbody_top_profit"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-6">
+        <div class="app-card p-3">
+          <div class="fw-semibold">Compra sugerida</div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm">
+              <thead class="table-light"><tr><th>Articulo</th><th>Accion</th><th class="text-end">Cant.</th><th class="text-end">Valor</th></tr></thead>
+              <tbody id="tbody_recommendations"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-6">
+        <div class="app-card p-3">
+          <div class="fw-semibold">Utilidad negativa</div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm">
+              <thead class="table-light"><tr><th>Fecha</th><th>Articulo</th><th class="text-end">Venta</th><th class="text-end">Utilidad</th></tr></thead>
+              <tbody id="tbody_negative"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
+    const ROUTES = { login:"index.html", dispatch:"dispatch.html", cashier:"cashier.html" };
+    const el = (id) => document.getElementById(id);
+    let dashboardData = null;
+
+    function getSession(){
+      return {
+        token: localStorage.getItem("dp_session_token") || "",
+        role: (localStorage.getItem("dp_role") || "").toLowerCase(),
+        name: localStorage.getItem("dp_display_name") || ""
+      };
+    }
+
+    function showAlert(msg){ el("alert_page").textContent = msg; el("alert_page").classList.remove("d-none"); }
+    function hideAlert(){ el("alert_page").textContent = ""; el("alert_page").classList.add("d-none"); }
+    function money(v){ return new Intl.NumberFormat("es-SV",{style:"currency",currency:"USD"}).format(Number(v || 0)); }
+    function num(v, digits=0){ return new Intl.NumberFormat("es-SV",{maximumFractionDigits:digits}).format(Number(v || 0)); }
+    function pct(v){ return v === null || v === undefined ? "-" : `${num(v,2)}%`; }
+    function shortDate(v){ return v ? String(v).slice(0,10) : "-"; }
+    function monthLabel(v){
+      if(!v) return "-";
+      const d = new Date(`${String(v).slice(0,10)}T00:00:00`);
+      return d.toLocaleDateString("es-SV",{month:"short",year:"2-digit"});
+    }
+    function deltaValue(current, previous, formatter){
+      const c = Number(current || 0);
+      const p = Number(previous || 0);
+      if(!p && !c) return `<span class="delta-flat">-</span>`;
+      if(!p) return `<span class="delta-up">Nuevo</span>`;
+      const diff = c - p;
+      const cls = diff > 0 ? "delta-up" : diff < 0 ? "delta-down" : "delta-flat";
+      const sign = diff > 0 ? "+" : "";
+      return `<span class="${cls}">${sign}${formatter(diff)}</span>`;
+    }
+    function avgPrice(row){
+      const units = Number(row?.units || 0);
+      return units ? Number(row?.net_sales || 0) / units : 0;
+    }
+    function salesDays(row){ return Number(row?.sales_days || row?.sale_days || 0); }
+    function productsPerDay(rows){
+      const units = rows.reduce((sum,row) => sum + Number(row.units || 0), 0);
+      const days = rows.reduce((sum,row) => sum + salesDays(row), 0);
+      return { units, days, avg: days ? units / days : 0 };
+    }
+    function salesPatientMetric(monthlyRows){
+      const selected = el("month_filter").value;
+      if(selected){
+        const patients = monthlyRows.reduce((sum,row) => sum + Number(row.patients || 0), 0);
+        return { patients, label: selected ? monthLabel(selected) : "periodo visible" };
+      }
+      const patients = Number(dashboardData?.summary?.patients_with_sales || 0);
+      return { patients, label: "historia completa" };
+    }
+    function productsPerPatient(monthlyRows){
+      const units = monthlyRows.reduce((sum,row) => sum + Number(row.units || 0), 0);
+      const { patients, label } = salesPatientMetric(monthlyRows);
+      return { units, patients, label, avg: patients ? units / patients : 0 };
+    }
+    function metricRows(monthly){
+      const selected = el("month_filter").value;
+      return selected ? monthly.filter(row => row.month === selected) : monthly;
+    }
+    function penetrationRows(penetration){
+      const selected = el("month_filter").value;
+      return selected ? penetration.filter(row => row.month === selected) : penetration;
+    }
+    function aggregateMonthly(rows){
+      const netSales = rows.reduce((sum,row) => sum + Number(row.net_sales || 0), 0);
+      const profit = rows.reduce((sum,row) => sum + Number(row.profit || 0), 0);
+      return {
+        net_sales: netSales,
+        profit,
+        margin_pct: netSales ? (profit / netSales) * 100 : null,
+        units: rows.reduce((sum,row) => sum + Number(row.units || 0), 0),
+        sales_days: rows.reduce((sum,row) => sum + salesDays(row), 0),
+        negative_profit_lines: rows.reduce((sum,row) => sum + Number(row.negative_profit_lines || 0), 0)
+      };
+    }
+    function aggregatePenetration(rows){
+      const consulted = rows.reduce((sum,row) => sum + Number(row.consulted_patients || 0), 0);
+      const converted = rows.reduce((sum,row) => sum + Number(row.converted_patients || 0), 0);
+      return {
+        consulted_patients: consulted,
+        converted_patients: converted,
+        penetration_pct: consulted ? (converted / consulted) * 100 : null
+      };
+    }
+    function aggregateAnnual(monthly){
+      const byYear = new Map();
+      monthly.forEach(row => {
+        const year = String(row.month || "").slice(0,4) || "Sin periodo";
+        const current = byYear.get(year) || { year, net_sales:0, units:0, profit:0 };
+        current.net_sales += Number(row.net_sales || 0);
+        current.units += Number(row.units || 0);
+        current.profit += Number(row.profit || 0);
+        byYear.set(year, current);
+      });
+      return Array.from(byYear.values()).sort((a,b) => String(a.year).localeCompare(String(b.year)));
+    }
+    function aggregateAnnualPenetration(penetration){
+      const byYear = new Map();
+      penetration.forEach(row => {
+        const year = String(row.month || "").slice(0,4) || "Sin periodo";
+        const current = byYear.get(year) || { year, consulted_patients:0, converted_patients:0, penetration_pct:null };
+        current.consulted_patients += Number(row.consulted_patients || 0);
+        current.converted_patients += Number(row.converted_patients || 0);
+        current.penetration_pct = current.consulted_patients ? (current.converted_patients / current.consulted_patients) * 100 : null;
+        byYear.set(year, current);
+      });
+      return Array.from(byYear.values()).sort((a,b) => String(a.year).localeCompare(String(b.year)));
+    }
+    function deltaClass(diff){ return diff > 0 ? "delta-up" : diff < 0 ? "delta-down" : "delta-flat"; }
+    function prevMonth(monthly, month){
+      return monthly.find(x => String(x.month) < String(month) && !monthly.some(y => String(y.month) < String(month) && String(y.month) > String(x.month))) || null;
+    }
+
+    async function callRpc(fnName, body){
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${SUPABASE_ANON_KEY}` },
+        body:JSON.stringify(body || {})
+      });
+      const text = await res.text();
+      let data = null;
+      try{ data = text ? JSON.parse(text) : null; }catch{ data = null; }
+      if(!res.ok){
+        const msg = data && (data.message || data.error || data.details) ? (data.message || data.error || data.details) : "Error de conexion con Supabase.";
+        throw new Error(msg);
+      }
+      return data;
+    }
+
+    async function touchSession(){
+      const s = getSession();
+      if(!s.token) return false;
+      const rows = await callRpc("rpc_session_touch", { p_session_token:s.token });
+      return Array.isArray(rows) && rows.length > 0;
+    }
+
+    async function logoutAndGoLogin(){
+      try{
+        const s = getSession();
+        if(s.token) await callRpc("rpc_logout", { p_session_token:s.token });
+      }catch(_){}
+      ["dp_session_token","dp_role","dp_display_name","dp_user_id","dp_expires_at","dp_last_activity"].forEach(k => localStorage.removeItem(k));
+      window.location.href = ROUTES.login;
+    }
+
+    function setLoading(isLoading){
+      el("btn_refresh").disabled = isLoading;
+      el("btn_refresh_spinner").classList.toggle("d-none", !isLoading);
+      el("btn_refresh_text").textContent = isLoading ? "Actualizando..." : "Actualizar";
+    }
+
+    function tableRows(rows, render, colspan){
+      return rows && rows.length ? rows.map(render).join("") : `<tr><td colspan="${colspan}" class="text-center text-muted py-4">Sin datos.</td></tr>`;
+    }
+
+    function renderBars(containerId, rows, valueKey, labelFn, valueFn, fillClass=""){
+      const max = Math.max(...rows.map(r => Number(r[valueKey] || 0)), 1);
+      el(containerId).innerHTML = rows.length ? rows.map(row => {
+        const value = Number(row[valueKey] || 0);
+        const width = Math.max(2, Math.round((value / max) * 100));
+        return `<div class="bar-row">
+          <div class="small text-muted">${labelFn(row)}</div>
+          <div class="bar-track"><div class="bar-fill ${fillClass}" style="width:${width}%"></div></div>
+          <div class="small text-end fw-semibold">${valueFn(row)}</div>
+        </div>`;
+      }).join("") : `<div class="text-muted small">Sin datos.</div>`;
+    }
+
+    function renderMonthOptions(monthly){
+      const current = el("month_filter").value;
+      const desc = monthly.slice().sort((a,b) => String(b.month).localeCompare(String(a.month)));
+      el("month_filter").innerHTML = `<option value="">Todos los meses</option>` + desc.map(row => `<option value="${row.month}">${monthLabel(row.month)}</option>`).join("");
+      if(current && desc.some(row => row.month === current)) el("month_filter").value = current;
+    }
+
+    function selectedMonthlyRows(monthly){
+      const selected = el("month_filter").value;
+      if(!selected) return monthly.slice(-12);
+      const row = monthly.find(x => x.month === selected);
+      const prev = row ? prevMonth(monthly, row.month) : null;
+      return [prev, row].filter(Boolean);
+    }
+    function selectedPenetrationRows(penetration){
+      const selected = el("month_filter").value;
+      if(!selected) return penetration.slice().sort((a,b) => String(a.month).localeCompare(String(b.month))).slice(-12);
+      const current = penetration.find(row => row.month === selected);
+      const sorted = penetration.slice().sort((a,b) => String(a.month).localeCompare(String(b.month)));
+      const prev = current ? sorted.filter(row => String(row.month) < String(current.month)).pop() : null;
+      return [prev, current].filter(Boolean);
+    }
+
+    function renderMonthlyCompare(monthly){
+      const selected = el("month_filter").value;
+      const rows = selected ? monthly.filter(row => row.month === selected) : monthly;
+      const desc = rows.slice().sort((a,b) => String(b.month).localeCompare(String(a.month)));
+      el("tbody_monthly_compare").innerHTML = tableRows(desc, row => {
+        const prev = prevMonth(monthly, row.month);
+        return `<tr>
+          <td class="fw-semibold">${monthLabel(row.month)}</td>
+          <td class="text-end">${num(row.units)}</td>
+          <td class="text-end">${deltaValue(row.units, prev?.units, v => num(v))}</td>
+          <td class="text-end">${money(row.net_sales)}</td>
+          <td class="text-end">${deltaValue(row.net_sales, prev?.net_sales, money)}</td>
+          <td class="text-end">${money(row.profit)}</td>
+          <td class="text-end">${pct(row.margin_pct)}</td>
+        </tr>`;
+      }, 7);
+    }
+
+    function renderMonthlyInsight(monthly, penetration){
+      const selected = el("month_filter").value;
+      const row = selected ? monthly.find(x => x.month === selected) : monthly[monthly.length - 1];
+      if(!row){
+        el("insight_title").textContent = "Sin mes para analizar.";
+        el("insight_status").textContent = "-";
+        el("insight_status").className = "badge text-bg-light border";
+        el("insight_explanation").textContent = "Sin datos suficientes.";
+        return;
+      }
+      const prev = prevMonth(monthly, row.month);
+      const pen = penetration.find(x => x.month === row.month) || {};
+      const prevPen = prev ? (penetration.find(x => x.month === prev.month) || {}) : {};
+      const currentAvg = avgPrice(row);
+      const previousAvg = avgPrice(prev);
+      const netDiff = Number(row.net_sales || 0) - Number(prev?.net_sales || 0);
+      const unitsDiff = Number(row.units || 0) - Number(prev?.units || 0);
+      const avgDiff = currentAvg - previousAvg;
+      const penDiff = Number(pen.penetration_pct || 0) - Number(prevPen.penetration_pct || 0);
+
+      el("insight_title").textContent = prev ? `${monthLabel(row.month)} contra ${monthLabel(prev.month)}` : `${monthLabel(row.month)} sin mes anterior cargado`;
+      el("insight_net").textContent = money(row.net_sales);
+      el("insight_units").textContent = num(row.units);
+      el("insight_avg").textContent = money(currentAvg);
+      el("insight_pen").textContent = pen.penetration_pct === undefined ? "-" : pct(pen.penetration_pct);
+      el("insight_net_delta").innerHTML = prev ? deltaValue(row.net_sales, prev.net_sales, money) : "-";
+      el("insight_units_delta").innerHTML = prev ? deltaValue(row.units, prev.units, v => num(v)) : "-";
+      el("insight_avg_delta").innerHTML = prev ? deltaValue(currentAvg, previousAvg, money) : "-";
+      el("insight_pen_delta").innerHTML = prev && prevPen.penetration_pct !== undefined ? deltaValue(pen.penetration_pct, prevPen.penetration_pct, v => `${num(v,2)} pp`) : "-";
+
+      const better = netDiff > 0;
+      const worse = netDiff < 0;
+      el("insight_status").textContent = better ? "Mejor" : worse ? "Peor" : "Igual";
+      el("insight_status").className = `badge ${better ? "text-bg-success" : worse ? "text-bg-danger" : "text-bg-secondary"}`;
+
+      if(!prev){
+        el("insight_explanation").textContent = "No hay mes anterior para comparar. Al cargar otro mes, este bloque explicara si la variacion viene por productos, promedio por producto o penetracion.";
+        return;
+      }
+
+      const drivers = [];
+      if(Math.abs(unitsDiff) > 0.01) drivers.push(`${unitsDiff > 0 ? "mas" : "menos"} productos vendidos (${unitsDiff > 0 ? "+" : ""}${num(unitsDiff)})`);
+      if(Math.abs(avgDiff) > 0.01) drivers.push(`${avgDiff > 0 ? "mayor" : "menor"} promedio por producto (${avgDiff > 0 ? "+" : ""}${money(avgDiff)})`);
+      if(Math.abs(penDiff) > 0.01) drivers.push(`${penDiff > 0 ? "mayor" : "menor"} penetracion (${penDiff > 0 ? "+" : ""}${num(penDiff,2)} pp)`);
+
+      const direction = better ? "mejora" : worse ? "baja" : "se mantiene";
+      const byQty = unitsDiff * previousAvg;
+      const byAvg = avgDiff * Number(row.units || 0);
+      const mainDriver = Math.abs(byQty) >= Math.abs(byAvg)
+        ? "El factor mas fuerte parece ser la cantidad de productos vendidos."
+        : "El factor mas fuerte parece ser el promedio por producto.";
+      const penNote = Math.abs(penDiff) > 0.01 ? `La penetracion tambien ${penDiff > 0 ? "ayuda" : "presiona hacia abajo"}.` : "La penetracion no cambia de forma relevante.";
+      el("insight_explanation").textContent = `La venta neta ${direction} ${netDiff >= 0 ? "+" : ""}${money(netDiff)}. ${drivers.length ? "Se explica por " + drivers.join(", ") + ". " : ""}${mainDriver} ${penNote}`;
+    }
+
+    function renderProductsPerDay(rows){
+      const metric = productsPerDay(rows);
+      el("m_products_day").textContent = num(metric.avg,2);
+      if(!rows.length){
+        el("m_products_day_detail").textContent = "sin datos";
+        return;
+      }
+      const label = el("month_filter").value ? monthLabel(rows[rows.length - 1]?.month) : "periodo visible";
+      el("m_products_day_detail").textContent = `${num(metric.units)} productos / ${num(metric.days)} dias con venta (${label})`;
+    }
+
+    function renderProductsPerPatient(monthlyRows){
+      const metric = productsPerPatient(monthlyRows);
+      el("m_products_patient").textContent = num(metric.avg,2);
+      if(!monthlyRows.length || !metric.patients){
+        el("m_products_patient_detail").textContent = "sin pacientes con venta";
+        return;
+      }
+      el("m_products_patient_detail").textContent = `${num(metric.units)} productos / ${num(metric.patients)} pacientes (${metric.label})`;
+    }
+
+    function renderFilteredMetricCards(monthly, penetration){
+      const selected = el("month_filter").value;
+      const rows = metricRows(monthly);
+      const penRows = penetrationRows(penetration);
+      const sales = aggregateMonthly(rows);
+      const pen = aggregatePenetration(penRows);
+      const salesPatients = salesPatientMetric(rows);
+      const label = selected ? monthLabel(selected) : `${rows.length} meses visibles`;
+
+      el("m_net_sales").textContent = money(sales.net_sales);
+      el("m_sales_range").textContent = label;
+      el("m_profit").textContent = money(sales.profit);
+      el("m_margin").textContent = `Margen ${pct(sales.margin_pct)}`;
+      el("m_penetration").textContent = pct(pen.penetration_pct);
+      el("m_penetration_detail").textContent = pen.consulted_patients ? `${label}: ${pen.converted_patients}/${pen.consulted_patients}` : `${label}: sin consultas`;
+      el("m_consulted").textContent = num(salesPatients.patients);
+      el("m_consult_date").textContent = salesPatients.label;
+      el("m_negative").textContent = num(sales.negative_profit_lines);
+      el("m_negative_detail").textContent = label;
+      el("m_products_sold").textContent = num(sales.units);
+      el("m_products_sold_detail").textContent = label;
+      renderProductsPerPatient(rows);
+    }
+
+    function renderMonthlyViews(monthly, penetration){
+      const scoped = selectedMonthlyRows(monthly);
+      const scopedPenetration = selectedPenetrationRows(penetration);
+      const metricRows = el("month_filter").value ? monthly.filter(row => row.month === el("month_filter").value) : monthly;
+      const annual = aggregateAnnual(monthly);
+      const annualPenetration = aggregateAnnualPenetration(penetration);
+      renderFilteredMetricCards(monthly, penetration);
+      renderBars("monthly_sales", scoped, "net_sales", row => monthLabel(row.month), row => `${money(row.net_sales)} (${num(row.units)} prod.)`, "green");
+      renderBars("annual_sales", annual, "net_sales", row => row.year, row => `${money(row.net_sales)} (${num(row.units)} prod.)`, "green");
+      renderBars("penetration_rows", scopedPenetration, "penetration_pct", row => monthLabel(row.month), row => `${pct(row.penetration_pct)} (${num(row.converted_patients)}/${num(row.consulted_patients)})`, "amber");
+      renderBars("annual_penetration", annualPenetration, "penetration_pct", row => row.year, row => `${pct(row.penetration_pct)} (${num(row.converted_patients)}/${num(row.consulted_patients)})`, "amber");
+      renderProductsPerDay(metricRows);
+      renderMonthlyCompare(monthly);
+      renderMonthlyInsight(monthly, penetration);
+      el("month_filter_hint").textContent = el("month_filter").value ? "Mostrando el mes elegido contra su mes anterior." : "Mostrando todos los meses; el diagnostico usa el ultimo mes disponible.";
+    }
+
+    function renderDashboard(data){
+      dashboardData = data || {};
+      const s = data.summary || {};
+      const penetration = (data.penetration || []).slice().sort((a,b) => String(b.month).localeCompare(String(a.month)));
+      const latestPen = penetration[0] || {};
+
+      el("m_net_sales").textContent = money(s.net_sales);
+      el("m_sales_range").textContent = `${shortDate(s.first_sale_date)} a ${shortDate(s.last_sale_date)}`;
+      el("m_profit").textContent = money(s.profit);
+      el("m_margin").textContent = `Margen ${pct(s.margin_pct)}`;
+      el("m_inventory_value").textContent = money(s.inventory_value);
+      el("m_inventory_units").textContent = `${num(s.inventory_units)} unidades`;
+      el("m_penetration").textContent = pct(latestPen.penetration_pct);
+      el("m_penetration_detail").textContent = latestPen.month ? `${monthLabel(latestPen.month)}: ${latestPen.converted_patients || 0}/${latestPen.consulted_patients || 0}` : "-";
+      el("m_consulted").textContent = num(s.patients_with_sales);
+      el("m_consult_date").textContent = "historia completa";
+      el("m_negative").textContent = num(s.negative_profit_lines);
+      el("m_recommended_value").textContent = money(s.recommended_value);
+      el("m_recommended_qty").textContent = `${num(s.recommended_qty)} unidades`;
+      el("m_recommended_now").textContent = num(s.recommended_now_items);
+      el("m_recommended_items").textContent = `${num(s.recommended_items)} recomendaciones`;
+      el("m_products_sold").textContent = num(s.units);
+      el("m_products_sold_detail").textContent = "historia completa";
+
+      const monthly = (data.monthly_sales || []).slice().sort((a,b) => String(a.month).localeCompare(String(b.month)));
+      renderMonthOptions(monthly);
+      renderMonthlyViews(monthly, penetration);
+
+      el("tbody_top_units").innerHTML = tableRows(data.top_units, row => `
+        <tr><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td class="text-end">${num(row.units)}</td><td class="text-end">${money(row.net_sales)}</td></tr>
+      `, 3);
+
+      el("tbody_top_profit").innerHTML = tableRows(data.top_profit, row => `
+        <tr><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td class="text-end">${money(row.profit)}</td><td class="text-end">${pct(row.margin_pct)}</td></tr>
+      `, 3);
+
+      el("tbody_recommendations").innerHTML = tableRows(data.recommendations, row => `
+        <tr><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td>${row.action || "-"}</td><td class="text-end">${num(row.suggested_qty)}</td><td class="text-end">${money(row.estimated_purchase_value)}</td></tr>
+      `, 4);
+
+      el("tbody_negative").innerHTML = tableRows(data.negative_margin, row => `
+        <tr><td>${shortDate(row.sale_date)}</td><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td class="text-end">${money(row.net_sale)}</td><td class="text-end text-danger">${money(row.profit)}</td></tr>
+      `, 4);
+    }
+
+    async function loadDashboard(){
+      hideAlert();
+      setLoading(true);
+      try{
+        const s = getSession();
+        const data = await callRpc("rpc_dashboard_overview", { p_session_token:s.token });
+        renderDashboard(data || {});
+      }catch(err){
+        showAlert(err.message || "No se pudo cargar el dashboard.");
+      }finally{
+        setLoading(false);
+      }
+    }
+
+    async function init(){
+      const s = getSession();
+      if(!s.token) return window.location.href = ROUTES.login;
+      const ok = await touchSession();
+      if(!ok) return logoutAndGoLogin();
+      el("nav_user").textContent = s.name || "-";
+      el("btn_logout").addEventListener("click", logoutAndGoLogin);
+      el("btn_refresh").addEventListener("click", loadDashboard);
+      el("month_filter").addEventListener("change", () => {
+        const monthly = (dashboardData?.monthly_sales || []).slice().sort((a,b) => String(a.month).localeCompare(String(b.month)));
+        const penetration = (dashboardData?.penetration || []).slice().sort((a,b) => String(b.month).localeCompare(String(a.month)));
+        renderMonthlyViews(monthly, penetration);
+      });
+      await loadDashboard();
+    }
+
+    init().catch(err => showAlert(err.message || "Error inicializando dashboard."));
+  </script>
+</body>
+</html>
+
