@@ -20,12 +20,12 @@
     .count-list{ max-height:560px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
     .count-list table{ margin-bottom:0; }
     .count-list thead th{ position:sticky; top:0; z-index:2; background:#f8fafc; }
-    .count-table{ table-layout:fixed; min-width:920px; }
-    .count-product-col{ width:38%; }
+    .count-table{ table-layout:fixed; min-width:1080px; }
+    .count-product-col{ width:34%; }
     .count-num-col{ width:94px; text-align:center; }
     .count-status-col{ width:126px; }
     .count-user-col{ width:132px; }
-    .count-action-col{ width:154px; text-align:center; }
+    .count-action-col{ width:230px; text-align:center; }
     .count-num-cell{ text-align:center; vertical-align:middle; }
     .count-input{ width:82px; min-width:82px; margin:0 auto; text-align:center; appearance:textfield; -moz-appearance:textfield; }
     .count-input::-webkit-outer-spin-button,
@@ -34,6 +34,12 @@
     .count-row-pending{ background:#fff; }
     .count-row-counted{ background:#f8fafc; }
     .count-row-applied{ background:#f0fdf4; }
+    .finding-pill{ display:inline-block; border-radius:999px; padding:.12rem .45rem; font-size:.72rem; font-weight:700; }
+    .finding-ok{ color:#475569; background:#f1f5f9; }
+    .finding-risk{ color:#991b1b; background:#fee2e2; }
+    .modal-backdrop-lite{ position:fixed; inset:0; background:rgba(15,23,42,.42); display:none; align-items:center; justify-content:center; padding:16px; z-index:1050; }
+    .modal-backdrop-lite.show{ display:flex; }
+    .finding-modal{ width:min(620px,100%); background:#fff; border-radius:14px; box-shadow:0 24px 60px rgba(15,23,42,.28); }
     .variance-card{ border:1px solid var(--border); border-radius:10px; padding:12px; min-height:104px; background:#fff; }
     .variance-card.danger{ border-color:#fecaca; background:#fff7f7; }
     .variance-card.success{ border-color:#bbf7d0; background:#f7fff9; }
@@ -360,6 +366,54 @@
     </div>
   </main>
 
+  <div id="finding_modal" class="modal-backdrop-lite" aria-hidden="true">
+    <div class="finding-modal">
+      <div class="p-3 border-bottom d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <div class="h5 mb-1">Hallazgo de conteo</div>
+          <div id="finding_product" class="text-muted small">Producto</div>
+        </div>
+        <button id="btn_finding_close" class="btn btn-outline-secondary btn-sm" type="button">Cerrar</button>
+      </div>
+      <div class="p-3">
+        <div id="finding_alert" class="alert alert-danger d-none"></div>
+        <div class="row g-3">
+          <div class="col-6 col-md-4">
+            <label class="form-label" for="finding_expected">Esperado</label>
+            <div id="finding_expected" class="form-control bg-light">-</div>
+          </div>
+          <div class="col-6 col-md-4">
+            <label class="form-label" for="finding_counted">Conteo f&iacute;sico</label>
+            <input id="finding_counted" class="form-control" type="number" min="0" step="1">
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label" for="finding_condition">Condici&oacute;n</label>
+            <select id="finding_condition" class="form-select">
+              <option value="ok">OK / vendible</option>
+              <option value="expired">Vencido</option>
+              <option value="damaged">Da&ntilde;ado</option>
+              <option value="not_sellable">No apto para venta</option>
+              <option value="review">Requiere revisi&oacute;n</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label" for="finding_qty">Cantidad afectada</label>
+            <input id="finding_qty" class="form-control" type="number" min="0" step="1" placeholder="0">
+          </div>
+          <div class="col-12 col-md-8">
+            <label class="form-label" for="finding_note">Comentario</label>
+            <input id="finding_note" class="form-control" maxlength="500" placeholder="Ej: unidad vencida encontrada f&iacute;sicamente">
+          </div>
+        </div>
+        <div class="small text-muted mt-3">Si la condici&oacute;n no es OK, la cantidad afectada y el comentario son obligatorios. Esto queda como hallazgo operativo y no como diferencia de cantidad.</div>
+      </div>
+      <div class="p-3 border-top d-flex justify-content-end gap-2">
+        <button id="btn_finding_clear" class="btn btn-outline-secondary" type="button">Marcar OK</button>
+        <button id="btn_finding_save" class="btn btn-primary" type="button">Guardar hallazgo</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
@@ -374,6 +428,7 @@
     let printableCountSessionId = null;
     let sessionItems = [];
     let sessionFilterTimer = null;
+    let findingRowIndex = null;
 
     function getSession(){ return { token:localStorage.getItem("dp_session_token")||"", role:(localStorage.getItem("dp_role")||"").toLowerCase(), name:localStorage.getItem("dp_display_name")||"" }; }
     function num(v,d=0){ return new Intl.NumberFormat("es-SV",{maximumFractionDigits:d}).format(Number(v || 0)); }
@@ -382,6 +437,11 @@
     function esc(value){ return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch])); }
     function fmtDate(value){ if(!value) return "-"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString("es-SV"); }
     function plural(n, one, many){ return Number(n || 0) === 1 ? one : many; }
+    function conditionLabel(status){
+      return ({ ok:"OK", expired:"Vencido", damaged:"Da\u00f1ado", not_sellable:"No apto", review:"Revisi\u00f3n" })[status || "ok"] || "OK";
+    }
+    function conditionClass(status){ return status && status !== "ok" ? "finding-risk" : "finding-ok"; }
+    function isFinding(row){ return row && row.condition_status && row.condition_status !== "ok"; }
     function showAlert(msg){ el("alert_page").textContent=msg; el("alert_page").classList.remove("d-none"); }
     function hideAlert(){ el("alert_page").textContent=""; el("alert_page").classList.add("d-none"); }
     function showOk(msg){ el("ok_page").textContent=msg; el("ok_page").classList.remove("d-none"); }
@@ -717,9 +777,10 @@
       const counted = Number(session.counted_items || 0);
       const pending = Number(session.pending_items || 0);
       const applied = Number(session.applied_items || 0);
+      const findings = Number(session.finding_items || 0);
       const pct = total ? Math.round((counted / total) * 100) : 0;
       el("session_meta").textContent = `${session.title || "Conteo fisico"} - iniciado ${fmtDate(session.started_at)} por ${session.started_by_name || "-"}.`;
-      el("session_progress").textContent = `${counted}/${total} productos contados (${pct}%). Pendientes: ${pending}. Ajustes aplicados: ${applied}. Ultimo codigo: ${session.last_counted_code || "-"}.`;
+      el("session_progress").textContent = `${counted}/${total} productos contados (${pct}%). Pendientes: ${pending}. Ajustes aplicados: ${applied}. Hallazgos: ${findings}. Ultimo codigo: ${session.last_counted_code || "-"}.`;
       const canFinish = session.status === "open" && getSession().role === "admin";
       el("btn_close_session").disabled = !canFinish;
       el("btn_cancel_session").disabled = !canFinish;
@@ -745,16 +806,19 @@
         const applyButton = isAdmin() ? `<button class="btn btn-outline-primary" data-session-apply="${idx}" ${canApply ? "" : "disabled"}>Aplicar</button>` : "";
         const countedBy = row.counted_by_name || (row.status === "pending" ? "Pendiente" : getSession().name || "-");
         const countedByClass = row.status === "pending" ? "small text-muted" : "small fw-semibold";
+        const findingText = isFinding(row) ? `${conditionLabel(row.condition_status)} · ${units(row.condition_qty)}` : "OK";
+        const findingNote = isFinding(row) && row.condition_note ? `<div class="small text-danger mt-1">${esc(row.condition_note)}</div>` : "";
         return `<tr class="${rowClass}">
-        <td><div class="fw-semibold truncate">${esc(row.medicine_name || "-")}</div><div class="small text-muted">${esc(row.external_code || "")} - ${esc(row.model || "")} - ${esc(row.secondary_name || "")}</div></td>
+        <td><div class="fw-semibold truncate">${esc(row.medicine_name || "-")}</div><div class="small text-muted">${esc(row.external_code || "")} - ${esc(row.model || "")} - ${esc(row.secondary_name || "")}</div>${findingNote}</td>
         <td class="count-num-cell fw-semibold">${units(row.expected_qty)}</td>
         <td class="count-num-cell"><input class="form-control form-control-sm count-input" type="number" min="0" step="1" value="${countedValue}" data-session-count="${idx}" ${canEdit ? "" : "disabled"}></td>
         <td class="count-num-cell fw-semibold ${diffClass}">${diff === null ? "-" : units(diff)}</td>
-        <td><span class="badge ${statusClass}">${esc(row.status || "-")}</span><div class="small text-muted">${row.counted_at ? fmtDate(row.counted_at) : ""}</div></td>
+        <td><span class="badge ${statusClass}">${esc(row.status || "-")}</span><div class="mt-1"><span class="finding-pill ${conditionClass(row.condition_status)}">${esc(findingText)}</span></div><div class="small text-muted">${row.counted_at ? fmtDate(row.counted_at) : ""}</div></td>
         <td class="${countedByClass}">${esc(countedBy)}</td>
         <td class="count-action-col">
           <div class="btn-group btn-group-sm count-actions">
             <button class="btn btn-outline-success" data-session-save="${idx}" ${canEdit ? "" : "disabled"}>Guardar</button>
+            <button class="btn btn-outline-danger" data-session-finding="${idx}" ${canEdit ? "" : "disabled"}>Hallazgo</button>
             ${applyButton}
           </div>
           </td>
@@ -765,6 +829,9 @@
       });
       document.querySelectorAll("[data-session-apply]").forEach(btn => {
         btn.addEventListener("click", () => applySessionItem(Number(btn.dataset.sessionApply)));
+      });
+      document.querySelectorAll("[data-session-finding]").forEach(btn => {
+        btn.addEventListener("click", () => openFindingModal(Number(btn.dataset.sessionFinding)));
       });
     }
 
@@ -819,8 +886,10 @@
       const countedRows = rows.filter(row => row.status === "counted" || row.status === "applied");
       const pendingRows = rows.filter(row => row.status === "pending");
       const diffRows = rows.filter(row => Number(row.variance_qty || 0) !== 0);
+      const findingRows = rows.filter(row => isFinding(row));
       const shortageQty = diffRows.reduce((sum,row) => sum + Math.max(0, -Number(row.variance_qty || 0)), 0);
       const surplusQty = diffRows.reduce((sum,row) => sum + Math.max(0, Number(row.variance_qty || 0)), 0);
+      const findingQty = findingRows.reduce((sum,row) => sum + Math.max(0, Number(row.condition_qty || 0)), 0);
       const nowText = new Date().toLocaleString("es-SV");
       const statusText = session.status === "closed" ? "Finalizado" : session.status === "cancelled" ? "Cancelado" : "Abierto";
       const title = `Conteo fisico ${statusText} - Botiquín CCM`;
@@ -839,6 +908,23 @@
           <td>${esc(countedBy)}<br><span>${row.counted_at ? fmtDate(row.counted_at) : ""}</span></td>
         </tr>`;
       }).join("");
+      const diffRowsHtml = diffRows.map(row => `
+        <tr>
+          <td>${esc(row.external_code || "")}</td>
+          <td><strong>${esc(row.medicine_name || "-")}</strong><br><span>${esc(row.model || "")} ${esc(row.secondary_name || "")}</span></td>
+          <td class="num">${units(row.expected_qty)}</td>
+          <td class="num">${units(row.counted_qty)}</td>
+          <td class="num ${Number(row.variance_qty || 0) < 0 ? "neg" : "pos"}">${units(row.variance_qty)}</td>
+        </tr>`).join("");
+      const findingRowsHtml = findingRows.map(row => `
+        <tr>
+          <td>${esc(row.external_code || "")}</td>
+          <td><strong>${esc(row.medicine_name || "-")}</strong><br><span>${esc(row.model || "")} ${esc(row.secondary_name || "")}</span></td>
+          <td class="num">${units(row.expected_qty)}</td>
+          <td class="num">${units(row.counted_qty)}</td>
+          <td class="num">${units(row.condition_qty)}</td>
+          <td><strong>${esc(conditionLabel(row.condition_status))}</strong><br><span>${esc(row.condition_note || "Sin comentario")}</span></td>
+        </tr>`).join("");
       const html = `<!doctype html>
       <html><head><meta charset="utf-8"><title>${esc(title)}</title>
       <style>
@@ -849,7 +935,7 @@
         .muted{ color:#64748b; }
         .header{ display:flex; justify-content:space-between; gap:16px; border-bottom:2px solid #0f172a; padding-bottom:12px; margin-bottom:14px; }
         .brand{ font-weight:700; font-size:13px; letter-spacing:.04em; color:#2563eb; text-transform:uppercase; }
-        .summary{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0 14px; }
+        .summary{ display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:12px 0 14px; }
         .box{ border:1px solid #cbd5e1; border-radius:8px; padding:8px; min-height:58px; }
         .label{ color:#64748b; font-size:10px; text-transform:uppercase; letter-spacing:.04em; }
         .value{ font-size:18px; font-weight:800; margin-top:2px; }
@@ -860,6 +946,7 @@
         .num{ text-align:right; white-space:nowrap; }
         .pos{ color:#15803d; font-weight:700; }
         .neg{ color:#b91c1c; font-weight:700; }
+        .risk{ color:#991b1b; font-weight:700; }
         .footer{ margin-top:18px; display:grid; grid-template-columns:1fr 1fr; gap:28px; }
         .sign{ border-top:1px solid #94a3b8; padding-top:6px; color:#64748b; min-height:32px; }
       </style></head>
@@ -883,7 +970,18 @@
           <div class="box"><div class="label">Pendientes</div><div class="value">${units(pendingRows.length)}</div><div class="muted">sin conteo guardado</div></div>
           <div class="box"><div class="label">Sobrante</div><div class="value">${units(surplusQty)}</div><div class="muted">unidades</div></div>
           <div class="box"><div class="label">Faltante</div><div class="value">${units(shortageQty)}</div><div class="muted">unidades</div></div>
+          <div class="box"><div class="label">Hallazgos</div><div class="value risk">${units(findingRows.length)}</div><div class="muted">${units(findingQty)} unidades afectadas</div></div>
         </div>
+        <h2>Diferencias de inventario</h2>
+        <table>
+          <thead><tr><th>Codigo</th><th>Producto</th><th class="num">Esperado</th><th class="num">Contado</th><th class="num">Dif.</th></tr></thead>
+          <tbody>${diffRowsHtml || `<tr><td colspan="5" class="muted">Sin diferencias de cantidad.</td></tr>`}</tbody>
+        </table>
+        <h2>Hallazgos de condicion</h2>
+        <table>
+          <thead><tr><th>Codigo</th><th>Producto</th><th class="num">Esperado</th><th class="num">Contado</th><th class="num">Cant. afectada</th><th>Condicion / comentario</th></tr></thead>
+          <tbody>${findingRowsHtml || `<tr><td colspan="6" class="muted">Sin productos vencidos, danados o no aptos reportados.</td></tr>`}</tbody>
+        </table>
         <h2>Detalle del conteo</h2>
         <table>
           <thead><tr><th>Codigo</th><th>Producto</th><th class="num">Esperado</th><th class="num">Contado</th><th class="num">Dif.</th><th>Estado</th><th>Conteo</th></tr></thead>
@@ -970,28 +1068,116 @@
       renderSessionItems(payload || {});
     }
 
-    async function saveSessionItem(idx){
+    function readSessionCount(idx){
       const row = sessionItems[idx];
-      if(!row) return;
+      if(!row) return null;
       const input = document.querySelector(`[data-session-count="${idx}"]`);
       const raw = String(input?.value ?? "").trim();
       if(raw === ""){
         showAlert("Campo vacio significa pendiente. Digita 0 si confirmaste que fisicamente no hay producto.");
-        return;
+        return null;
       }
       const countedQty = Math.trunc(Number(raw));
       if(!Number.isFinite(countedQty) || countedQty < 0){
         showAlert("El conteo debe ser entero y mayor o igual a 0.");
+        return null;
+      }
+      return countedQty;
+    }
+
+    function showFindingAlert(msg){
+      el("finding_alert").textContent = msg;
+      el("finding_alert").classList.remove("d-none");
+    }
+
+    function hideFindingAlert(){
+      el("finding_alert").textContent = "";
+      el("finding_alert").classList.add("d-none");
+    }
+
+    function openFindingModal(idx){
+      hideAlert();
+      hideFindingAlert();
+      const row = sessionItems[idx];
+      if(!row) return;
+      const countedQty = readSessionCount(idx);
+      if(countedQty === null) return;
+      findingRowIndex = idx;
+      el("finding_product").textContent = `${row.external_code || ""} - ${row.medicine_name || ""}`;
+      el("finding_expected").textContent = units(row.expected_qty);
+      el("finding_counted").value = String(countedQty);
+      el("finding_condition").value = row.condition_status || "ok";
+      el("finding_qty").value = row.condition_status && row.condition_status !== "ok" ? String(Math.trunc(Number(row.condition_qty || 0))) : "";
+      el("finding_note").value = row.condition_note || row.note || "";
+      el("finding_modal").classList.add("show");
+      el("finding_modal").setAttribute("aria-hidden", "false");
+      setTimeout(() => el("finding_condition").focus(), 60);
+    }
+
+    function closeFindingModal(){
+      findingRowIndex = null;
+      hideFindingAlert();
+      el("finding_modal").classList.remove("show");
+      el("finding_modal").setAttribute("aria-hidden", "true");
+    }
+
+    async function saveSessionItemWithCondition(idx, options={}){
+      const row = sessionItems[idx];
+      if(!row) return null;
+      const countedQty = options.countedQty ?? readSessionCount(idx);
+      if(countedQty === null) return null;
+      const conditionStatus = options.conditionStatus ?? row.condition_status ?? "ok";
+      const conditionQty = Math.trunc(Number(options.conditionQty ?? row.condition_qty ?? 0));
+      const conditionNote = String(options.conditionNote ?? row.condition_note ?? row.note ?? "").trim();
+      if(conditionStatus !== "ok"){
+        if(!Number.isFinite(conditionQty) || conditionQty <= 0){
+          throw new Error("Indica la cantidad afectada por el hallazgo.");
+        }
+        if(conditionQty > countedQty){
+          throw new Error("La cantidad afectada no puede ser mayor al conteo fisico.");
+        }
+        if(!conditionNote){
+          throw new Error("Debes comentar el hallazgo cuando la condicion no es OK.");
+        }
+      }
+      const s = getSession();
+      return await callRpc("rpc_inventory_count_session_item_save", {
+        p_session_token:s.token,
+        p_item_id:row.id,
+        p_counted_qty:countedQty,
+        p_note:"",
+        p_condition_status:conditionStatus,
+        p_condition_qty:conditionStatus === "ok" ? 0 : conditionQty,
+        p_condition_note:conditionStatus === "ok" ? "" : conditionNote
+      });
+    }
+
+    async function saveFindingFromModal(forceOk=false){
+      hideFindingAlert();
+      if(findingRowIndex === null) return;
+      const conditionStatus = forceOk ? "ok" : el("finding_condition").value;
+      const countedQty = Math.trunc(Number(el("finding_counted").value || 0));
+      const conditionQty = forceOk ? 0 : Math.trunc(Number(el("finding_qty").value || 0));
+      const conditionNote = forceOk ? "" : el("finding_note").value.trim();
+      if(!Number.isFinite(countedQty) || countedQty < 0){
+        showFindingAlert("El conteo fisico debe ser entero y mayor o igual a 0.");
         return;
       }
       try{
-        const s = getSession();
-        const saved = await callRpc("rpc_inventory_count_session_item_save", {
-          p_session_token:s.token,
-          p_item_id:row.id,
-          p_counted_qty:countedQty,
-          p_note:""
-        });
+        const saved = await saveSessionItemWithCondition(findingRowIndex, { countedQty, conditionStatus, conditionQty, conditionNote });
+        showOk(conditionStatus === "ok" ? "Producto marcado como OK." : `Hallazgo guardado: ${conditionLabel(conditionStatus)}.`);
+        closeFindingModal();
+        await loadSessionItems();
+      }catch(err){
+        showFindingAlert(err.message || "No se pudo guardar el hallazgo.");
+      }
+    }
+
+    async function saveSessionItem(idx){
+      hideAlert();
+      try{
+        const saved = await saveSessionItemWithCondition(idx);
+        if(!saved) return;
         showOk(`Conteo guardado: ${saved?.medicine_name || "producto"} contado ${units(saved?.counted_qty)}.`);
         await loadSessionItems();
       }catch(err){
@@ -1074,6 +1260,16 @@
       el("btn_close_session").addEventListener("click", () => finishCountSession("close"));
       el("btn_cancel_session").addEventListener("click", () => finishCountSession("cancel"));
       el("btn_print_session").addEventListener("click", printCountSession);
+      el("btn_finding_close").addEventListener("click", closeFindingModal);
+      el("btn_finding_save").addEventListener("click", () => saveFindingFromModal(false));
+      el("btn_finding_clear").addEventListener("click", () => saveFindingFromModal(true));
+      el("finding_modal").addEventListener("click", e => { if(e.target === el("finding_modal")) closeFindingModal(); });
+      el("finding_condition").addEventListener("change", () => {
+        if(el("finding_condition").value === "ok"){
+          el("finding_qty").value = "";
+          el("finding_note").value = "";
+        }
+      });
       el("session_status").addEventListener("change", loadSessionItems);
       el("session_q").addEventListener("input", () => {
         clearTimeout(sessionFilterTimer);
@@ -1101,6 +1297,9 @@
           if(!el("count_suggestions").classList.contains("d-none") && countSuggestionRows.length) chooseCountSuggestion(countSuggestionRows[0]);
         }
         if(e.key === "Escape") hideCountSuggestions();
+      });
+      document.addEventListener("keydown", e => {
+        if(e.key === "Escape" && el("finding_modal").classList.contains("show")) closeFindingModal();
       });
       document.addEventListener("click", e => {
         if(!el("q").contains(e.target) && !el("suggestions").contains(e.target)) hideSuggestions();
