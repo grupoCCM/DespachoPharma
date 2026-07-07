@@ -40,6 +40,7 @@
     .modal-backdrop-lite{ position:fixed; inset:0; background:rgba(15,23,42,.42); display:none; align-items:center; justify-content:center; padding:16px; z-index:1050; }
     .modal-backdrop-lite.show{ display:flex; }
     .finding-modal{ width:min(620px,100%); background:#fff; border-radius:14px; box-shadow:0 24px 60px rgba(15,23,42,.28); }
+    .selected-product{ min-height:44px; border:1px solid var(--border); border-radius:8px; padding:8px 10px; background:#f8fafc; }
     .variance-card{ border:1px solid var(--border); border-radius:10px; padding:12px; min-height:104px; background:#fff; }
     .variance-card.danger{ border-color:#fecaca; background:#fff7f7; }
     .variance-card.success{ border-color:#bbf7d0; background:#f7fff9; }
@@ -83,6 +84,53 @@
 
     <div id="alert_page" class="alert alert-danger d-none" role="alert"></div>
     <div id="ok_page" class="alert alert-success d-none" role="alert"></div>
+
+    <div class="app-card p-3 mb-3 admin-panel">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <div class="fw-semibold">Reclasificar inventario</div>
+          <div class="text-muted small">Corrige compras registradas en un producto equivocado sin borrar historial.</div>
+        </div>
+        <span class="badge text-bg-light border">Solo admin</span>
+      </div>
+      <div class="row g-3 mt-1">
+        <div class="col-12 col-lg-6">
+          <label class="form-label" for="reclass_from_q">Producto origen equivocado</label>
+          <input id="reclass_from_q" class="form-control" placeholder="Buscar producto origen" autocomplete="off">
+          <div id="reclass_from_suggestions" class="list-group mt-2 suggestions d-none"></div>
+          <div id="reclass_from_selected" class="selected-product text-muted small mt-2">Sin producto origen.</div>
+        </div>
+        <div class="col-12 col-lg-6">
+          <label class="form-label" for="reclass_to_q">Producto destino correcto</label>
+          <input id="reclass_to_q" class="form-control" placeholder="Buscar producto destino" autocomplete="off">
+          <div id="reclass_to_suggestions" class="list-group mt-2 suggestions d-none"></div>
+          <div id="reclass_to_selected" class="selected-product text-muted small mt-2">Sin producto destino.</div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label" for="reclass_qty">Cantidad</label>
+          <input id="reclass_qty" class="form-control" type="number" min="1" step="1" placeholder="0">
+        </div>
+        <div class="col-6 col-lg-3">
+          <label class="form-label" for="reclass_reference">Doc. compra / referencia</label>
+          <input id="reclass_reference" class="form-control" maxlength="120" placeholder="Ej: factura, CF, compra">
+        </div>
+        <div class="col-12 col-lg-4">
+          <label class="form-label" for="reclass_reason">Motivo</label>
+          <input id="reclass_reason" class="form-control" maxlength="250" placeholder="Compra registrada en producto equivocado">
+        </div>
+        <div class="col-12 col-lg-3 d-grid">
+          <label class="form-label">&nbsp;</label>
+          <button id="btn_reclassify" class="btn btn-warning">
+            <span id="btn_reclassify_text">Reclasificar</span>
+            <span id="btn_reclassify_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+          </button>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="reclass_note">Comentario</label>
+          <input id="reclass_note" class="form-control" maxlength="500" placeholder="Detalle para auditoria">
+        </div>
+      </div>
+    </div>
 
     <div class="app-card p-3 mb-3 admin-panel">
       <div class="row g-3 align-items-end">
@@ -423,6 +471,12 @@
     let suggestTimer = null;
     let countSuggestionRows = [];
     let countSuggestTimer = null;
+    let reclassFromRows = [];
+    let reclassToRows = [];
+    let reclassFromTimer = null;
+    let reclassToTimer = null;
+    let selectedReclassFrom = null;
+    let selectedReclassTo = null;
     let selectedCountProduct = null;
     let activeCountSession = null;
     let printableCountSessionId = null;
@@ -496,6 +550,7 @@
     }
 
     function movementBadge(type){
+      if(String(type).includes("reclass")) return "text-bg-warning";
       if(String(type).includes("purchase")) return "text-bg-success";
       if(String(type).includes("return")) return "text-bg-primary";
       if(String(type).includes("out")) return "text-bg-danger";
@@ -569,12 +624,15 @@
 
       el("movement_count").textContent = movements.length;
       el("tbody_movements").innerHTML = movements.length ? movements.map(row => {
-        const ref = row.delivery_no ? `Despacho ${row.delivery_no}` : row.external_purchase_no ? `Compra ${row.external_purchase_no} ${row.voucher_no || ""}` : row.source_type;
+        const reclassRef = row.source_type === "inventory_reclass"
+          ? `Reclasificacion ${row.metadata?.counterpart_external_code || ""} ${row.metadata?.reference_doc || ""}`
+          : "";
+        const ref = row.delivery_no ? `Despacho ${row.delivery_no}` : row.external_purchase_no ? `Compra ${row.external_purchase_no} ${row.voucher_no || ""}` : reclassRef || row.source_type;
         return `
           <tr>
             <td class="small">${fmtDate(row.created_at)}</td>
             <td><div class="fw-semibold truncate">${esc(row.medicine_name)}</div><div class="small text-muted">${esc(row.external_code || row.barcode || "")} ${row.resolved ? "" : "- sin cruce"}</div></td>
-            <td><span class="badge ${movementBadge(row.movement_type)}">${esc(row.movement_type)}</span><div class="small text-muted">${esc(row.created_by_name || row.note || "")}</div></td>
+            <td><span class="badge ${movementBadge(row.movement_type)}">${esc(row.movement_type)}</span><div class="small text-muted">${esc(row.created_by_name || row.metadata?.reason || row.note || "")}</div></td>
             <td class="text-end fw-semibold ${Number(row.qty_delta) < 0 ? "text-danger" : "text-success"}">${units(row.qty_delta)}</td>
             <td class="small">${esc(ref)}</td>
           </tr>`;
@@ -602,6 +660,11 @@
     function hideCountSuggestions(){
       el("count_suggestions").classList.add("d-none");
       el("count_suggestions").innerHTML = "";
+    }
+
+    function hideReclassSuggestions(which){
+      el(`reclass_${which}_suggestions`).classList.add("d-none");
+      el(`reclass_${which}_suggestions`).innerHTML = "";
     }
 
     function renderSuggestions(rows){
@@ -679,6 +742,143 @@
         renderCountSuggestions(Array.isArray(rows) ? rows : []);
       }catch(_){
         hideCountSuggestions();
+      }
+    }
+
+    function renderReclassSelected(which, row){
+      const target = el(`reclass_${which}_selected`);
+      if(!row){
+        target.className = "selected-product text-muted small mt-2";
+        target.textContent = which === "from" ? "Sin producto origen." : "Sin producto destino.";
+        return;
+      }
+      target.className = "selected-product small mt-2";
+      target.innerHTML = `<div class="fw-semibold">${esc(row.medicine_name || "-")}</div><div class="text-muted">Codigo ${esc(row.external_code || "")} - Existencia ${units(row.expected_qty)} - Casa ${esc(row.model || "-")}</div>`;
+    }
+
+    function chooseReclassSuggestion(which, row){
+      if(!row) return;
+      if(which === "from"){
+        selectedReclassFrom = row;
+        el("reclass_from_q").value = row.medicine_name || row.external_code || "";
+      }else{
+        selectedReclassTo = row;
+        el("reclass_to_q").value = row.medicine_name || row.external_code || "";
+      }
+      renderReclassSelected(which, row);
+      hideReclassSuggestions(which);
+    }
+
+    function renderReclassSuggestions(which, rows){
+      const keyRows = rows.slice(0, 8);
+      if(which === "from") reclassFromRows = keyRows;
+      else reclassToRows = keyRows;
+      const box = el(`reclass_${which}_suggestions`);
+      if(!keyRows.length){
+        box.innerHTML = `<div class="list-group-item text-muted small">Sin coincidencias.</div>`;
+        box.classList.remove("d-none");
+        return;
+      }
+      box.innerHTML = keyRows.map((row, idx) => `
+        <button type="button" class="list-group-item list-group-item-action" data-reclass-${which}="${idx}">
+          <div class="d-flex justify-content-between gap-2">
+            <span class="fw-semibold">${esc(row.medicine_name || "-")}</span>
+            <span class="badge text-bg-light border">Exist.: ${units(row.expected_qty)}</span>
+          </div>
+          <div class="small text-muted">${esc(row.secondary_name || "Sin componente")} - Casa: ${esc(row.model || "-")} - Codigo: ${esc(row.external_code || "")}</div>
+        </button>`).join("");
+      box.classList.remove("d-none");
+      document.querySelectorAll(`[data-reclass-${which}]`).forEach(btn => {
+        btn.addEventListener("click", () => {
+          const source = which === "from" ? reclassFromRows : reclassToRows;
+          chooseReclassSuggestion(which, source[Number(btn.dataset[`reclass${which[0].toUpperCase()}${which.slice(1)}`])]);
+        });
+      });
+    }
+
+    async function suggestReclassSearch(which){
+      const input = el(`reclass_${which}_q`);
+      const q = input.value.trim();
+      if(which === "from"){
+        selectedReclassFrom = null;
+        renderReclassSelected("from", null);
+      }else{
+        selectedReclassTo = null;
+        renderReclassSelected("to", null);
+      }
+      if(q.length < 2){ hideReclassSuggestions(which); return; }
+      try{
+        const s = getSession();
+        const rows = await callRpc("rpc_inventory_count_search", { p_session_token:s.token, p_query:q, p_limit:12 });
+        renderReclassSuggestions(which, Array.isArray(rows) ? rows : []);
+      }catch(_){
+        hideReclassSuggestions(which);
+      }
+    }
+
+    function setReclassLoading(v){
+      el("btn_reclassify").disabled = v;
+      el("btn_reclassify_spinner").classList.toggle("d-none", !v);
+      el("btn_reclassify_text").textContent = v ? "Reclasificando..." : "Reclasificar";
+    }
+
+    async function submitReclassification(){
+      hideAlert();
+      hideOk();
+      if(!selectedReclassFrom){
+        showAlert("Selecciona el producto origen equivocado.");
+        el("reclass_from_q").focus();
+        return;
+      }
+      if(!selectedReclassTo){
+        showAlert("Selecciona el producto destino correcto.");
+        el("reclass_to_q").focus();
+        return;
+      }
+      const qty = Math.trunc(Number(el("reclass_qty").value || 0));
+      if(!Number.isFinite(qty) || qty <= 0){
+        showAlert("La cantidad debe ser un entero mayor que 0.");
+        el("reclass_qty").focus();
+        return;
+      }
+      if(Number(selectedReclassFrom.external_code) === Number(selectedReclassTo.external_code)){
+        showAlert("El producto origen y destino no pueden ser el mismo.");
+        return;
+      }
+      const reason = el("reclass_reason").value.trim();
+      if(!reason){
+        showAlert("Indica el motivo de la reclasificacion.");
+        el("reclass_reason").focus();
+        return;
+      }
+      if(Number(selectedReclassFrom.expected_qty || 0) < qty){
+        showAlert(`No se puede reclasificar ${units(qty)}. Disponible en origen: ${units(selectedReclassFrom.expected_qty)}.`);
+        return;
+      }
+      if(!confirm(`Reclasificar ${units(qty)} unidades?\n\nOrigen: ${selectedReclassFrom.medicine_name}\nDestino: ${selectedReclassTo.medicine_name}`)) return;
+      setReclassLoading(true);
+      try{
+        const s = getSession();
+        const result = await callRpc("rpc_inventory_reclassify", {
+          p_session_token:s.token,
+          p_from_external_code:Number(selectedReclassFrom.external_code),
+          p_to_external_code:Number(selectedReclassTo.external_code),
+          p_qty:qty,
+          p_reference_doc:el("reclass_reference").value.trim(),
+          p_reason:reason,
+          p_note:el("reclass_note").value.trim()
+        });
+        showOk(`Reclasificacion aplicada: ${units(result?.qty || qty)} unidades de ${result?.from_name || "origen"} a ${result?.to_name || "destino"}.`);
+        selectedReclassFrom = null;
+        selectedReclassTo = null;
+        ["reclass_from_q","reclass_to_q","reclass_qty","reclass_reference","reclass_reason","reclass_note"].forEach(id => el(id).value = "");
+        renderReclassSelected("from", null);
+        renderReclassSelected("to", null);
+        await Promise.all([loadAudit(), loadManualCounts(), loadCurrentSession()]);
+      }catch(err){
+        showAlert(err.message || "No se pudo reclasificar inventario.");
+      }finally{
+        setReclassLoading(false);
       }
     }
 
@@ -1253,6 +1453,29 @@
       if(isAdmin()){
         el("btn_refresh").addEventListener("click", loadAudit);
         el("btn_search").addEventListener("click", loadAudit);
+        el("btn_reclassify").addEventListener("click", submitReclassification);
+        el("reclass_from_q").addEventListener("input", () => {
+          clearTimeout(reclassFromTimer);
+          reclassFromTimer = setTimeout(() => suggestReclassSearch("from"), 250);
+        });
+        el("reclass_to_q").addEventListener("input", () => {
+          clearTimeout(reclassToTimer);
+          reclassToTimer = setTimeout(() => suggestReclassSearch("to"), 250);
+        });
+        el("reclass_from_q").addEventListener("keydown", e => {
+          if(e.key === "Enter"){
+            e.preventDefault();
+            if(!el("reclass_from_suggestions").classList.contains("d-none") && reclassFromRows.length) chooseReclassSuggestion("from", reclassFromRows[0]);
+          }
+          if(e.key === "Escape") hideReclassSuggestions("from");
+        });
+        el("reclass_to_q").addEventListener("keydown", e => {
+          if(e.key === "Enter"){
+            e.preventDefault();
+            if(!el("reclass_to_suggestions").classList.contains("d-none") && reclassToRows.length) chooseReclassSuggestion("to", reclassToRows[0]);
+          }
+          if(e.key === "Escape") hideReclassSuggestions("to");
+        });
       }
       el("btn_save_count").addEventListener("click", saveManualCount);
       el("btn_new_session").addEventListener("click", createCountSession);
@@ -1304,6 +1527,10 @@
       document.addEventListener("click", e => {
         if(!el("q").contains(e.target) && !el("suggestions").contains(e.target)) hideSuggestions();
         if(!el("count_q").contains(e.target) && !el("count_suggestions").contains(e.target)) hideCountSuggestions();
+        if(isAdmin()){
+          if(!el("reclass_from_q").contains(e.target) && !el("reclass_from_suggestions").contains(e.target)) hideReclassSuggestions("from");
+          if(!el("reclass_to_q").contains(e.target) && !el("reclass_to_suggestions").contains(e.target)) hideReclassSuggestions("to");
+        }
       });
       if(isAdmin()){
         el("limit").addEventListener("change", loadAudit);
