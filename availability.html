@@ -22,6 +22,10 @@
     .modal-backdrop-lite.show{ display:flex; }
     .sale-modal{ width:min(760px,100%); max-height:90vh; overflow:auto; background:#fff; border-radius:16px; box-shadow:0 24px 60px rgba(15,23,42,.28); }
     .qty-input{ width:82px; display:inline-block; }
+    .help-button{ width:28px; height:28px; border-radius:999px; padding:0; line-height:1; font-weight:700; }
+    .search-help{ border:1px solid var(--border); border-radius:12px; background:#f8fafc; box-shadow:0 10px 26px rgba(15,23,42,.08); }
+    .help-tag{ border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:999px; padding:.2rem .55rem; font-size:.78rem; line-height:1.2; }
+    .help-tag:hover{ border-color:#2563eb; color:#1d4ed8; background:#eff6ff; }
   </style>
 </head>
 <body>
@@ -46,7 +50,16 @@
           <div class="text-muted small">Consulta comercial y operativa sin PIN.</div>
           <div id="alert_page" class="alert alert-danger d-none mt-3 mb-0"></div>
           <div class="mt-3">
-            <label class="form-label" for="q">Medicamento</label>
+            <div id="search_help_wrap" class="position-relative">
+              <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                <label class="form-label mb-0" for="q">Medicamento</label>
+                <button id="btn_search_help" class="btn btn-outline-secondary btn-sm help-button" type="button" aria-label="Ver ayuda de búsqueda" aria-expanded="false" aria-controls="search_help">?</button>
+              </div>
+              <div id="search_help" class="search-help p-2 mb-2 d-none" role="note">
+                <div class="small fw-semibold mb-1">También puedes buscar por estas clasificaciones:</div>
+                <div id="search_help_tags" class="d-flex flex-wrap gap-1"></div>
+              </div>
+            </div>
             <input id="q" class="form-control form-control-lg" placeholder="Nombre, componente, casa, subgrupo o codigo" autocomplete="off" autofocus>
             <div id="suggestions" class="list-group mt-2 suggestions d-none"></div>
           </div>
@@ -175,6 +188,25 @@
     let suggestTimer = null;
     let selectedRow = null;
     let saleCart = [];
+    const searchClassifications = [
+      "Acidez gases y reflujo",
+      "Afecciones de vias urinarias",
+      "Ansiedad, depresión e inductores del sueño",
+      "Antiarrítmico",
+      "Antibioticos orales",
+      "Antidiabéticos",
+      "Antihipertensivo",
+      "Artritis y reumatismo",
+      "Asma",
+      "Colesterol y trigliceridos",
+      "Diurético",
+      "Dolor de cuerpo",
+      "Esteroides topicos",
+      "Fuerza y energia",
+      "Sistema inmunologico",
+      "Tiroides",
+      "Vacunas"
+    ];
 
     function money(v){ return v === null || v === undefined ? "-" : new Intl.NumberFormat("es-SV",{style:"currency",currency:"USD"}).format(Number(v || 0)); }
     function num(v,d=0){ return v === null || v === undefined ? "-" : new Intl.NumberFormat("es-SV",{maximumFractionDigits:d}).format(Number(v || 0)); }
@@ -311,6 +343,25 @@
       el("suggestions").innerHTML = "";
     }
 
+    function toggleSearchHelp(force){
+      const next = typeof force === "boolean" ? force : el("search_help").classList.contains("d-none");
+      el("search_help").classList.toggle("d-none", !next);
+      el("btn_search_help").setAttribute("aria-expanded", String(next));
+    }
+
+    function renderSearchHelp(){
+      el("search_help_tags").innerHTML = searchClassifications.map(name => `
+        <button type="button" class="help-tag" data-help-query="${esc(name)}">${esc(name)}</button>
+      `).join("");
+      document.querySelectorAll("[data-help-query]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          el("q").value = btn.dataset.helpQuery || "";
+          toggleSearchHelp(false);
+          search();
+        });
+      });
+    }
+
     function renderSuggestions(rows){
       suggestionRows = rows.slice(0, 8);
       if(!suggestionRows.length){
@@ -387,6 +438,7 @@
 
     el("btn_search").addEventListener("click", search);
     el("btn_clear").addEventListener("click", () => { el("q").value=""; currentRows=[]; suggestionRows=[]; hideSuggestions(); renderRows([]); renderDetail(null); clearSaleCart(); el("q").focus(); });
+    el("btn_search_help").addEventListener("click", () => toggleSearchHelp());
     el("btn_add_selected").addEventListener("click", () => addSaleItem(selectedRow));
     el("btn_sale_open").addEventListener("click", () => { el("sale_modal").classList.add("show"); el("sale_modal").setAttribute("aria-hidden","false"); });
     el("btn_sale_close").addEventListener("click", () => { el("sale_modal").classList.remove("show"); el("sale_modal").setAttribute("aria-hidden","true"); });
@@ -402,11 +454,16 @@
         e.preventDefault();
         search();
       }
-      if(e.key === "Escape") hideSuggestions();
+      if(e.key === "Escape"){
+        hideSuggestions();
+        toggleSearchHelp(false);
+      }
     });
     document.addEventListener("click", e => {
       if(!el("search_panel").contains(e.target)) hideSuggestions();
+      if(!el("search_help_wrap").contains(e.target)) toggleSearchHelp(false);
     });
+    renderSearchHelp();
   </script>
 </body>
 </html>
