@@ -235,8 +235,8 @@ begin
 
   select status, delivery_no, expediente
     into v_status, v_delivery, v_expediente
-  from public.dispatch_header
-  where id = p_dispatch_id;
+  from public.dispatch_header dh
+  where dh.id = p_dispatch_id;
 
   if v_status is null then
     raise exception 'Despacho no encontrado';
@@ -248,9 +248,9 @@ begin
 
   if v_status = 'validated' then
     for v_item in
-      select id, barcode, qty, product_name_snapshot
-      from public.dispatch_items
-      where dispatch_id = p_dispatch_id
+      select di.id, di.barcode, di.qty, di.product_name_snapshot
+      from public.dispatch_items di
+      where di.dispatch_id = p_dispatch_id
     loop
       perform public.inventory_insert_dispatch_movement(
         p_dispatch_id,
