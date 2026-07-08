@@ -444,7 +444,7 @@
       }catch(err){ showAlert(err.message || "No se pudo actualizar referencia."); }
     }
 
-    function renderCart(){
+    function updateCartTotals(){
       const totalQty = cart.reduce((sum,row)=>sum + Number(row.qty||0), 0);
       const total = cart.reduce((sum,row)=>sum + (Number(row.qty||0) * (row.manual_cost_no_tax || costUsed(row))), 0);
       const totalTax = cart.reduce((sum,row)=>sum + (Number(row.qty||0) * (row.manual_cost_tax || ((costUsed(row)) * 1.13))), 0);
@@ -460,19 +460,49 @@
       el("order_meta").textContent = cart.length ? `Generado ${new Date().toLocaleString("es-SV")} - ${cart.length} productos - ${num(totalQty)} unidades` : "Sin productos agregados.";
       el("btn_print").disabled = cart.length === 0;
       el("btn_download").disabled = cart.length === 0;
+    }
+
+    function renderCart(){
+      updateCartTotals();
       el("tbody_cart").innerHTML = cart.length ? cart.map((row,idx)=>{
         const cost = row.manual_cost_no_tax || costUsed(row), sub = cost * Number(row.qty||0);
         return `<tr>
           <td>${row.external_code||""}</td>
           <td><div class="fw-semibold">${row.medicine_name||"-"}</div></td>
-          <td class="text-end"><input class="form-control form-control-sm text-end no-print" style="width:90px;display:inline-block" type="number" min="0" step="1" value="${Math.round(Number(row.qty || 0))}" data-qty="${idx}"><span class="d-none d-print-inline">${num(row.qty)}</span></td>
+          <td class="text-end"><input class="form-control form-control-sm text-end no-print" style="width:90px;display:inline-block" type="text" inputmode="numeric" pattern="[0-9]*" value="${Math.max(1, Math.round(Number(row.qty || 1)))}" data-qty="${idx}"><span class="d-none d-print-inline" data-print-qty="${idx}">${num(row.qty)}</span></td>
           <td class="text-end">${money(cost)}</td>
-          <td class="text-end">${money(sub)}</td>
+          <td class="text-end" data-subtotal="${idx}">${money(sub)}</td>
           <td class="text-end no-print"><button class="btn btn-sm btn-outline-danger" data-remove="${idx}">Quitar</button></td>
         </tr>`;
       }).join("") : `<tr><td colspan="6" class="text-center text-muted py-4">Pedido vacio.</td></tr>`;
       document.querySelectorAll("[data-remove]").forEach(btn=>btn.addEventListener("click",()=>{ cart.splice(Number(btn.dataset.remove),1); renderCart(); }));
-      document.querySelectorAll("[data-qty]").forEach(input=>input.addEventListener("input",()=>{ cart[Number(input.dataset.qty)].qty = Math.max(0, Math.round(Number(input.value||0))); renderCart(); }));
+      document.querySelectorAll("[data-qty]").forEach(input=>{
+        input.addEventListener("input",()=>{
+          const idx = Number(input.dataset.qty);
+          input.value = input.value.replace(/\D/g, "");
+          if(input.value === "") return;
+          cart[idx].qty = Math.max(1, Math.round(Number(input.value)));
+          const cost = cart[idx].manual_cost_no_tax || costUsed(cart[idx]);
+          const subtotal = document.querySelector(`[data-subtotal="${idx}"]`);
+          const printQty = document.querySelector(`[data-print-qty="${idx}"]`);
+          if(subtotal) subtotal.textContent = money(cost * Number(cart[idx].qty || 0));
+          if(printQty) printQty.textContent = num(cart[idx].qty);
+          updateCartTotals();
+        });
+        input.addEventListener("blur",()=>{
+          const idx = Number(input.dataset.qty);
+          if(input.value === ""){
+            input.value = "1";
+            cart[idx].qty = 1;
+            const cost = cart[idx].manual_cost_no_tax || costUsed(cart[idx]);
+            const subtotal = document.querySelector(`[data-subtotal="${idx}"]`);
+            const printQty = document.querySelector(`[data-print-qty="${idx}"]`);
+            if(subtotal) subtotal.textContent = money(cost);
+            if(printQty) printQty.textContent = "1";
+            updateCartTotals();
+          }
+        });
+      });
     }
 
     function downloadOrder(){
