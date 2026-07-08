@@ -20,6 +20,14 @@
     .count-list{ max-height:560px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
     .count-list table{ margin-bottom:0; }
     .count-list thead th{ position:sticky; top:0; z-index:2; background:#f8fafc; }
+    .audit-table-box{ overflow:auto; border:1px solid var(--border); border-radius:10px; }
+    .audit-table-box table{ margin-bottom:0; min-width:760px; }
+    .audit-table-box thead th{ position:sticky; top:0; z-index:2; background:#f8fafc; box-shadow:0 1px 0 var(--border); }
+    .audit-table-box.compact table{ min-width:520px; }
+    .audit-table-box.variance-box{ max-height:420px; }
+    .audit-table-box.movements-box{ max-height:520px; }
+    .audit-table-box.changed-box{ max-height:300px; }
+    .audit-table-box.unresolved-box{ max-height:260px; }
     .count-table{ table-layout:fixed; min-width:1080px; }
     .count-product-col{ width:34%; }
     .count-num-col{ width:94px; text-align:center; }
@@ -185,7 +193,7 @@
         </div>
       </div>
 
-      <div class="table-responsive mt-3">
+      <div class="audit-table-box variance-box mt-3">
         <table class="table table-sm mb-0">
           <thead class="table-light">
             <tr>
@@ -365,7 +373,7 @@
             <div class="fw-semibold">Movimientos recientes</div>
             <span id="movement_count" class="badge text-bg-light border">0</span>
           </div>
-          <div class="table-responsive mt-3">
+          <div class="audit-table-box movements-box mt-3">
             <table class="table table-sm">
               <thead class="table-light">
                 <tr>
@@ -388,7 +396,7 @@
         <div class="app-card p-3 mb-3">
           <div class="fw-semibold">Pendientes sin cruce</div>
           <div class="text-muted small">Movimientos que no encontraron producto en catalogo.</div>
-          <div class="table-responsive mt-3">
+          <div class="audit-table-box compact unresolved-box mt-3">
             <table class="table table-sm">
               <thead class="table-light"><tr><th>Detalle</th><th class="text-end">Neto</th></tr></thead>
               <tbody id="tbody_unresolved">
@@ -401,7 +409,7 @@
         <div class="app-card p-3">
           <div class="fw-semibold">Productos con cambios</div>
           <div class="text-muted small">Diferencia entre foto de existencia y movimientos posteriores.</div>
-          <div class="table-responsive mt-3">
+          <div class="audit-table-box compact changed-box mt-3">
             <table class="table table-sm">
               <thead class="table-light"><tr><th>Producto</th><th class="text-end">Delta</th><th class="text-end">Vivo</th></tr></thead>
               <tbody id="tbody_changed">
