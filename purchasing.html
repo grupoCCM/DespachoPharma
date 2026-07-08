@@ -8,14 +8,23 @@
   <style>
     :root{ --bg:#f8fafc; --card:#fff; --border:#e2e8f0; --text:#0f172a; --muted:#64748b; }
     body{ background:var(--bg); color:var(--text); }
-    .app-card{ background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:0 6px 20px rgba(15,23,42,.06); }
+    body > .navbar{ position:sticky; top:0; z-index:1030; box-shadow:0 2px 10px rgba(15,23,42,.06); }
+    .app-card{ background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:0 6px 20px rgba(15,23,42,.06); }
     .brand-dot{ width:10px;height:10px;border-radius:999px;background:#3b82f6;display:inline-block;margin-right:8px; }
     .table td,.table th{ vertical-align:middle; }
     .truncate{ max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .metric-value{ font-size:1.35rem; font-weight:700; }
     .analysis-metric{ min-height:58px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#f8fafc; }
     .analysis-metric .fw-semibold{ font-size:1.02rem; }
+    .results-table-box{ max-height:560px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
+    .results-table-box table{ margin-bottom:0; min-width:920px; }
+    .results-table-box thead th{ position:sticky; top:0; z-index:2; background:#f8fafc; box-shadow:0 1px 0 var(--border); }
     .order-table{ border-bottom:1px solid var(--border); }
+    .action-stack{ display:flex; flex-direction:column; gap:6px; align-items:stretch; min-width:116px; }
+    .coverage-chip{ display:inline-block; border:1px solid var(--border); border-radius:999px; padding:1px 7px; background:#f8fafc; font-size:.76rem; color:var(--muted); }
+    .cost-source{ display:block; font-size:.76rem; color:var(--muted); margin-top:2px; }
+    .order-table-box{ overflow:auto; }
+    .order-table-box table{ min-width:720px; }
     .order-summary{ max-width:420px; margin-left:auto; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
     .order-summary-row{ display:grid; grid-template-columns:1fr auto; gap:18px; padding:9px 14px; border-bottom:1px solid var(--border); }
     .order-summary-row:last-child{ border-bottom:0; }
@@ -49,11 +58,11 @@
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3 no-print">
       <div>
         <h1 class="h4 mb-1">Apoyo de pedido</h1>
-        <div class="text-muted">Decision de compra con rotacion, proveedor, costos y precio de referencia.</div>
+        <div class="text-muted">Decisión de compra con rotación, proveedor, costos y precio de referencia.</div>
       </div>
       <div class="d-flex gap-2">
         <button id="btn_print" class="btn btn-outline-primary" disabled>Imprimir pedido</button>
-        <button id="btn_download" class="btn btn-outline-secondary" disabled>Guardar pedido imprimible</button>
+        <button id="btn_download" class="btn btn-outline-secondary" disabled>Descargar pedido</button>
       </div>
     </div>
 
@@ -63,14 +72,14 @@
       <div class="col-12 col-xl-4" id="search_panel">
         <div class="app-card p-3">
           <div class="fw-semibold">Buscar</div>
-          <div class="text-muted small">Medicamento, codigo, casa farmaceutica o proveedor.</div>
+          <div class="text-muted small">Medicamento, código, casa farmacéutica o proveedor.</div>
           <div class="mt-3">
             <label class="form-label" for="q">Consulta</label>
             <input id="q" class="form-control" placeholder="Ej: metformina / 776 / casa / proveedor" autocomplete="off">
             <div id="suggestions" class="list-group mt-2 d-none"></div>
           </div>
           <div class="mt-3">
-            <label class="form-label" for="house_filter">Casa farmaceutica</label>
+            <label class="form-label" for="house_filter">Casa farmacéutica</label>
             <select id="house_filter" class="form-select">
               <option value="">Todas</option>
             </select>
@@ -94,8 +103,8 @@
         </div>
 
         <div class="app-card p-3 mt-3">
-          <div class="fw-semibold">Analisis de precio</div>
-          <div class="text-muted small">Formula: Costo / (1 - GM) y luego IVA.</div>
+          <div class="fw-semibold">Análisis de precio</div>
+          <div class="text-muted small">Para negociar costo y agregar con precio calculado.</div>
           <div class="mt-3">
             <label class="form-label" for="selected_med">Medicamento</label>
             <input id="selected_med" class="form-control" readonly placeholder="Selecciona un resultado">
@@ -125,12 +134,12 @@
             <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Precio referencia</div><div id="calc_reference_price" class="fw-semibold">-</div></div></div>
             <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Ref - venta</div><div id="calc_vs_ref" class="fw-semibold">-</div></div></div>
             <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Ref - actual</div><div id="calc_ref_actual" class="fw-semibold">-</div></div></div>
-            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Vs minimo</div><div id="calc_vs_min" class="fw-semibold">-</div></div></div>
-            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Costo minimo</div><div id="calc_min_cost" class="fw-semibold">-</div></div></div>
+            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Vs mínimo</div><div id="calc_vs_min" class="fw-semibold">-</div></div></div>
+            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Costo mínimo</div><div id="calc_min_cost" class="fw-semibold">-</div></div></div>
             <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Costo promedio</div><div id="calc_avg_cost" class="fw-semibold">-</div></div></div>
           </div>
           <div class="d-grid gap-2 mt-3">
-            <button id="btn_add_calc" class="btn btn-success" disabled>Agregar calculado al pedido</button>
+            <button id="btn_add_calc" class="btn btn-success" disabled>Agregar con costo negociado</button>
           </div>
         </div>
 
@@ -151,13 +160,13 @@
             <div class="fw-semibold">Resultado de compra</div>
             <span id="count" class="badge text-bg-light border">0</span>
           </div>
-          <div class="table-responsive mt-3">
+          <div class="results-table-box mt-3">
             <table class="table table-sm order-table">
               <thead class="table-light">
                 <tr>
                   <th>Medicamento</th>
-                  <th>Decision</th>
-                  <th class="text-end">Exist. / rotacion</th>
+                  <th>Decisión</th>
+                  <th class="text-end">Exist. / rotación</th>
                   <th>Proveedor distribuidor</th>
                   <th class="text-end">Costos</th>
                   <th class="text-end">Ref.</th>
@@ -177,14 +186,14 @@
           <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start">
             <div>
               <h2 class="h5 mb-1">Pedido Botiquín CCM</h2>
-              <div id="order_meta" class="text-muted small">Sin lineas agregadas.</div>
+              <div id="order_meta" class="text-muted small">Sin líneas agregadas.</div>
             </div>
           </div>
-          <div class="table-responsive mt-3">
+          <div class="order-table-box mt-3">
             <table class="table table-sm">
               <thead class="table-light">
                 <tr>
-                  <th>Codigo</th>
+                  <th>Código</th>
                   <th>Medicamento</th>
                   <th class="text-end">Cant.</th>
                   <th class="text-end">Costo unitario</th>
@@ -193,7 +202,7 @@
                 </tr>
               </thead>
               <tbody id="tbody_cart">
-                <tr><td colspan="6" class="text-center text-muted py-4">Pedido vacio.</td></tr>
+                <tr><td colspan="6" class="text-center text-muted py-4">Pedido vacío.</td></tr>
               </tbody>
             </table>
           </div>
@@ -227,6 +236,13 @@
     function showAlert(msg){ el("alert_page").textContent=msg; el("alert_page").classList.remove("d-none"); }
     function hideAlert(){ el("alert_page").textContent=""; el("alert_page").classList.add("d-none"); }
     function costUsed(row){ return Number(row.last_cost || row.avg_cost || row.min_cost || row.unit_cost || 0); }
+    function costSourceLabel(row){
+      if(row?.manual_cost_no_tax) return "negociado";
+      if(Number(row?.last_cost || 0) > 0) return "último costo";
+      if(Number(row?.avg_cost || 0) > 0) return "costo promedio";
+      if(Number(row?.min_cost || 0) > 0) return "costo mínimo";
+      return "sin costo";
+    }
     function setLoading(v){ el("btn_search").disabled=v; el("btn_search_spinner").classList.toggle("d-none",!v); el("btn_search_text").textContent=v?"Buscando...":"Buscar"; }
     function setTone(id, value){
       const node = el(id);
@@ -267,16 +283,18 @@
           <td><span class="badge ${decisionBadge(r.decision)}">${r.decision||"-"}</span></td>
           <td class="text-end">
             <div class="fw-semibold">${num(r.stock_qty)}</div>
-            <div class="small text-muted">Rot. ${num(r.monthly_rotation)} / mes</div>
-            <div class="small text-muted">${r.coverage_days == null ? "Sin cobertura" : `${num(r.coverage_days)} dias`}</div>
+            <div class="mt-1"><span class="coverage-chip">Rot. ${num(r.monthly_rotation)} / mes</span></div>
+            <div class="mt-1"><span class="coverage-chip">${r.coverage_days == null ? "Sin cobertura" : `${num(r.coverage_days)} dias`}</span></div>
           </td>
           <td>${r.supplier_name||"-"}<div class="small text-muted">${r.last_purchase_date||""}</div></td>
           <td class="text-end small">Ult ${money(r.last_cost)}<br>Prom ${money(r.avg_cost)}<br>Min ${money(r.min_cost)}</td>
           <td class="text-end">${money(r.reference_price)}<div class="small text-muted">${r.reference_is_manual ? "manual" : "archivo"}</div></td>
           <td class="text-end">
-            <button class="btn btn-sm btn-primary" data-analyze="${idx}">Analizar</button>
-            <button class="btn btn-sm btn-success mt-1" data-add="${idx}">Agregar</button>
-            <button class="btn btn-sm btn-outline-primary mt-1" data-ref="${idx}">Ref.</button>
+            <div class="action-stack">
+              <button class="btn btn-sm btn-success" data-add="${idx}">Agregar automático</button>
+              <button class="btn btn-sm btn-outline-primary" data-analyze="${idx}">Negociar</button>
+              <button class="btn btn-sm btn-outline-secondary" data-ref="${idx}">Editar ref.</button>
+            </div>
           </td>
         </tr>`).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin resultados.</td></tr>`;
       document.querySelectorAll("[data-analyze]").forEach(btn=>btn.addEventListener("click",()=>selectForAnalysis(visibleRows[Number(btn.dataset.analyze)])));
@@ -361,7 +379,7 @@
       el("selected_med").value = row ? `${row.external_code || ""} - ${row.medicine_name || ""}` : "";
       const lastCost = row ? Number(row.last_cost || 0) : 0;
       el("calc_cost").value = row && lastCost > 0 ? lastCost.toFixed(4) : "";
-      el("calc_cost_source").textContent = row ? (lastCost > 0 ? "Ultimo costo sin IVA. Puedes modificarlo para negociar." : "Sin ultimo costo registrado. Ingresa el costo negociado.") : "Selecciona un producto.";
+      el("calc_cost_source").textContent = row ? (lastCost > 0 ? "Último costo sin IVA. Puedes modificarlo para negociar." : "Sin último costo registrado. Ingresa el costo negociado.") : "Selecciona un producto.";
       el("calc_qty").value = row && Number(row.suggested_qty || 0) > 0 ? Math.round(Number(row.suggested_qty)) : 1;
       el("btn_add_calc").disabled = !row;
       calculateAnalysis();
@@ -409,7 +427,7 @@
       }
       const existing = cart.find(x=>x.external_code === row.external_code);
       if(existing){ existing.qty += qty; }
-      else cart.push({ ...row, qty });
+      else cart.push({ ...row, qty, cost_source: costSourceLabel(row) });
       renderCart();
     }
 
@@ -426,6 +444,7 @@
         manual_cost_no_tax: calc.cost,
         manual_cost_tax: calc.cost * (1 + calc.iva / 100),
         calculated_sale_tax: calc.saleTax,
+        cost_source: "negociado",
         gm: calc.gm,
         iva: calc.iva
       });
@@ -437,7 +456,7 @@
       const value = prompt(`Nuevo precio de referencia para ${row.medicine_name}`, current);
       if(value === null) return;
       const price = Number(String(value).replace(",", "."));
-      if(!Number.isFinite(price) || price < 0){ showAlert("Precio de referencia invalido."); return; }
+      if(!Number.isFinite(price) || price < 0){ showAlert("Precio de referencia inválido."); return; }
       try{
         await callRpc("rpc_reference_price_set", { p_session_token:getSession().token, p_external_code:row.external_code, p_reference_price:price, p_note:"Editado desde apoyo de pedido" });
         await search(false);
@@ -457,7 +476,7 @@
       el("summary_subtotal").textContent = money(total);
       el("summary_iva").textContent = money(ivaTotal);
       el("summary_total").textContent = money(totalTax);
-      el("order_meta").textContent = cart.length ? `Generado ${new Date().toLocaleString("es-SV")} - ${cart.length} productos - ${num(totalQty)} unidades` : "Sin productos agregados.";
+      el("order_meta").textContent = cart.length ? `Generado ${new Date().toLocaleString("es-SV")} - ${cart.length} productos - ${num(totalQty)} unidades` : "Sin líneas agregadas.";
       el("btn_print").disabled = cart.length === 0;
       el("btn_download").disabled = cart.length === 0;
     }
@@ -470,11 +489,11 @@
           <td>${row.external_code||""}</td>
           <td><div class="fw-semibold">${row.medicine_name||"-"}</div></td>
           <td class="text-end"><input class="form-control form-control-sm text-end no-print" style="width:90px;display:inline-block" type="text" inputmode="numeric" pattern="[0-9]*" value="${Math.max(1, Math.round(Number(row.qty || 1)))}" data-qty="${idx}"><span class="d-none d-print-inline" data-print-qty="${idx}">${num(row.qty)}</span></td>
-          <td class="text-end">${money(cost)}</td>
+          <td class="text-end">${money(cost)}<span class="cost-source">${esc(row.cost_source || costSourceLabel(row))}</span></td>
           <td class="text-end" data-subtotal="${idx}">${money(sub)}</td>
           <td class="text-end no-print"><button class="btn btn-sm btn-outline-danger" data-remove="${idx}">Quitar</button></td>
         </tr>`;
-      }).join("") : `<tr><td colspan="6" class="text-center text-muted py-4">Pedido vacio.</td></tr>`;
+      }).join("") : `<tr><td colspan="6" class="text-center text-muted py-4">Pedido vacío.</td></tr>`;
       document.querySelectorAll("[data-remove]").forEach(btn=>btn.addEventListener("click",()=>{ cart.splice(Number(btn.dataset.remove),1); renderCart(); }));
       document.querySelectorAll("[data-qty]").forEach(input=>{
         input.addEventListener("input",()=>{
