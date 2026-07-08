@@ -157,7 +157,7 @@
                 <tr>
                   <th>Medicamento</th>
                   <th>Decision</th>
-                  <th class="text-end">Exist.</th>
+                  <th class="text-end">Exist. / rotacion</th>
                   <th>Proveedor distribuidor</th>
                   <th class="text-end">Costos</th>
                   <th class="text-end">Ref.</th>
@@ -265,7 +265,11 @@
         <tr>
           <td><div class="fw-semibold truncate">${r.medicine_name||"-"}</div><div class="small text-muted">${r.external_code||""} - Casa: ${r.model||"-"}</div></td>
           <td><span class="badge ${decisionBadge(r.decision)}">${r.decision||"-"}</span><div class="small text-muted">${r.action||""}</div></td>
-          <td class="text-end fw-semibold">${num(r.stock_qty)}</td>
+          <td class="text-end">
+            <div class="fw-semibold">${num(r.stock_qty)}</div>
+            <div class="small text-muted">Rot. ${num(r.monthly_rotation)} / mes</div>
+            <div class="small text-muted">${r.coverage_days == null ? "Sin cobertura" : `${num(r.coverage_days)} dias`}</div>
+          </td>
           <td>${r.supplier_name||"-"}<div class="small text-muted">${r.last_purchase_date||""}</div></td>
           <td class="text-end small">Ult ${money(r.last_cost)}<br>Prom ${money(r.avg_cost)}<br>Min ${money(r.min_cost)}</td>
           <td class="text-end">${money(r.reference_price)}<div class="small text-muted">${r.reference_is_manual ? "manual" : "archivo"}</div></td>
