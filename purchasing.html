@@ -264,7 +264,7 @@
       el("tbody_results").innerHTML = visibleRows.length ? visibleRows.map((r,idx)=>`
         <tr>
           <td><div class="fw-semibold truncate">${r.medicine_name||"-"}</div><div class="small text-muted">${r.external_code||""} - Casa: ${r.model||"-"}</div></td>
-          <td><span class="badge ${decisionBadge(r.decision)}">${r.decision||"-"}</span><div class="small text-muted">${r.action||""}</div></td>
+          <td><span class="badge ${decisionBadge(r.decision)}">${r.decision||"-"}</span></td>
           <td class="text-end">
             <div class="fw-semibold">${num(r.stock_qty)}</div>
             <div class="small text-muted">Rot. ${num(r.monthly_rotation)} / mes</div>
