@@ -150,9 +150,9 @@
               <div class="text-muted small">Selecciona los archivos antes de procesarlos para verificar nombre, tamano y huella.</div>
             </div>
             <div class="d-flex gap-2">
-              <button id="btn_process_inventory" class="btn btn-success btn-sm" disabled>
-                <span id="btn_process_inventory_text">Procesar inventario</span>
-                <span id="btn_process_inventory_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+              <button id="btn_process_selected" class="btn btn-success btn-sm" disabled>
+                <span id="btn_process_selected_text">Procesar seleccionados</span>
+                <span id="btn_process_selected_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
               </button>
               <button id="btn_clear_files" class="btn btn-outline-secondary btn-sm">Limpiar seleccion</button>
             </div>
@@ -186,16 +186,17 @@
                   <th class="text-end">Tamano</th>
                   <th>Hash local</th>
                   <th>Estado</th>
+                  <th class="text-end">Accion</th>
                 </tr>
               </thead>
               <tbody id="tbody_selected">
-                <tr><td colspan="5" class="text-center text-muted py-4">No hay archivos seleccionados.</td></tr>
+                <tr><td colspan="6" class="text-center text-muted py-4">No hay archivos seleccionados.</td></tr>
               </tbody>
             </table>
           </div>
 
           <div class="alert alert-info mt-3 mb-0">
-            Actualizar refresca el resumen. Procesar inventario carga la foto oficial, actualiza existencias y refresca lotes/vencimientos; omite productos inactivos.
+            Puedes procesar uno o varios archivos. Inventario actualiza existencias y lotes; compras suma entradas nuevas; ventas/utilidad y clientes consulta actualizan dashboard y penetracion. Los duplicados se omiten.
           </div>
         </div>
       </div>
@@ -210,6 +211,14 @@
 
     const el = (id) => document.getElementById(id);
     let selectedFilesCache = [];
+    let isProcessingFiles = false;
+
+    const SOURCE_CONFIG = {
+      sales_profit: { label:"Ventas / utilidad", rpc:"rpc_import_sales_profit", reader:"sales" },
+      consultations: { label:"Clientes consulta", rpc:"rpc_import_consultations", reader:"consultations" },
+      inventory: { label:"Inventario", rpc:"rpc_import_inventory_snapshot", reader:"inventory" },
+      purchases: { label:"Compras", rpc:"rpc_import_purchases", reader:"purchases" }
+    };
 
     function getSession(){
       return {
@@ -294,10 +303,14 @@
       el("btn_refresh_text").textContent = isLoading ? "Actualizando..." : "Actualizar";
     }
 
-    function setInventoryProcessing(isLoading){
-      el("btn_process_inventory").disabled = isLoading || !selectedFilesCache.some(row => row.source === "inventory");
-      el("btn_process_inventory_spinner").classList.toggle("d-none", !isLoading);
-      el("btn_process_inventory_text").textContent = isLoading ? "Procesando..." : "Procesar inventario";
+    function setFileProcessing(isLoading){
+      isProcessingFiles = isLoading;
+      const hasFiles = selectedFilesCache.length > 0;
+      el("btn_process_selected").disabled = isLoading || !hasFiles;
+      el("btn_process_selected_spinner").classList.toggle("d-none", !isLoading);
+      el("btn_process_selected_text").textContent = isLoading ? "Procesando..." : "Procesar seleccionados";
+      document.querySelectorAll(".btn-process-file").forEach(btn => { btn.disabled = isLoading; });
+      document.querySelectorAll(".file-input").forEach(input => { input.disabled = isLoading; });
     }
 
     function statusBadge(status){
@@ -382,12 +395,38 @@
       return String(Math.trunc(Number(text)));
     }
 
-    async function readInventoryRows(file){
+    function cleanDate(value){
+      if(value === null || value === undefined || value === "") return "";
+      if(value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+      if(typeof value === "number" && window.XLSX && XLSX.SSF){
+        const parsed = XLSX.SSF.parse_date_code(value);
+        if(parsed && parsed.y && parsed.m && parsed.d){
+          return `${String(parsed.y).padStart(4, "0")}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+        }
+      }
+      const text = cleanCellText(value);
+      if(!text) return "";
+      const iso = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+      if(iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
+      const sv = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+      if(sv){
+        const year = sv[3].length === 2 ? `20${sv[3]}` : sv[3];
+        return `${year}-${sv[2].padStart(2, "0")}-${sv[1].padStart(2, "0")}`;
+      }
+      const d = new Date(text);
+      return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+    }
+
+    async function readSheetRows(file){
       if(!window.XLSX) throw new Error("No se pudo cargar el lector de Excel. Revisa la conexion e intenta de nuevo.");
       const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type:"array", cellDates:false });
+      const workbook = XLSX.read(buffer, { type:"array", cellDates:true });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rawRows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:"" });
+      return XLSX.utils.sheet_to_json(sheet, { header:1, defval:"", raw:true });
+    }
+
+    async function readInventoryRows(file){
+      const rawRows = await readSheetRows(file);
       const rows = [];
       for(const raw of rawRows){
         const code = cleanCode(raw[0]);
@@ -407,6 +446,68 @@
       return rows;
     }
 
+    async function readOperationalRows(file, source){
+      const rawRows = await readSheetRows(file);
+      const rows = [];
+      for(const raw of rawRows){
+        if(source === "sales_profit"){
+          const code = cleanCode(raw[0]);
+          const saleNo = cleanCode(raw[2]);
+          const voucher = cleanCellText(raw[3]);
+          const saleDate = cleanDate(raw[4]);
+          if(!code || !saleNo || !voucher || !saleDate) continue;
+          rows.push([
+            code,
+            cleanCellText(raw[1]),
+            saleNo,
+            voucher,
+            saleDate,
+            cleanCode(raw[5]),
+            cleanCellText(raw[6]),
+            cleanNumber(raw[7]),
+            cleanNumber(raw[8]),
+            cleanNumber(raw[9]),
+            cleanNumber(raw[10]),
+            cleanNumber(raw[11]),
+            cleanNumber(raw[12]),
+            cleanNumber(raw[13]),
+            cleanNumber(raw[14])
+          ]);
+        }else if(source === "consultations"){
+          const visitDate = cleanDate(raw[4]);
+          if(!visitDate) continue;
+          rows.push([
+            cleanCode(raw[0]),
+            cleanCellText(raw[1]),
+            cleanCode(raw[2]),
+            cleanCellText(raw[3]),
+            visitDate,
+            cleanCode(raw[5]),
+            cleanCellText(raw[6])
+          ]);
+        }else if(source === "purchases"){
+          const code = cleanCode(raw[0]);
+          const purchaseNo = cleanCode(raw[2]);
+          const voucher = cleanCellText(raw[3]);
+          const purchaseDate = cleanDate(raw[4]);
+          if(!code || !purchaseNo || !voucher || !purchaseDate) continue;
+          rows.push([
+            code,
+            cleanCellText(raw[1]),
+            purchaseNo,
+            voucher,
+            purchaseDate,
+            cleanCode(raw[5]),
+            cleanCellText(raw[6]),
+            cleanNumber(raw[7]),
+            cleanNumber(raw[8])
+          ]);
+        }
+      }
+      if(!rows.length) throw new Error(`No se encontraron filas validas para ${SOURCE_CONFIG[source]?.label || source}.`);
+      return rows;
+    }
+
     async function renderSelectedFiles(){
       const inputs = Array.from(document.querySelectorAll(".file-input"));
       const selected = inputs
@@ -415,58 +516,89 @@
 
       if(!selected.length){
         selectedFilesCache = [];
-        setInventoryProcessing(false);
-        el("tbody_selected").innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">No hay archivos seleccionados.</td></tr>`;
+        setFileProcessing(false);
+        el("tbody_selected").innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No hay archivos seleccionados.</td></tr>`;
         return;
       }
 
-      el("tbody_selected").innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Calculando huellas...</td></tr>`;
+      el("tbody_selected").innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">Calculando huellas...</td></tr>`;
       const rows = [];
       for(const item of selected){
         const hash = await hashFile(item.file);
         rows.push({ ...item, hash });
       }
       selectedFilesCache = rows;
-      setInventoryProcessing(false);
+      setFileProcessing(false);
 
       const seen = new Map();
       el("tbody_selected").innerHTML = rows.map(row => {
         const repeated = seen.has(row.hash);
         seen.set(row.hash, true);
-        const purchaseReady = row.source === "purchases";
-        const status = repeated ? "Duplicado local" : purchaseReady ? "Compras listas para importar" : "Listo para procesar";
+        const label = SOURCE_CONFIG[row.source]?.label || row.source;
+        const status = repeated ? "Duplicado local" : "Listo para procesar";
         const badge = repeated ? "text-bg-warning" : "text-bg-success";
         return `<tr>
-          <td class="fw-semibold">${row.source}</td>
+          <td class="fw-semibold">${label}</td>
           <td>${row.file.name}</td>
           <td class="text-end">${fmtBytes(row.file.size)}</td>
           <td class="mono hash-cell" title="${row.hash}">${row.hash}</td>
           <td><span class="badge ${badge}">${status}</span></td>
+          <td class="text-end">
+            <button class="btn btn-outline-primary btn-sm btn-process-file" data-source="${row.source}" ${isProcessingFiles ? "disabled" : ""}>Procesar</button>
+          </td>
         </tr>`;
       }).join("");
     }
 
-    async function processInventory(){
+    async function processFile(item){
+      const config = SOURCE_CONFIG[item.source];
+      if(!config) throw new Error(`Tipo de archivo no soportado: ${item.source}`);
+      const s = getSession();
+      const rows = item.source === "inventory"
+        ? await readInventoryRows(item.file)
+        : await readOperationalRows(item.file, item.source);
+      return callRpc(config.rpc, {
+        p_session_token:s.token,
+        p_source_file:item.file.name,
+        p_sha256:item.hash,
+        p_size_bytes:item.file.size,
+        p_rows:rows
+      });
+    }
+
+    function summarizeImportResult(result){
+      const label = SOURCE_CONFIG[result.source_type]?.label || result.source_type || "Archivo";
+      const loaded = Number(result.loaded_rows || 0);
+      const duplicates = Number(result.duplicate_rows || 0);
+      const unresolved = Number(result.unresolved_rows || result.inactive_rows_skipped || 0);
+      const skipped = Number(result.skipped_rows || 0);
+      const details = [];
+      details.push(`${loaded} filas cargadas`);
+      if(duplicates) details.push(`${duplicates} duplicadas omitidas`);
+      if(unresolved) details.push(`${unresolved} en revision/omitidas`);
+      if(skipped) details.push(`${skipped} invalidas omitidas`);
+      if(result.total_units !== undefined) details.push(`${Number(result.total_units || 0)} unidades`);
+      return `${label}: ${details.join(", ")}`;
+    }
+
+    async function processSelected(source=null){
       hideAlert();
-      const item = selectedFilesCache.find(row => row.source === "inventory");
-      if(!item) return showAlert("Selecciona un archivo de inventario antes de procesar.");
-      setInventoryProcessing(true);
+      const items = source
+        ? selectedFilesCache.filter(row => row.source === source)
+        : selectedFilesCache.slice();
+      if(!items.length) return showAlert("Selecciona al menos un archivo antes de procesar.");
+      setFileProcessing(true);
       try{
-        const s = getSession();
-        const rows = await readInventoryRows(item.file);
-        const result = await callRpc("rpc_import_inventory_snapshot", {
-          p_session_token:s.token,
-          p_source_file:item.file.name,
-          p_sha256:item.hash,
-          p_size_bytes:item.file.size,
-          p_rows:rows
-        });
-        showAlert(`Inventario procesado: ${result.loaded_rows} productos, ${result.total_units} unidades, ${result.lots_refreshed} lotes refrescados.`, "success");
+        const results = [];
+        for(const item of items){
+          results.push(await processFile(item));
+        }
+        showAlert(`Procesamiento completado. ${results.map(summarizeImportResult).join(" | ")}`, "success");
         await loadOverview();
       }catch(err){
-        showAlert(err.message || "No se pudo procesar el inventario.");
+        showAlert(err.message || "No se pudieron procesar los archivos.");
       }finally{
-        setInventoryProcessing(false);
+        setFileProcessing(false);
       }
     }
 
@@ -485,11 +617,16 @@
 
       el("btn_logout").addEventListener("click", logoutAndGoLogin);
       el("btn_refresh").addEventListener("click", loadOverview);
-      el("btn_process_inventory").addEventListener("click", processInventory);
+      el("btn_process_selected").addEventListener("click", () => processSelected());
+      el("tbody_selected").addEventListener("click", (ev) => {
+        const btn = ev.target.closest(".btn-process-file");
+        if(!btn) return;
+        processSelected(btn.dataset.source);
+      });
       el("btn_clear_files").addEventListener("click", () => {
         document.querySelectorAll(".file-input").forEach(input => { input.value = ""; });
         selectedFilesCache = [];
-        setInventoryProcessing(false);
+        setFileProcessing(false);
         renderSelectedFiles();
       });
       document.querySelectorAll(".file-input").forEach(input => input.addEventListener("change", renderSelectedFiles));
