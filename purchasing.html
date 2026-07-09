@@ -16,7 +16,7 @@
     .metric-value{ font-size:1.35rem; font-weight:700; }
     .analysis-metric{ min-height:58px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#f8fafc; }
     .analysis-metric .fw-semibold{ font-size:1.02rem; }
-    .results-table-box{ max-height:calc(100vh - 245px); min-height:520px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
+    .results-table-box{ height:clamp(620px, calc(100vh - 185px), 860px); overflow:auto; border:1px solid var(--border); border-radius:10px; }
     .results-table-box table{ margin-bottom:0; min-width:920px; }
     .results-table-box thead th{ position:sticky; top:0; z-index:2; background:#f8fafc; box-shadow:0 1px 0 var(--border); }
     .order-table{ border-bottom:1px solid var(--border); }
@@ -33,6 +33,10 @@
     .cart-cta{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .cart-pill{ min-width:34px; }
     .modal-xl{ --bs-modal-width:1120px; }
+    @media (max-width:1199.98px){
+      .sticky-tools{ position:static; }
+      .results-table-box{ height:auto; min-height:360px; max-height:70vh; }
+    }
     @media print{
       nav,.no-print,#search_panel,#results_panel{ display:none !important; }
       body{ background:#fff; }
