@@ -16,19 +16,23 @@
     .metric-value{ font-size:1.35rem; font-weight:700; }
     .analysis-metric{ min-height:58px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#f8fafc; }
     .analysis-metric .fw-semibold{ font-size:1.02rem; }
-    .results-table-box{ max-height:560px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
+    .results-table-box{ max-height:calc(100vh - 245px); min-height:520px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
     .results-table-box table{ margin-bottom:0; min-width:920px; }
     .results-table-box thead th{ position:sticky; top:0; z-index:2; background:#f8fafc; box-shadow:0 1px 0 var(--border); }
     .order-table{ border-bottom:1px solid var(--border); }
     .action-stack{ display:flex; flex-direction:column; gap:6px; align-items:stretch; min-width:116px; }
     .coverage-chip{ display:inline-block; border:1px solid var(--border); border-radius:999px; padding:1px 7px; background:#f8fafc; font-size:.76rem; color:var(--muted); }
     .cost-source{ display:block; font-size:.76rem; color:var(--muted); margin-top:2px; }
-    .order-table-box{ overflow:auto; }
+    .order-table-box{ max-height:58vh; overflow:auto; border:1px solid var(--border); border-radius:10px; }
     .order-table-box table{ min-width:720px; }
     .order-summary{ max-width:420px; margin-left:auto; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
     .order-summary-row{ display:grid; grid-template-columns:1fr auto; gap:18px; padding:9px 14px; border-bottom:1px solid var(--border); }
     .order-summary-row:last-child{ border-bottom:0; }
     .order-summary-row.grand{ font-size:1.08rem; font-weight:700; background:#f8fafc; }
+    .sticky-tools{ position:sticky; top:76px; }
+    .cart-cta{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .cart-pill{ min-width:34px; }
+    .modal-xl{ --bs-modal-width:1120px; }
     @media print{
       nav,.no-print,#search_panel,#results_panel{ display:none !important; }
       body{ background:#fff; }
@@ -61,8 +65,9 @@
         <div class="text-muted">Decisión de compra con rotación, proveedor, costos y precio de referencia.</div>
       </div>
       <div class="d-flex gap-2">
-        <button id="btn_print" class="btn btn-outline-primary" disabled>Imprimir pedido</button>
-        <button id="btn_download" class="btn btn-outline-secondary" disabled>Descargar pedido</button>
+        <button id="btn_open_order_top" class="btn btn-primary">
+          Ver pedido <span id="cart_lines_top" class="badge text-bg-light cart-pill ms-1">0</span>
+        </button>
       </div>
     </div>
 
@@ -70,7 +75,7 @@
 
     <div class="row g-3">
       <div class="col-12 col-xl-4" id="search_panel">
-        <div class="app-card p-3">
+        <div class="app-card p-3 sticky-tools">
           <div class="fw-semibold">Buscar</div>
           <div class="text-muted small">Medicamento, código, casa farmacéutica o proveedor.</div>
           <div class="mt-3">
@@ -144,7 +149,13 @@
         </div>
 
         <div class="app-card p-3 mt-3">
-          <div class="fw-semibold">Pedido actual</div>
+          <div class="cart-cta">
+            <div>
+              <div class="fw-semibold">Pedido actual</div>
+              <div class="text-muted small">Resumen del carrito de compra.</div>
+            </div>
+            <button id="btn_open_order" class="btn btn-outline-primary btn-sm">Ver pedido</button>
+          </div>
           <div class="row g-2 mt-2">
             <div class="col-4"><div class="text-muted small">Productos</div><div id="cart_lines" class="metric-value">0</div></div>
             <div class="col-4"><div class="text-muted small">Unidades</div><div id="cart_units" class="metric-value">0</div></div>
@@ -181,8 +192,21 @@
         </div>
       </div>
 
-      <div class="col-12">
-        <div class="app-card p-3" id="order_card">
+    </div>
+  </main>
+
+  <div class="modal fade" id="order_modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h2 class="h5 mb-1">Pedido Botiquín CCM</h2>
+            <div id="order_modal_meta" class="text-muted small">Sin líneas agregadas.</div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="app-card p-3" id="order_card">
           <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start">
             <div>
               <h2 class="h5 mb-1">Pedido Botiquín CCM</h2>
@@ -213,11 +237,19 @@
             <div class="order-summary-row"><span>IVA</span><strong id="summary_iva">$0.00</strong></div>
             <div class="order-summary-row grand"><span>Gran total</span><strong id="summary_total">$0.00</strong></div>
           </div>
+          </div>
+        </div>
+        <div class="modal-footer no-print">
+          <button type="button" class="btn btn-outline-danger me-auto" id="btn_clear_cart_modal">Vaciar pedido</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+          <button id="btn_download" class="btn btn-outline-primary" disabled>Descargar pedido</button>
+          <button id="btn_print" class="btn btn-primary" disabled>Imprimir pedido</button>
         </div>
       </div>
     </div>
-  </main>
+  </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
@@ -469,6 +501,7 @@
       const totalTax = cart.reduce((sum,row)=>sum + (Number(row.qty||0) * (row.manual_cost_tax || ((costUsed(row)) * 1.13))), 0);
       const ivaTotal = Math.max(0, totalTax - total);
       el("cart_lines").textContent = cart.length;
+      el("cart_lines_top").textContent = cart.length;
       el("cart_units").textContent = num(totalQty);
       el("cart_total").textContent = money(totalTax);
       el("summary_products").textContent = num(cart.length);
@@ -477,6 +510,7 @@
       el("summary_iva").textContent = money(ivaTotal);
       el("summary_total").textContent = money(totalTax);
       el("order_meta").textContent = cart.length ? `Generado ${new Date().toLocaleString("es-SV")} - ${cart.length} productos - ${num(totalQty)} unidades` : "Sin líneas agregadas.";
+      el("order_modal_meta").textContent = el("order_meta").textContent;
       el("btn_print").disabled = cart.length === 0;
       el("btn_download").disabled = cart.length === 0;
     }
@@ -526,6 +560,17 @@
 
     function downloadOrder(){
       const date = new Date().toISOString().slice(0,10);
+      const html = buildOrderDocument(date);
+      const blob = new Blob([html], {type:"text/html;charset=utf-8"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Pedido Botiquín CCM ${date}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function buildOrderDocument(date){
       const styles = `<style>
         body{font-family:Arial,sans-serif;color:#0f172a;margin:28px}
         .app-card{border:0;box-shadow:none}
@@ -539,12 +584,22 @@
         .order-summary-row{display:grid;grid-template-columns:1fr auto;gap:18px;padding:9px 12px;border-bottom:1px solid #dbe3ef}
         .order-summary-row:last-child{border-bottom:0}.order-summary-row.grand{font-weight:700;background:#f8fafc}
       </style>`;
-      const html = `<!doctype html><meta charset="utf-8"><title>Pedido Botiquín CCM ${date}</title>${styles}${document.getElementById("order_card").outerHTML}`;
-      const blob = new Blob([html], {type:"text/html;charset=utf-8"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = `Pedido Botiquín CCM ${date}.html`; a.click();
-      URL.revokeObjectURL(url);
+      return `<!doctype html><meta charset="utf-8"><title>Pedido Botiquín CCM ${date}</title>${styles}${document.getElementById("order_card").outerHTML}`;
+    }
+
+    function printOrder(){
+      if(!cart.length) return;
+      const date = new Date().toISOString().slice(0,10);
+      const win = window.open("", "_blank");
+      if(!win){ showAlert("No se pudo abrir la ventana de impresión."); return; }
+      win.document.write(buildOrderDocument(date));
+      win.document.close();
+      win.focus();
+      win.print();
+    }
+
+    function openOrderModal(){
+      bootstrap.Modal.getOrCreateInstance(el("order_modal")).show();
     }
 
     async function init(){
@@ -572,9 +627,12 @@
       });
       el("house_filter").addEventListener("change",()=>{ renderResults(); selectForAnalysis(null); });
       el("btn_clear_cart").addEventListener("click",()=>{ cart=[]; renderCart(); });
+      el("btn_clear_cart_modal").addEventListener("click",()=>{ cart=[]; renderCart(); });
+      el("btn_open_order").addEventListener("click",openOrderModal);
+      el("btn_open_order_top").addEventListener("click",openOrderModal);
       ["calc_cost","calc_margin","calc_iva","calc_qty"].forEach(id=>el(id).addEventListener("input", calculateAnalysis));
       el("btn_add_calc").addEventListener("click", addCalculatedToCart);
-      el("btn_print").addEventListener("click",()=>window.print());
+      el("btn_print").addEventListener("click",printOrder);
       el("btn_download").addEventListener("click",downloadOrder);
       await search(true);
     }
@@ -582,4 +640,6 @@
   </script>
 </body>
 </html>
+
+
 
