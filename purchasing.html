@@ -10,6 +10,10 @@
     body{ background:var(--bg); color:var(--text); }
     body > .navbar{ position:sticky; top:0; z-index:1030; box-shadow:0 2px 10px rgba(15,23,42,.06); }
     .app-card{ background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:0 6px 20px rgba(15,23,42,.06); }
+    .search-card{ background:#eef6ff; border-color:#93c5fd; box-shadow:0 10px 28px rgba(37,99,235,.16); }
+    .search-card .fw-semibold{ color:#1d4ed8; }
+    .search-card .form-control,.search-card .form-select{ border-color:#bfdbfe; }
+    .search-card .form-control:focus,.search-card .form-select:focus{ border-color:#3b82f6; box-shadow:0 0 0 .2rem rgba(59,130,246,.18); }
     .brand-dot{ width:10px;height:10px;border-radius:999px;background:#3b82f6;display:inline-block;margin-right:8px; }
     .table td,.table th{ vertical-align:middle; }
     .truncate{ max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -79,7 +83,7 @@
 
     <div class="row g-3">
       <div class="col-12 col-xl-4" id="search_panel">
-        <div class="app-card p-3 sticky-tools">
+        <div class="app-card search-card p-3 sticky-tools">
           <div class="fw-semibold">Buscar</div>
           <div class="text-muted small">Medicamento, código, casa farmacéutica o proveedor.</div>
           <div class="mt-3">
