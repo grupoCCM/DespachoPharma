@@ -295,6 +295,21 @@
       el("btn_add").disabled = !state.ok;
     }
 
+    function cacheLookup(inputBarcode, data){
+      const normalizedInput = normalizeDigits(inputBarcode);
+      const normalizedMatch = normalizeDigits(data?.barcode);
+      const value = {
+        barcode: normalizedMatch || normalizedInput,
+        name: data.name,
+        active: !!data.active,
+        available_qty: Number(data.available_qty || 0),
+        stock_qty: Number(data.stock_qty || 0)
+      };
+      if(normalizedInput) lookupCache.set(normalizedInput, value);
+      if(normalizedMatch) lookupCache.set(normalizedMatch, value);
+      return value;
+    }
+
     async function checkStock(barcode, requestedQty){
       const rows = await callRpc(RPC.dispatchStockCheck, {
         p_barcode: barcode,
@@ -329,7 +344,7 @@
         }else{
           setLookupUI({ ok:Number(c.available_qty || 0) > 0, name:c.name, msg:stockBadge(c) });
         }
-        return;
+        return c;
       }
 
       const ok = await touchSession(true);
@@ -346,15 +361,16 @@
             name:"No identificado",
             msg:`<span class="badge text-bg-warning ms-2">No existe en catalogo</span>`
           });
-          return;
+          return null;
         }
 
         let stock = null;
         if(r.active){
-          stock = await checkStock(bc, Math.max(1, parseInt(normalizeDigits(el("qty").value) || "1", 10)));
+          stock = await checkStock(r.barcode || bc, Math.max(1, parseInt(normalizeDigits(el("qty").value) || "1", 10)));
         }
 
-        lookupCache.set(bc, {
+        const cached = cacheLookup(bc, {
+          barcode:r.barcode || bc,
           name:r.product_name,
           active:!!r.active,
           available_qty: stock ? Number(stock.available_qty || 0) : 0,
@@ -368,9 +384,11 @@
         }else{
           setLookupUI({ ok:true, name:r.product_name, msg:stockBadge(stock) });
         }
+        return cached;
       } catch(err){
         showAlert("alert_main", err.message || "No se pudo consultar el catalogo.");
         setLookupUI({ ok:false, name:"-", msg:"" });
+        return null;
       }
     }
 
@@ -405,30 +423,32 @@
       }
 
       const qty = Math.max(1, parseInt(normalizeDigits(el("qty").value) || "1", 10));
-      const cached = lookupCache.get(bc);
+      window.clearTimeout(window.__lk);
+      const cached = lookupCache.get(bc) || await lookupBarcode(bc);
 
       if(!cached || !cached.active){
         showAlert("alert_main", "Este barcode no esta activo/en catalogo. Solicita al administrador.");
         return;
       }
 
-      const currentQty = cart.has(bc) ? Number(cart.get(bc).qty || 0) : 0;
+      const cartBarcode = normalizeDigits(cached.barcode || bc);
+      const currentQty = cart.has(cartBarcode) ? Number(cart.get(cartBarcode).qty || 0) : 0;
       const requestedQty = currentQty + qty;
-      const stock = await checkStock(bc, requestedQty);
+      const stock = await checkStock(cartBarcode, requestedQty);
       if(!stock || stock.ok !== true){
         const available = Math.max(0, Math.trunc(Number(stock?.available_qty || 0)));
         showAlert("alert_main", `No se puede despachar ${cached.name}. disponible: ${available}.`);
-        lookupCache.set(bc, { ...cached, available_qty: available, stock_qty: stock?.stock_qty || 0 });
+        cacheLookup(bc, { ...cached, available_qty: available, stock_qty: stock?.stock_qty || 0 });
         setLookupUI({ ok:false, name:cached.name, msg:stockBadge(stock) });
         return;
       }
 
-      if(cart.has(bc)){
-        const row = cart.get(bc);
+      if(cart.has(cartBarcode)){
+        const row = cart.get(cartBarcode);
         row.qty = Number(row.qty) + qty;
-        cart.set(bc, row);
+        cart.set(cartBarcode, row);
       } else {
-        cart.set(bc, { barcode: bc, name: cached.name, qty });
+        cart.set(cartBarcode, { barcode: cartBarcode, name: cached.name, qty });
       }
 
       renderCart();
