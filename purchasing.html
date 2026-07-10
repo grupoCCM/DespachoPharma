@@ -37,6 +37,8 @@
     .cart-pill{ min-width:34px; }
     .modal-xl{ --bs-modal-width:1120px; }
     .search-grid{ display:grid; grid-template-columns:minmax(280px,1.35fr) minmax(220px,.75fr) auto auto; gap:12px; align-items:end; }
+    .search-query{ position:relative; min-width:0; }
+    #suggestions{ position:absolute; z-index:20; left:0; right:0; max-height:320px; overflow:auto; box-shadow:0 14px 28px rgba(15,23,42,.16); }
     .analysis-grid{ display:grid; grid-template-columns:minmax(280px,1.1fr) minmax(360px,1fr); gap:16px; align-items:start; }
     .analysis-input-grid{ display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:10px; }
     @media (max-width:1199.98px){
@@ -99,7 +101,7 @@
           </button>
         </div>
         <div class="search-grid">
-          <div>
+          <div class="search-query">
             <label class="form-label" for="q">Consulta</label>
             <input id="q" class="form-control" placeholder="Ej: metformina / 776 / casa / proveedor" autocomplete="off">
             <div id="suggestions" class="list-group mt-2 d-none"></div>
