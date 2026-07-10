@@ -18,8 +18,14 @@
     .table td,.table th{ vertical-align:middle; }
     .truncate{ max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .metric-value{ font-size:1.35rem; font-weight:700; }
-    .analysis-metric{ min-height:58px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#f8fafc; }
-    .analysis-metric .fw-semibold{ font-size:1.02rem; }
+    .analysis-metric{ min-height:92px; height:100%; padding:12px; border:1px solid var(--border); border-radius:10px; background:#f8fafc; display:flex; flex-direction:column; justify-content:space-between; gap:8px; }
+    .analysis-metric .fw-semibold{ font-size:1.02rem; line-height:1.25; overflow-wrap:anywhere; }
+    .analysis-metric.metric-good{ border-color:#86efac; background:#f0fdf4; box-shadow:inset 4px 0 0 #22c55e; }
+    .analysis-metric.metric-bad{ border-color:#fecaca; background:#fef2f2; box-shadow:inset 4px 0 0 #ef4444; }
+    .analysis-metric.metric-neutral{ border-color:#bfdbfe; background:#eff6ff; box-shadow:inset 4px 0 0 #3b82f6; }
+    .status-line{ display:flex; align-items:center; gap:7px; }
+    .status-dot{ width:10px; height:10px; border-radius:999px; background:currentColor; display:inline-block; flex:0 0 auto; }
+    .status-amount{ display:block; margin-top:2px; font-weight:700; }
     .results-table-box{ height:clamp(440px, 52vh, 660px); overflow:auto; border:1px solid var(--border); border-radius:10px; }
     .results-table-box table{ margin-bottom:0; min-width:920px; }
     .results-table-box thead th{ position:sticky; top:0; z-index:2; background:#f8fafc; box-shadow:0 1px 0 var(--border); }
@@ -292,6 +298,40 @@
       else if(value > 0) node.classList.add("text-primary");
       else node.classList.add("text-success");
     }
+    function clearTone(id){ el(id).classList.remove("text-danger","text-success","text-primary"); }
+    function metricCard(id){ return el(id).closest(".analysis-metric"); }
+    function clearMetricState(id){
+      const card = metricCard(id);
+      if(card) card.classList.remove("metric-good","metric-bad","metric-neutral");
+    }
+    function setMetricState(id, state){
+      const card = metricCard(id);
+      if(!card) return;
+      card.classList.remove("metric-good","metric-bad","metric-neutral");
+      if(state) card.classList.add(`metric-${state}`);
+    }
+    function setRefSaleStatus(value){
+      const node = el("calc_vs_ref");
+      node.classList.remove("text-danger","text-success","text-primary");
+      if(value === null){
+        node.textContent = "-";
+        clearMetricState("calc_vs_ref");
+        return;
+      }
+      if(Math.abs(value) < 0.005){
+        node.classList.add("text-primary");
+        node.innerHTML = `<span class="status-line"><span class="status-dot"></span><span>Igual</span></span><span class="status-amount">${money(0)}</span>`;
+        setMetricState("calc_vs_ref", "neutral");
+      }else if(value > 0){
+        node.classList.add("text-success");
+        node.innerHTML = `<span class="status-line"><span class="status-dot"></span><span>Mejor</span></span><span class="status-amount">${money(value)}</span>`;
+        setMetricState("calc_vs_ref", "good");
+      }else{
+        node.classList.add("text-danger");
+        node.innerHTML = `<span class="status-line"><span class="status-dot"></span><span>Sobre ref.</span></span><span class="status-amount">${money(Math.abs(value))}</span>`;
+        setMetricState("calc_vs_ref", "bad");
+      }
+    }
 
     async function callRpc(fnName, body){
       const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${SUPABASE_ANON_KEY}` }, body:JSON.stringify(body||{}) });
@@ -433,6 +473,8 @@
       const iva = Number(el("calc_iva").value || 0);
       if(!row || !Number.isFinite(cost) || cost <= 0 || !Number.isFinite(gm) || gm >= 100 || gm < 0 || !Number.isFinite(iva) || iva < 0){
         ["calc_sale_no_tax","calc_sale_tax","calc_reference_price","calc_vs_min","calc_vs_ref","calc_ref_actual","calc_min_cost","calc_avg_cost"].forEach(id=>el(id).textContent="-");
+        ["calc_vs_min","calc_vs_ref","calc_ref_actual"].forEach(clearMetricState);
+        ["calc_vs_min","calc_vs_ref","calc_ref_actual"].forEach(clearTone);
         return null;
       }
       const saleNoTax = cost / (1 - (gm / 100));
@@ -451,10 +493,9 @@
       el("calc_min_cost").textContent = minCost ? `${money(minCost)} ${row.min_cost_date ? "(" + row.min_cost_date + ")" : ""}` : "-";
       el("calc_avg_cost").textContent = avgCost ? money(avgCost) : "-";
       el("calc_vs_min").textContent = vsMin === null ? "-" : (vsMin >= 0 ? `Mejor por ${money(vsMin)}` : `Mayor por ${money(Math.abs(vsMin))}`);
-      el("calc_vs_ref").textContent = vsRef === null ? "-" : money(vsRef);
+      setRefSaleStatus(vsRef);
       el("calc_ref_actual").textContent = refActual === null ? "-" : money(refActual);
       if(vsMin !== null) setTone("calc_vs_min", vsMin);
-      if(vsRef !== null) setTone("calc_vs_ref", vsRef);
       if(refActual !== null) setTone("calc_ref_actual", refActual);
       return { cost, gm, iva, saleNoTax, saleTax };
     }
