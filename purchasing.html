@@ -20,7 +20,7 @@
     .metric-value{ font-size:1.35rem; font-weight:700; }
     .analysis-metric{ min-height:58px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#f8fafc; }
     .analysis-metric .fw-semibold{ font-size:1.02rem; }
-    .results-table-box{ height:clamp(620px, calc(100vh - 185px), 860px); overflow:auto; border:1px solid var(--border); border-radius:10px; }
+    .results-table-box{ height:clamp(440px, 52vh, 660px); overflow:auto; border:1px solid var(--border); border-radius:10px; }
     .results-table-box table{ margin-bottom:0; min-width:920px; }
     .results-table-box thead th{ position:sticky; top:0; z-index:2; background:#f8fafc; box-shadow:0 1px 0 var(--border); }
     .order-table{ border-bottom:1px solid var(--border); }
@@ -33,13 +33,19 @@
     .order-summary-row{ display:grid; grid-template-columns:1fr auto; gap:18px; padding:9px 14px; border-bottom:1px solid var(--border); }
     .order-summary-row:last-child{ border-bottom:0; }
     .order-summary-row.grand{ font-size:1.08rem; font-weight:700; background:#f8fafc; }
-    .sticky-tools{ position:sticky; top:76px; }
     .cart-cta{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .cart-pill{ min-width:34px; }
     .modal-xl{ --bs-modal-width:1120px; }
+    .search-grid{ display:grid; grid-template-columns:minmax(280px,1.35fr) minmax(220px,.75fr) auto auto; gap:12px; align-items:end; }
+    .analysis-grid{ display:grid; grid-template-columns:minmax(280px,1.1fr) minmax(360px,1fr); gap:16px; align-items:start; }
+    .analysis-input-grid{ display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:10px; }
     @media (max-width:1199.98px){
-      .sticky-tools{ position:static; }
       .results-table-box{ height:auto; min-height:360px; max-height:70vh; }
+      .search-grid,.analysis-grid{ grid-template-columns:1fr; }
+      .analysis-input-grid{ grid-template-columns:repeat(2,minmax(120px,1fr)); }
+    }
+    @media (max-width:575.98px){
+      .analysis-input-grid{ grid-template-columns:1fr; }
     }
     @media print{
       nav,.no-print,#search_panel,#results_panel{ display:none !important; }
@@ -81,125 +87,118 @@
 
     <div id="alert_page" class="alert alert-danger d-none no-print"></div>
 
-    <div class="row g-3">
-      <div class="col-12 col-xl-4" id="search_panel">
-        <div class="app-card search-card p-3 sticky-tools">
-          <div class="fw-semibold">Buscar</div>
-          <div class="text-muted small">Medicamento, código, casa farmacéutica o proveedor.</div>
-          <div class="mt-3">
+    <div class="d-grid gap-3">
+      <section class="app-card search-card p-3 no-print" id="search_panel">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+          <div>
+            <div class="fw-semibold">Buscar</div>
+            <div class="text-muted small">Medicamento, c&oacute;digo, casa farmac&eacute;utica o proveedor.</div>
+          </div>
+          <button id="btn_open_order" class="btn btn-outline-primary btn-sm">
+            Ver pedido <span id="cart_lines" class="badge text-bg-light cart-pill ms-1">0</span>
+          </button>
+        </div>
+        <div class="search-grid">
+          <div>
             <label class="form-label" for="q">Consulta</label>
             <input id="q" class="form-control" placeholder="Ej: metformina / 776 / casa / proveedor" autocomplete="off">
             <div id="suggestions" class="list-group mt-2 d-none"></div>
           </div>
-          <div class="mt-3">
-            <label class="form-label" for="house_filter">Casa farmacéutica</label>
+          <div>
+            <label class="form-label" for="house_filter">Casa farmac&eacute;utica</label>
             <select id="house_filter" class="form-select">
               <option value="">Todas</option>
             </select>
           </div>
-          <div class="d-grid gap-2 mt-3">
-            <button id="btn_search" class="btn btn-primary">
-              <span id="btn_search_text">Buscar</span>
-              <span id="btn_search_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
-            </button>
-            <button id="btn_suggested" class="btn btn-outline-secondary">Ver sugeridos</button>
-          </div>
+          <button id="btn_search" class="btn btn-primary">
+            <span id="btn_search_text">Buscar</span>
+            <span id="btn_search_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+          </button>
+          <button id="btn_suggested" class="btn btn-outline-secondary">Ver sugeridos</button>
         </div>
+      </section>
 
-        <div class="app-card p-3 mt-3">
-          <div class="fw-semibold">Vista filtrada</div>
-          <div class="row g-2 mt-2">
-            <div class="col-4"><div class="text-muted small">Items</div><div id="visible_items" class="metric-value">0</div></div>
-            <div class="col-4"><div class="text-muted small">Unidades</div><div id="visible_qty" class="metric-value">0</div></div>
-            <div class="col-4"><div class="text-muted small">Valor</div><div id="visible_value" class="metric-value">$0.00</div></div>
+      <section class="app-card p-3" id="results_panel">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-semibold">Resultado de compra</div>
+            <div class="text-muted small">Panorama completo para revisar inventario, rotaci&oacute;n, proveedor y costos.</div>
           </div>
+          <span id="count" class="badge text-bg-light border">0</span>
         </div>
+        <div class="results-table-box mt-3">
+          <table class="table table-sm order-table">
+            <thead class="table-light">
+              <tr>
+                <th>Medicamento</th>
+                <th>Decisi&oacute;n</th>
+                <th class="text-end">Exist. / rotaci&oacute;n</th>
+                <th>Proveedor distribuidor</th>
+                <th class="text-end">Costos</th>
+                <th class="text-end">Ref.</th>
+                <th class="text-end">Acci&oacute;n</th>
+              </tr>
+            </thead>
+            <tbody id="tbody_results">
+              <tr><td colspan="7" class="text-center text-muted py-4">Busca o carga sugeridos.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-        <div class="app-card p-3 mt-3">
-          <div class="fw-semibold">Análisis de precio</div>
-          <div class="text-muted small">Para negociar costo y agregar con precio calculado.</div>
-          <div class="mt-3">
+      <section class="app-card p-3" id="analysis_panel">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+          <div>
+            <div class="fw-semibold">An&aacute;lisis de precio</div>
+            <div class="text-muted small">Para negociar costo y agregar con precio calculado.</div>
+          </div>
+          <button id="btn_add_calc" class="btn btn-success" disabled>Agregar con costo negociado</button>
+        </div>
+        <div class="analysis-grid">
+          <div>
             <label class="form-label" for="selected_med">Medicamento</label>
             <input id="selected_med" class="form-control" readonly placeholder="Selecciona un resultado">
+            <div class="analysis-input-grid mt-3">
+              <div>
+                <label class="form-label" for="calc_cost">Costo sin IVA</label>
+                <input id="calc_cost" class="form-control" type="number" min="0" step="0.0001">
+                <div id="calc_cost_source" class="form-text">Selecciona un producto.</div>
+              </div>
+              <div>
+                <label class="form-label" for="calc_qty">Cantidad</label>
+                <input id="calc_qty" class="form-control" type="number" min="1" step="1" value="1">
+              </div>
+              <div>
+                <label class="form-label" for="calc_margin">GM deseado %</label>
+                <input id="calc_margin" class="form-control" type="number" min="0" max="95" step="0.1" value="25">
+              </div>
+              <div>
+                <label class="form-label" for="calc_iva">IVA %</label>
+                <input id="calc_iva" class="form-control" type="number" min="0" step="0.01" value="13">
+              </div>
+            </div>
           </div>
-          <div class="row g-2 mt-1">
-            <div class="col-6">
-              <label class="form-label" for="calc_cost">Costo sin IVA</label>
-              <input id="calc_cost" class="form-control" type="number" min="0" step="0.0001">
-              <div id="calc_cost_source" class="form-text">Selecciona un producto.</div>
-            </div>
-            <div class="col-6">
-              <label class="form-label" for="calc_qty">Cantidad</label>
-              <input id="calc_qty" class="form-control" type="number" min="1" step="1" value="1">
-            </div>
-            <div class="col-6">
-              <label class="form-label" for="calc_margin">GM deseado %</label>
-              <input id="calc_margin" class="form-control" type="number" min="0" max="95" step="0.1" value="25">
-            </div>
-            <div class="col-6">
-              <label class="form-label" for="calc_iva">IVA %</label>
-              <input id="calc_iva" class="form-control" type="number" min="0" step="0.01" value="13">
-            </div>
-          </div>
-          <div class="row g-2 mt-3">
-            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Venta sin IVA</div><div id="calc_sale_no_tax" class="fw-semibold">-</div></div></div>
-            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Venta con IVA</div><div id="calc_sale_tax" class="fw-semibold">-</div></div></div>
-            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Precio referencia</div><div id="calc_reference_price" class="fw-semibold">-</div></div></div>
-            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Ref - venta</div><div id="calc_vs_ref" class="fw-semibold">-</div></div></div>
-            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Ref - actual</div><div id="calc_ref_actual" class="fw-semibold">-</div></div></div>
-            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Vs mínimo</div><div id="calc_vs_min" class="fw-semibold">-</div></div></div>
-            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Costo mínimo</div><div id="calc_min_cost" class="fw-semibold">-</div></div></div>
-            <div class="col-6"><div class="analysis-metric"><div class="text-muted small">Costo promedio</div><div id="calc_avg_cost" class="fw-semibold">-</div></div></div>
-          </div>
-          <div class="d-grid gap-2 mt-3">
-            <button id="btn_add_calc" class="btn btn-success" disabled>Agregar con costo negociado</button>
+          <div class="row g-2">
+            <div class="col-6 col-lg-3"><div class="analysis-metric"><div class="text-muted small">Venta sin IVA</div><div id="calc_sale_no_tax" class="fw-semibold">-</div></div></div>
+            <div class="col-6 col-lg-3"><div class="analysis-metric"><div class="text-muted small">Venta con IVA</div><div id="calc_sale_tax" class="fw-semibold">-</div></div></div>
+            <div class="col-6 col-lg-3"><div class="analysis-metric"><div class="text-muted small">Precio referencia</div><div id="calc_reference_price" class="fw-semibold">-</div></div></div>
+            <div class="col-6 col-lg-3"><div class="analysis-metric"><div class="text-muted small">Ref - venta</div><div id="calc_vs_ref" class="fw-semibold">-</div></div></div>
+            <div class="col-6 col-lg-3"><div class="analysis-metric"><div class="text-muted small">Ref - actual</div><div id="calc_ref_actual" class="fw-semibold">-</div></div></div>
+            <div class="col-6 col-lg-3"><div class="analysis-metric"><div class="text-muted small">Vs m&iacute;nimo</div><div id="calc_vs_min" class="fw-semibold">-</div></div></div>
+            <div class="col-6 col-lg-3"><div class="analysis-metric"><div class="text-muted small">Costo m&iacute;nimo</div><div id="calc_min_cost" class="fw-semibold">-</div></div></div>
+            <div class="col-6 col-lg-3"><div class="analysis-metric"><div class="text-muted small">Costo promedio</div><div id="calc_avg_cost" class="fw-semibold">-</div></div></div>
           </div>
         </div>
+      </section>
 
-        <div class="app-card p-3 mt-3">
-          <div class="cart-cta">
-            <div>
-              <div class="fw-semibold">Pedido actual</div>
-              <div class="text-muted small">Resumen del carrito de compra.</div>
-            </div>
-            <button id="btn_open_order" class="btn btn-outline-primary btn-sm">Ver pedido</button>
-          </div>
-          <div class="row g-2 mt-2">
-            <div class="col-4"><div class="text-muted small">Productos</div><div id="cart_lines" class="metric-value">0</div></div>
-            <div class="col-4"><div class="text-muted small">Unidades</div><div id="cart_units" class="metric-value">0</div></div>
-            <div class="col-4"><div class="text-muted small">Total</div><div id="cart_total" class="metric-value">$0.00</div></div>
-          </div>
-          <button id="btn_clear_cart" class="btn btn-outline-danger btn-sm mt-3">Vaciar pedido</button>
-        </div>
+      <div class="d-none" aria-hidden="true">
+        <span id="visible_items">0</span>
+        <span id="visible_qty">0</span>
+        <span id="visible_value">$0.00</span>
+        <span id="cart_units">0</span>
+        <span id="cart_total">$0.00</span>
+        <button id="btn_clear_cart" type="button"></button>
       </div>
-
-      <div class="col-12 col-xl-8" id="results_panel">
-        <div class="app-card p-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="fw-semibold">Resultado de compra</div>
-            <span id="count" class="badge text-bg-light border">0</span>
-          </div>
-          <div class="results-table-box mt-3">
-            <table class="table table-sm order-table">
-              <thead class="table-light">
-                <tr>
-                  <th>Medicamento</th>
-                  <th>Decisión</th>
-                  <th class="text-end">Exist. / rotación</th>
-                  <th>Proveedor distribuidor</th>
-                  <th class="text-end">Costos</th>
-                  <th class="text-end">Ref.</th>
-                  <th class="text-end">Accion</th>
-                </tr>
-              </thead>
-              <tbody id="tbody_results">
-                <tr><td colspan="7" class="text-center text-muted py-4">Busca o carga sugeridos.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
     </div>
   </main>
 
