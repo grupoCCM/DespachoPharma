@@ -18,6 +18,8 @@
     .metric{ min-height:104px; }
     .metric-value{ font-size:1.45rem; font-weight:700; line-height:1.15; }
     .metric-label{ color:var(--muted); font-size:.82rem; }
+    .metric-soft-profit{ background:#f0fdf4; border-color:#bbf7d0; box-shadow:inset 4px 0 0 #22c55e, 0 6px 20px rgba(15,23,42,.05); }
+    .metric-soft-profit .metric-label{ color:#166534; }
     .table td,.table th{ vertical-align:middle; }
     .bar-row{ display:grid; grid-template-columns:82px minmax(120px,1fr) minmax(140px,max-content); gap:.75rem; align-items:center; }
     .bar-track{ height:10px; background:#e2e8f0; border-radius:999px; overflow:hidden; }
@@ -101,6 +103,13 @@
           <div class="metric-label">Utilidad</div>
           <div id="m_profit" class="metric-value">$0.00</div>
           <div id="m_margin" class="small text-muted">Margen -</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric metric-soft-profit">
+          <div class="metric-label">Utilidad promedio neta</div>
+          <div id="m_avg_net_profit" class="metric-value">$0.00</div>
+          <div id="m_avg_net_profit_detail" class="small text-muted">&uacute;ltimos 12 meses</div>
         </div>
       </div>
       <div class="col-12 col-md-6 col-xl-3">
@@ -393,6 +402,20 @@
         negative_profit_lines: rows.reduce((sum,row) => sum + Number(row.negative_profit_lines || 0), 0)
       };
     }
+    function averageNetProfitPeriod(monthly){
+      const rows = monthly
+        .filter(row => row?.month && Number.isFinite(Number(row.profit)))
+        .slice(-12);
+      const total = rows.reduce((sum,row) => sum + Number(row.profit || 0), 0);
+      return {
+        months: rows.length,
+        total,
+        avg: rows.length ? total / rows.length : 0,
+        first: rows[0]?.month || null,
+        last: rows[rows.length - 1]?.month || null
+      };
+    }
+
     function aggregatePenetration(rows){
       const consulted = rows.reduce((sum,row) => sum + Number(row.consulted_patients || 0), 0);
       const converted = rows.reduce((sum,row) => sum + Number(row.converted_patients || 0), 0);
@@ -627,6 +650,17 @@
       renderProductsPerPatient(rows);
     }
 
+    function renderAverageNetProfit(monthly){
+      const metric = averageNetProfitPeriod(monthly);
+      el("m_avg_net_profit").textContent = money(metric.avg);
+      if(!metric.months){
+        el("m_avg_net_profit_detail").textContent = "sin datos";
+        return;
+      }
+      const range = metric.months === 1 ? monthLabel(metric.last) : monthLabel(metric.first) + " a " + monthLabel(metric.last);
+      el("m_avg_net_profit_detail").textContent = metric.months + " meses recientes (" + range + ")";
+    }
+
     function renderMonthlyViews(monthly, penetration){
       const scoped = selectedMonthlyRows(monthly);
       const scopedPenetration = selectedPenetrationRows(penetration);
@@ -634,6 +668,7 @@
       const annual = aggregateAnnual(monthly);
       const annualPenetration = aggregateAnnualPenetration(penetration);
       renderFilteredMetricCards(monthly, penetration);
+      renderAverageNetProfit(monthly);
       renderBars("monthly_sales", scoped, "net_sales", row => monthLabel(row.month), row => `${money(row.net_sales)} (${num(row.units)} prod.)`, "green");
       renderBars("annual_sales", annual, "net_sales", row => row.year, row => `${money(row.net_sales)} (${num(row.units)} prod.)`, "green");
       renderBars("penetration_rows", scopedPenetration, "penetration_pct", row => monthLabel(row.month), row => `${pct(row.penetration_pct)} (${num(row.converted_patients)}/${num(row.consulted_patients)})`, "amber");
