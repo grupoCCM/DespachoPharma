@@ -90,8 +90,8 @@
           <div class="small text-muted">bloquean la carga</div>
         </div>
       </div>
-      <div class="col-12">
-        <div class="app-card p-3">
+      <div class="col-12 col-lg-6">
+        <div class="app-card p-3 h-100">
           <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start">
             <div>
               <div class="text-muted small">Ultima compra cargada</div>
@@ -99,6 +99,18 @@
               <div id="last_purchase_meta" class="small text-muted">Usa esta fecha para descargar compras posteriores desde el otro sistema.</div>
             </div>
             <span id="last_purchase_file" class="badge text-bg-light border">-</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-6">
+        <div class="app-card p-3 h-100">
+          <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start">
+            <div>
+              <div class="text-muted small">Ultima venta/utilidad cargada</div>
+              <div id="last_sales_profit_date" class="fs-5 fw-semibold">-</div>
+              <div id="last_sales_profit_meta" class="small text-muted">Usa esta fecha para descargar ventas posteriores desde el otro sistema.</div>
+            </div>
+            <span id="last_sales_profit_file" class="badge text-bg-light border">-</span>
           </div>
         </div>
       </div>
@@ -296,6 +308,10 @@
       while(size >= 1024 && unit < units.length - 1){ size /= 1024; unit += 1; }
       return `${size.toFixed(unit ? 1 : 0)} ${units[unit]}`;
     }
+    function fmtMoney(value){
+      const n = Number(value || 0);
+      return Number.isFinite(n) ? n.toLocaleString("es-SV", { style:"currency", currency:"USD" }) : "-";
+    }
 
     function setLoading(isLoading){
       el("btn_refresh").disabled = isLoading;
@@ -324,6 +340,7 @@
       const files = payload && Array.isArray(payload.files) ? payload.files : [];
       const issues = payload && Array.isArray(payload.issues) ? payload.issues : [];
       const purchaseCheckpoint = payload && payload.purchase_checkpoint ? payload.purchase_checkpoint : null;
+      const salesProfitCheckpoint = payload && payload.sales_profit_checkpoint ? payload.sales_profit_checkpoint : null;
 
       el("metric_status").innerHTML = latest ? statusBadge(latest.status) : "-";
       el("metric_batch").textContent = latest ? latest.batch_key : "-";
@@ -336,6 +353,11 @@
         ? `Doc ${purchaseCheckpoint.external_purchase_no || "-"} / ${purchaseCheckpoint.voucher_no || "-"} - ${purchaseCheckpoint.supplier_name || "Proveedor no registrado"} - ${Number(purchaseCheckpoint.purchase_lines || 0)} lineas`
         : "Sin compras cargadas.";
       el("last_purchase_file").textContent = purchaseCheckpoint ? (purchaseCheckpoint.source_file || "Sin archivo") : "-";
+      el("last_sales_profit_date").textContent = salesProfitCheckpoint ? fmtDateOnly(salesProfitCheckpoint.sale_date) : "-";
+      el("last_sales_profit_meta").textContent = salesProfitCheckpoint
+        ? `${Number(salesProfitCheckpoint.sales_lines || 0)} lineas - ${Number(salesProfitCheckpoint.units || 0).toLocaleString("es-SV")} productos - neto ${fmtMoney(salesProfitCheckpoint.net_sales)} - utilidad ${fmtMoney(salesProfitCheckpoint.profit)}`
+        : "Sin ventas/utilidad cargadas.";
+      el("last_sales_profit_file").textContent = salesProfitCheckpoint ? (salesProfitCheckpoint.source_file || "Sin archivo") : "-";
 
       el("tbody_files").innerHTML = files.length ? files.map(row => `
         <tr>
