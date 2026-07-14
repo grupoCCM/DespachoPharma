@@ -50,7 +50,6 @@ declare
     'public.app_pin_active_match_count(text, uuid)',
     'public.app_require_session(text)',
     'public.dispatch_raise_if_stock_insufficient(text, numeric, uuid)',
-    'public.dispatch_stock_check(text, numeric, uuid)',
     'public.inventory_apply_lot_fifo(uuid)',
     'public.inventory_count_session_payload(uuid)',
     'public.inventory_insert_dispatch_movement(uuid, uuid, text, numeric, text, text, text, uuid, text, jsonb)',
