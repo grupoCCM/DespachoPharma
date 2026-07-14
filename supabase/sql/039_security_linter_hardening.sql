@@ -11,21 +11,32 @@
 -- ------------------------------------------------------------
 -- 1. Fix function_search_path_mutable warnings
 -- ------------------------------------------------------------
+--
+-- Some hosted Postgres environments do not accept "ALTER FUNCTION IF EXISTS".
+-- Use to_regprocedure so this script is safe even when an older function name
+-- no longer exists in the database.
 
-alter function if exists public.tg_set_updated_at()
-  set search_path = public, pg_temp;
+do $$
+declare
+  fn regprocedure;
+  search_path_functions text[] := array[
+    'public.tg_set_updated_at()',
+    'public.rpc_dispatch_get(text, uuid)',
+    'public.pharma_catalog_set_updated_at()',
+    'public.pharma_touch_updated_at()',
+    'public.parse_inventory_lot_expiry(text)'
+  ];
+  fn_signature text;
+begin
+  foreach fn_signature in array search_path_functions loop
+    fn := to_regprocedure(fn_signature);
 
-alter function if exists public.rpc_dispatch_get(text, uuid)
-  set search_path = public, pg_temp;
-
-alter function if exists public.pharma_catalog_set_updated_at()
-  set search_path = public, pg_temp;
-
-alter function if exists public.pharma_touch_updated_at()
-  set search_path = public, pg_temp;
-
-alter function if exists public.parse_inventory_lot_expiry(text)
-  set search_path = public, pg_temp;
+    if fn is not null then
+      execute format('alter function %s set search_path = public, pg_temp', fn);
+    end if;
+  end loop;
+end;
+$$;
 
 -- ------------------------------------------------------------
 -- 2. Remove direct external execution from internal helpers
