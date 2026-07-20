@@ -374,10 +374,11 @@
           <div class="d-flex flex-wrap align-items-center gap-2">
             <span id="resolution_count" class="badge text-bg-light border">0 pendientes</span>
             <div class="resolution-tabs" role="group" aria-label="Filtro de pendientes">
-              <button type="button" class="btn btn-sm btn-primary" data-variance-filter="all">Todos</button>
+              <button type="button" class="btn btn-sm btn-primary" data-variance-filter="open">Abiertos</button>
               <button type="button" class="btn btn-sm btn-outline-danger" data-variance-filter="shortage">Faltantes</button>
               <button type="button" class="btn btn-sm btn-outline-success" data-variance-filter="surplus">Sobrantes</button>
-              <button type="button" class="btn btn-sm btn-outline-secondary" data-variance-filter="value">Mayor impacto</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-variance-filter="resolved">Solventados</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-variance-filter="all">Todos</button>
             </div>
           </div>
         </div>
@@ -524,7 +525,7 @@
     let countSuggestTimer = null;
     let varianceRowsCache = [];
     let varianceSessionCache = null;
-    let varianceFilter = "all";
+    let varianceFilter = "open";
     let reclassFromRows = [];
     let reclassToRows = [];
     let reclassFromTimer = null;
@@ -624,15 +625,18 @@
     }
 
     function varianceStatusBadge(row){
+      if(row?.is_resolved) return `<span class="badge text-bg-success">Solventado</span>`;
       if(row?.status === "applied") return `<span class="badge text-bg-success">Ajustado</span>`;
       if(row?.condition_status && row.condition_status !== "ok") return `<span class="badge text-bg-danger">Hallazgo</span>`;
-      return `<span class="badge text-bg-warning">Pendiente</span>`;
+      return `<span class="badge text-bg-warning">Abierto</span>`;
     }
 
     function filteredVarianceRows(){
       let rows = varianceRowsCache.slice();
-      if(varianceFilter === "shortage") rows = rows.filter(row => Number(row.variance_qty || 0) < 0);
-      if(varianceFilter === "surplus") rows = rows.filter(row => Number(row.variance_qty || 0) > 0);
+      if(varianceFilter === "open") rows = rows.filter(row => !row.is_resolved);
+      if(varianceFilter === "resolved") rows = rows.filter(row => row.is_resolved);
+      if(varianceFilter === "shortage") rows = rows.filter(row => Number(row.variance_qty || 0) < 0 && !row.is_resolved);
+      if(varianceFilter === "surplus") rows = rows.filter(row => Number(row.variance_qty || 0) > 0 && !row.is_resolved);
       rows.sort((a,b) => {
         if(varianceFilter === "value") return Math.abs(Number(b.variance_value || 0)) - Math.abs(Number(a.variance_value || 0)) || Math.abs(Number(b.variance_qty || 0)) - Math.abs(Number(a.variance_qty || 0));
         const openDelta = (a.status === "applied" ? 1 : 0) - (b.status === "applied" ? 1 : 0);
@@ -648,14 +652,14 @@
       if(Array.isArray(payload?.rows)) varianceRowsCache = payload.rows;
       varianceSessionCache = session || null;
       const count = Number(summary.resolution_items ?? varianceRowsCache.length ?? 0);
-      const openCount = Number(summary.pending_items ?? varianceRowsCache.filter(row => row.status !== "applied").length);
+      const openCount = Number(summary.open_items ?? varianceRowsCache.filter(row => !row.is_resolved).length);
       el("resolution_count").textContent = `${num(openCount)} abiertos / ${num(count)} total`;
       document.querySelectorAll("[data-variance-filter]").forEach(btn => {
         const active = btn.dataset.varianceFilter === varianceFilter;
         const kind = btn.dataset.varianceFilter;
         btn.className = active
-          ? `btn btn-sm ${kind === "shortage" ? "btn-danger" : kind === "surplus" ? "btn-success" : kind === "value" ? "btn-secondary" : "btn-primary"}`
-          : `btn btn-sm ${kind === "shortage" ? "btn-outline-danger" : kind === "surplus" ? "btn-outline-success" : kind === "value" ? "btn-outline-secondary" : "btn-outline-primary"}`;
+          ? `btn btn-sm ${kind === "shortage" ? "btn-danger" : kind === "surplus" ? "btn-success" : kind === "resolved" || kind === "all" ? "btn-secondary" : "btn-primary"}`
+          : `btn btn-sm ${kind === "shortage" ? "btn-outline-danger" : kind === "surplus" ? "btn-outline-success" : kind === "resolved" || kind === "all" ? "btn-outline-secondary" : "btn-outline-primary"}`;
       });
       if(!session){
         el("variance_snapshot").textContent = "No hay conteo fisico reciente para mostrar diferencias reales.";
@@ -672,14 +676,14 @@
         el("resolution_list").innerHTML = `<div class="resolution-empty">Crea una sesion de conteo para tener una foto congelada de diferencias.</div>`;
         return;
       }
-      el("resolution_help").textContent = `Conteo ${session.title || session.id || "reciente"} - ${session.status || "-"}. Estas diferencias no cambian por compras posteriores.`;
+      el("resolution_help").textContent = `Conteo ${session.title || session.id || "reciente"} - ${session.status || "-"}. Solo quedan abiertos los productos sin ajuste/reclasificacion correctiva.`;
       const shortageItems = Number(summary.shortage_items || 0);
       const surplusItems = Number(summary.surplus_items || 0);
       el("variance_snapshot").textContent = `Conteo ${session.title || session.id || "reciente"} - esperado congelado al iniciar la sesion.`;
       el("variance_count").textContent = `${num(count)} diferencias de conteo`;
-      el("variance_headline").textContent = `${num(openCount)} pendientes abiertos del ultimo conteo. Compras o despachos posteriores no alteran este resultado.`;
-      el("variance_shortage").textContent = units(summary.shortage_qty);
-      el("variance_surplus").textContent = units(summary.surplus_qty);
+      el("variance_headline").textContent = `${num(openCount)} diferencias siguen abiertas. ${num(summary.resolved_items || 0)} ya quedaron solventadas con trazabilidad.`;
+      el("variance_shortage").textContent = units(summary.open_shortage_qty ?? summary.shortage_qty);
+      el("variance_surplus").textContent = units(summary.open_surplus_qty ?? summary.surplus_qty);
       el("variance_net").textContent = units(summary.net_variance_qty);
       el("variance_shortage_value").textContent = `${num(shortageItems)} ${plural(shortageItems, "producto", "productos")} - ${money(summary.shortage_value)}`;
       el("variance_surplus_value").textContent = `${num(surplusItems)} ${plural(surplusItems, "producto", "productos")} - ${money(summary.surplus_value)}`;
@@ -687,7 +691,7 @@
       el("variance_abs_value").textContent = money(summary.variance_abs_value);
       const rows = filteredVarianceRows();
       if(!rows.length){
-        const label = varianceFilter === "shortage" ? "faltantes" : varianceFilter === "surplus" ? "sobrantes" : "pendientes";
+        const label = varianceFilter === "shortage" ? "faltantes abiertos" : varianceFilter === "surplus" ? "sobrantes abiertos" : varianceFilter === "resolved" ? "diferencias solventadas" : "pendientes abiertos";
         el("resolution_list").innerHTML = `<div class="resolution-empty">No hay ${label} en el ultimo conteo.</div>`;
         return;
       }
@@ -720,6 +724,7 @@
             <div class="small text-muted mb-1">Siguiente paso</div>
             <div class="resolution-step">${esc(row.next_step || "Revisar diferencia de conteo")}</div>
             <div class="small text-muted mt-1">Usuario: ${esc(row.counted_by_name || "-")} - ${row.counted_at ? fmtDate(row.counted_at) : "-"}</div>
+            ${row.is_resolved ? `<div class="small text-success mt-1">${esc(row.resolution_status || "Solventado")} ${row.corrective_qty ? `(${units(row.corrective_qty)} unid.)` : ""}</div>` : ""}
           </div>
         </div>`;
       }).join("");
