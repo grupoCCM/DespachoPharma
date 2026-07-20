@@ -88,6 +88,7 @@
       nav,.no-print,#search_panel,#results_panel{ display:none !important; }
       body{ background:#fff; }
       .app-card{ box-shadow:none; border:0; }
+      .cost-source{ display:none !important; }
     }
   </style>
 </head>
@@ -362,11 +363,19 @@
       }
     }
 
+    function isSessionErrorMessage(message){
+      return /sesion|sesión|session|expir|token|jwt|unauthorized|no autorizado|permission|permiso/i.test(String(message || ""));
+    }
+
     async function callRpc(fnName, body){
       const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, { method:"POST", headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${SUPABASE_ANON_KEY}` }, body:JSON.stringify(body||{}) });
       const text = await res.text();
       let data=null; try{ data=text?JSON.parse(text):null; }catch{ data=null; }
-      if(!res.ok) throw new Error(data?.message || data?.details || "Error de conexion.");
+      if(!res.ok){
+        const message = data?.message || data?.details || "Error de conexion.";
+        if(res.status === 401 || res.status === 403 || isSessionErrorMessage(message)) throw new Error("Tu sesión expiró. Inicia sesión de nuevo.");
+        throw new Error(message);
+      }
       return data;
     }
     async function touchSession(){ const s=getSession(); if(!s.token) return false; const r=await callRpc("rpc_session_touch",{p_session_token:s.token}); return Array.isArray(r)&&r.length>0; }
@@ -658,7 +667,7 @@
         table{width:100%;border-collapse:collapse;margin-top:22px}
         th,td{padding:9px 8px;border-bottom:1px solid #dbe3ef;text-align:left}
         th{font-weight:700;border-bottom:2px solid #cbd5e1}
-        .text-end{text-align:right}.no-print{display:none!important}
+        .text-end{text-align:right}.no-print,.cost-source{display:none!important}
         .order-summary{max-width:360px;margin:18px 0 0 auto;border:1px solid #dbe3ef;border-radius:8px;overflow:hidden}
         .order-summary-row{display:grid;grid-template-columns:1fr auto;gap:18px;padding:9px 12px;border-bottom:1px solid #dbe3ef}
         .order-summary-row:last-child{border-bottom:0}.order-summary-row.grand{font-weight:700;background:#f8fafc}
