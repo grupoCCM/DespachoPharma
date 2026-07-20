@@ -132,9 +132,6 @@
             <div class="fw-semibold">Buscar</div>
             <div class="text-muted small">Medicamento, c&oacute;digo, casa farmac&eacute;utica o proveedor.</div>
           </div>
-          <button id="btn_open_order" class="btn btn-outline-primary btn-sm">
-            Ver pedido <span id="cart_lines" class="badge text-bg-light cart-pill ms-1">0</span>
-          </button>
         </div>
         <div class="search-grid">
           <div class="search-query">
@@ -190,7 +187,12 @@
             <div class="fw-semibold">An&aacute;lisis de precio</div>
             <div class="text-muted small">Para negociar costo y agregar con precio calculado.</div>
           </div>
-          <button id="btn_add_calc" class="btn btn-success" disabled>Agregar con costo negociado</button>
+          <div class="d-flex flex-wrap gap-2 justify-content-end">
+            <button id="btn_open_order" class="btn btn-outline-primary">
+              Ver pedido <span id="cart_lines" class="badge text-bg-light cart-pill ms-1">0</span>
+            </button>
+            <button id="btn_add_calc" class="btn btn-success" disabled>Agregar con costo negociado</button>
+          </div>
         </div>
         <div class="analysis-grid">
           <div>
