@@ -47,13 +47,42 @@
     #suggestions{ position:absolute; z-index:20; left:0; right:0; max-height:320px; overflow:auto; box-shadow:0 14px 28px rgba(15,23,42,.16); }
     .analysis-grid{ display:grid; grid-template-columns:minmax(280px,1.1fr) minmax(360px,1fr); gap:16px; align-items:start; }
     .analysis-input-grid{ display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:10px; }
+    .mobile-label{ display:none; }
     @media (max-width:1199.98px){
       .results-table-box{ height:auto; min-height:360px; max-height:70vh; }
       .search-grid,.analysis-grid{ grid-template-columns:1fr; }
       .analysis-input-grid{ grid-template-columns:repeat(2,minmax(120px,1fr)); }
     }
+    @media (max-width:767.98px){
+      main.container{ padding-left:12px; padding-right:12px; }
+      body > .navbar .container{ align-items:flex-start; gap:10px; }
+      body > .navbar .ms-auto{ width:100%; margin-left:0 !important; flex-wrap:wrap; justify-content:flex-start; }
+      body > .navbar .btn{ flex:1 1 auto; }
+      body > .navbar .badge{ order:10; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+      #btn_open_order_top,#btn_open_order,#btn_search,#btn_suggested,#btn_add_calc{ width:100%; }
+      .modal-footer{ display:grid; grid-template-columns:1fr; align-items:stretch; }
+      .modal-footer .btn{ width:100%; margin:0 !important; }
+      .results-table-box,.order-table-box{ height:auto; min-height:0; max-height:none; overflow:visible; border:0; border-radius:0; }
+      .results-table-box table,.order-table-box table{ min-width:0; border-collapse:separate; border-spacing:0 10px; }
+      .results-table-box thead,.order-table-box thead{ display:none; }
+      .results-table-box tbody,.results-table-box tr,.results-table-box td,.order-table-box tbody,.order-table-box tr,.order-table-box td{ display:block; width:100%; }
+      .results-table-box tr,.order-table-box tr{ border:1px solid var(--border); border-radius:12px; background:#fff; box-shadow:0 4px 14px rgba(15,23,42,.05); overflow:hidden; }
+      .results-table-box td,.order-table-box td{ border-bottom:1px solid var(--border); padding:10px 12px; text-align:left !important; }
+      .results-table-box td:last-child,.order-table-box td:last-child{ border-bottom:0; }
+      .results-table-box td::before,.order-table-box td::before{ content:attr(data-label); display:block; color:var(--muted); font-size:.76rem; font-weight:700; margin-bottom:3px; }
+      .results-table-box td:empty::before,.order-table-box td:empty::before{ display:none; }
+      .truncate{ max-width:none; white-space:normal; }
+      .action-stack{ min-width:0; flex-direction:row; flex-wrap:wrap; }
+      .action-stack .btn{ flex:1 1 120px; }
+      .analysis-metric{ min-height:78px; }
+      .order-summary{ max-width:none; margin-left:0; }
+      .order-table-box [data-qty]{ width:100% !important; max-width:160px; }
+      .order-table-box [data-remove]{ width:100%; }
+    }
     @media (max-width:575.98px){
       .analysis-input-grid{ grid-template-columns:1fr; }
+      .analysis-grid .row.g-2 > [class*="col-"]{ width:100%; }
+      .app-card{ border-radius:10px; }
     }
     @media print{
       nav,.no-print,#search_panel,#results_panel{ display:none !important; }
@@ -360,17 +389,17 @@
       el("visible_value").textContent = money(totalValue);
       el("tbody_results").innerHTML = visibleRows.length ? visibleRows.map((r,idx)=>`
         <tr>
-          <td><div class="fw-semibold truncate">${r.medicine_name||"-"}</div><div class="small text-muted">${r.external_code||""} - Casa: ${r.model||"-"}</div></td>
-          <td><span class="badge ${decisionBadge(r.decision)}">${r.decision||"-"}</span></td>
-          <td class="text-end">
+          <td data-label="Medicamento"><div class="fw-semibold truncate">${r.medicine_name||"-"}</div><div class="small text-muted">${r.external_code||""} - Casa: ${r.model||"-"}</div></td>
+          <td data-label="Decision"><span class="badge ${decisionBadge(r.decision)}">${r.decision||"-"}</span></td>
+          <td class="text-end" data-label="Exist. / rotacion">
             <div class="fw-semibold">${num(r.stock_qty)}</div>
             <div class="mt-1"><span class="coverage-chip">Rot. ${num(r.monthly_rotation)} / mes</span></div>
             <div class="mt-1"><span class="coverage-chip">${r.coverage_days == null ? "Sin cobertura" : `${num(r.coverage_days)} dias`}</span></div>
           </td>
-          <td>${r.supplier_name||"-"}<div class="small text-muted">${r.last_purchase_date||""}</div></td>
-          <td class="text-end small">Ult ${money(r.last_cost)}<br>Prom ${money(r.avg_cost)}<br>Min ${money(r.min_cost)}</td>
-          <td class="text-end">${money(r.reference_price)}<div class="small text-muted">${r.reference_is_manual ? "manual" : "archivo"}</div></td>
-          <td class="text-end">
+          <td data-label="Proveedor">${r.supplier_name||"-"}<div class="small text-muted">${r.last_purchase_date||""}</div></td>
+          <td class="text-end small" data-label="Costos">Ult ${money(r.last_cost)}<br>Prom ${money(r.avg_cost)}<br>Min ${money(r.min_cost)}</td>
+          <td class="text-end" data-label="Referencia">${money(r.reference_price)}<div class="small text-muted">${r.reference_is_manual ? "manual" : "archivo"}</div></td>
+          <td class="text-end" data-label="Accion">
             <div class="action-stack">
               <button class="btn btn-sm btn-success" data-add="${idx}">Agregar automático</button>
               <button class="btn btn-sm btn-outline-primary" data-analyze="${idx}">Negociar</button>
@@ -570,12 +599,12 @@
       el("tbody_cart").innerHTML = cart.length ? cart.map((row,idx)=>{
         const cost = row.manual_cost_no_tax || costUsed(row), sub = cost * Number(row.qty||0);
         return `<tr>
-          <td>${row.external_code||""}</td>
-          <td><div class="fw-semibold">${row.medicine_name||"-"}</div></td>
-          <td class="text-end"><input class="form-control form-control-sm text-end no-print" style="width:90px;display:inline-block" type="text" inputmode="numeric" pattern="[0-9]*" value="${Math.max(1, Math.round(Number(row.qty || 1)))}" data-qty="${idx}"><span class="d-none d-print-inline" data-print-qty="${idx}">${num(row.qty)}</span></td>
-          <td class="text-end">${money(cost)}<span class="cost-source">${esc(row.cost_source || costSourceLabel(row))}</span></td>
-          <td class="text-end" data-subtotal="${idx}">${money(sub)}</td>
-          <td class="text-end no-print"><button class="btn btn-sm btn-outline-danger" data-remove="${idx}">Quitar</button></td>
+          <td data-label="Codigo">${row.external_code||""}</td>
+          <td data-label="Medicamento"><div class="fw-semibold">${row.medicine_name||"-"}</div></td>
+          <td class="text-end" data-label="Cantidad"><input class="form-control form-control-sm text-end no-print" style="width:90px;display:inline-block" type="text" inputmode="numeric" pattern="[0-9]*" value="${Math.max(1, Math.round(Number(row.qty || 1)))}" data-qty="${idx}"><span class="d-none d-print-inline" data-print-qty="${idx}">${num(row.qty)}</span></td>
+          <td class="text-end" data-label="Costo unitario">${money(cost)}<span class="cost-source">${esc(row.cost_source || costSourceLabel(row))}</span></td>
+          <td class="text-end" data-label="Subtotal" data-subtotal="${idx}">${money(sub)}</td>
+          <td class="text-end no-print" data-label="Accion"><button class="btn btn-sm btn-outline-danger" data-remove="${idx}">Quitar</button></td>
         </tr>`;
       }).join("") : `<tr><td colspan="6" class="text-center text-muted py-4">Pedido vacío.</td></tr>`;
       document.querySelectorAll("[data-remove]").forEach(btn=>btn.addEventListener("click",()=>{ cart.splice(Number(btn.dataset.remove),1); renderCart(); }));
