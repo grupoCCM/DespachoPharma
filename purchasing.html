@@ -27,10 +27,20 @@
     .status-dot{ width:10px; height:10px; border-radius:999px; background:currentColor; display:inline-block; flex:0 0 auto; }
     .status-amount{ display:block; margin-top:2px; font-weight:700; }
     .results-table-box{ height:clamp(440px, 52vh, 660px); overflow:auto; border:1px solid var(--border); border-radius:10px; }
-    .results-table-box table{ margin-bottom:0; min-width:920px; }
-    .results-table-box thead th{ position:sticky; top:0; z-index:2; background:#f8fafc; box-shadow:0 1px 0 var(--border); }
+    .results-table-box table{ margin-bottom:0; min-width:1120px; table-layout:fixed; }
+    .results-table-box thead th{ position:sticky; top:0; z-index:2; background:#f8fafc; box-shadow:0 1px 0 var(--border); font-size:.84rem; letter-spacing:0; }
+    .results-table-box th,.results-table-box td{ padding:10px 8px; }
+    .results-table-box tbody tr{ border-bottom:1px solid var(--border); }
+    .result-med-name{ font-weight:700; line-height:1.25; overflow-wrap:anywhere; }
+    .result-meta{ color:var(--muted); font-size:.8rem; margin-top:4px; line-height:1.25; }
+    .result-stock{ text-align:center; }
+    .result-stock .stock-qty{ font-size:1.05rem; font-weight:800; }
+    .result-supplier{ line-height:1.25; overflow-wrap:anywhere; }
+    .result-costs{ line-height:1.35; white-space:nowrap; }
+    .result-ref{ line-height:1.25; }
     .order-table{ border-bottom:1px solid var(--border); }
-    .action-stack{ display:flex; flex-direction:column; gap:6px; align-items:stretch; min-width:116px; }
+    .action-stack{ display:flex; flex-direction:column; gap:6px; align-items:stretch; min-width:128px; }
+    .action-stack .btn{ width:100%; padding:.35rem .5rem; }
     .coverage-chip{ display:inline-block; border:1px solid var(--border); border-radius:999px; padding:1px 7px; background:#f8fafc; font-size:.76rem; color:var(--muted); }
     .cost-source{ display:block; font-size:.76rem; color:var(--muted); margin-top:2px; }
     .order-table-box{ max-height:58vh; overflow:auto; border:1px solid var(--border); border-radius:10px; }
@@ -163,13 +173,22 @@
           <span id="count" class="badge text-bg-light border">0</span>
         </div>
         <div class="results-table-box mt-3">
-          <table class="table table-sm order-table">
+          <table class="table table-sm order-table results-table">
+            <colgroup>
+              <col style="width:28%">
+              <col style="width:9%">
+              <col style="width:11%">
+              <col style="width:22%">
+              <col style="width:10%">
+              <col style="width:8%">
+              <col style="width:12%">
+            </colgroup>
             <thead class="table-light">
               <tr>
                 <th>Medicamento</th>
-                <th>Decisi&oacute;n</th>
-                <th class="text-end">Exist. / rotaci&oacute;n</th>
-                <th>Proveedor distribuidor</th>
+                <th class="text-center">Decisi&oacute;n</th>
+                <th class="text-center">Exist. / rotaci&oacute;n</th>
+                <th>Proveedor</th>
                 <th class="text-end">Costos</th>
                 <th class="text-end">Ref.</th>
                 <th class="text-end">Acci&oacute;n</th>
@@ -408,19 +427,33 @@
         const blocked = isPurchaseBlocked(r);
         return `
         <tr class="${blocked ? "table-secondary" : ""}">
-          <td data-label="Medicamento"><div class="fw-semibold truncate">${esc(r.medicine_name||"-")}</div><div class="small text-muted">${esc(r.external_code||"")} - Casa: ${esc(r.model||"-")}</div>${blocked ? '<div class="small text-danger fw-semibold mt-1">Marcado en catalogo como No comprar.</div>' : ""}</td>
-          <td data-label="Decision"><span class="badge ${decisionBadge(r.decision)}">${esc(r.decision||"-")}</span></td>
-          <td class="text-end" data-label="Exist. / rotacion">
-            <div class="fw-semibold">${num(r.stock_qty)}</div>
+          <td data-label="Medicamento">
+            <div class="result-med-name">${esc(r.medicine_name||"-")}</div>
+            <div class="result-meta">${esc(r.external_code||"")} - Casa: ${esc(r.model||"-")}</div>
+            ${blocked ? '<div class="small text-danger fw-semibold mt-1">Marcado en catalogo como No comprar.</div>' : ""}
+          </td>
+          <td class="text-center" data-label="Decision"><span class="badge ${decisionBadge(r.decision)}">${esc(r.decision||"-")}</span></td>
+          <td class="result-stock" data-label="Exist. / rotacion">
+            <div class="stock-qty">${num(r.stock_qty)}</div>
             <div class="mt-1"><span class="coverage-chip">Rot. ${num(r.monthly_rotation)} / mes</span></div>
             <div class="mt-1"><span class="coverage-chip">${r.coverage_days == null ? "Sin cobertura" : `${num(r.coverage_days)} dias`}</span></div>
           </td>
-          <td data-label="Proveedor">${esc(r.supplier_name||"-")}<div class="small text-muted">${esc(r.last_purchase_date||"")}</div></td>
-          <td class="text-end small" data-label="Costos">Ult ${money(r.last_cost)}<br>Prom ${money(r.avg_cost)}<br>Min ${money(r.min_cost)}</td>
-          <td class="text-end" data-label="Referencia">${money(r.reference_price)}<div class="small text-muted">${r.reference_is_manual ? "manual" : "archivo"}</div></td>
+          <td class="result-supplier" data-label="Proveedor">
+            <div>${esc(r.supplier_name||"-")}</div>
+            <div class="small text-muted mt-1">${esc(r.last_purchase_date||"")}</div>
+          </td>
+          <td class="text-end small result-costs" data-label="Costos">
+            <div>Ult ${money(r.last_cost)}</div>
+            <div>Prom ${money(r.avg_cost)}</div>
+            <div>Min ${money(r.min_cost)}</div>
+          </td>
+          <td class="text-end result-ref" data-label="Referencia">
+            <div>${money(r.reference_price)}</div>
+            <div class="small text-muted">${r.reference_is_manual ? "manual" : "archivo"}</div>
+          </td>
           <td class="text-end" data-label="Accion">
             <div class="action-stack">
-              <button class="btn btn-sm ${blocked ? "btn-outline-secondary" : "btn-success"}" data-add="${idx}" ${blocked ? "disabled" : ""}>${blocked ? "No comprar" : "Agregar automatico"}</button>
+              <button class="btn btn-sm ${blocked ? "btn-outline-secondary" : "btn-success"}" data-add="${idx}" ${blocked ? "disabled" : ""}>${blocked ? "No comprar" : "Agregar"}</button>
               <button class="btn btn-sm btn-outline-primary" data-analyze="${idx}" ${blocked ? "disabled" : ""}>Negociar</button>
               <button class="btn btn-sm btn-outline-secondary" data-ref="${idx}">Editar ref.</button>
             </div>
