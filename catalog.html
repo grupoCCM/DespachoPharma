@@ -122,13 +122,14 @@
                     <tr>
                       <th style="width:14%">Codigo</th>
                       <th style="width:24%">Barcode</th>
-                      <th style="width:42%">Producto</th>
+                      <th style="width:38%">Producto</th>
                       <th style="width:10%">Estado</th>
+                      <th style="width:13%">Compra</th>
                       <th style="width:15%" class="text-end">Accion</th>
                     </tr>
                   </thead>
                   <tbody id="tbody">
-                    <tr><td colspan="5" class="text-center text-muted py-4">Busca para ver resultados.</td></tr>
+                    <tr><td colspan="6" class="text-center text-muted py-4">Busca para ver resultados.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -244,9 +245,20 @@
             </div>
           </div>
 
-          <div class="form-check mt-3">
-            <input id="m_active" class="form-check-input" type="checkbox" checked />
-            <label class="form-check-label" for="m_active">Activo</label>
+          <div class="row g-2 mt-3">
+            <div class="col-12 col-md-6">
+              <div class="form-check">
+                <input id="m_active" class="form-check-input" type="checkbox" checked />
+                <label class="form-check-label" for="m_active">Activo</label>
+              </div>
+            </div>
+            <div class="col-12 col-md-6">
+              <div class="form-check">
+                <input id="m_purchase_blocked" class="form-check-input" type="checkbox" />
+                <label class="form-check-label" for="m_purchase_blocked">No comprar</label>
+                <div class="form-text">Bloquea este producto en Apoyo de pedido.</div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -474,6 +486,10 @@
       }, 30_000);
     }
 
+    function purchaseBadge(blocked){
+      return blocked ? `<span class="badge text-bg-danger">No comprar</span>` : `<span class="badge text-bg-success">Comprar</span>`;
+    }
+
     function statusBadge(active){
       return active
         ? `<span class="badge text-bg-success">Activo</span>`
@@ -511,7 +527,7 @@
       tb.innerHTML = "";
 
       if(!rows.length){
-        tb.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Sin resultados.</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">Sin resultados.</td></tr>`;
         return;
       }
 
@@ -522,6 +538,7 @@
           <td class="mono">${esc(r.barcode||"")}</td>
           <td><div class="fw-semibold">${esc(r.product_name||"")}</div><div class="small text-muted">${esc(r.secondary_name || "")}${r.model ? " - Casa: " + esc(r.model) : ""}</div></td>
           <td>${statusBadge(!!r.active)}</td>
+          <td>${purchaseBadge(!!r.purchase_blocked)}</td>
           <td class="text-end">
             <button class="btn btn-outline-primary btn-sm" data-act="edit" data-bc="${esc(r.barcode)}">Editar</button>
             <button class="btn btn-outline-secondary btn-sm ms-1" data-act="toggle" data-bc="${esc(r.barcode)}" data-active="${r.active ? "true":"false"}">
@@ -607,6 +624,7 @@
       el("m_price_1").value = "";
       el("m_reference_price").value = "";
       el("m_active").checked = true;
+      el("m_purchase_blocked").checked = false;
       el("m_barcode").disabled = false;
       el("m_external_code").disabled = false;
 
@@ -629,6 +647,7 @@
       el("m_price_1").value = row.price_1 ?? "";
       el("m_reference_price").value = row.reference_price ?? "";
       el("m_active").checked = !!row.active;
+      el("m_purchase_blocked").checked = !!row.purchase_blocked;
 
       el("m_barcode").disabled = true;
       el("m_external_code").disabled = false;
@@ -682,6 +701,7 @@
       const price1 = numberOrNull(el("m_price_1").value);
       const referencePrice = numberOrNull(el("m_reference_price").value);
       const ac = !!el("m_active").checked;
+      const purchaseBlocked = !!el("m_purchase_blocked").checked;
 
       if(!externalCode || externalCode <= 0) return showAlert("alert_modal","Codigo interno requerido.");
       if(!bc) return showAlert("alert_modal","Barcode requerido (solo digitos).");
@@ -703,7 +723,8 @@
           p_group_name: groupName || null,
           p_subgroup_name: subgroup || null,
           p_price_1: price1,
-          p_reference_price: referencePrice
+          p_reference_price: referencePrice,
+          p_purchase_blocked: purchaseBlocked
         });
 
         bootstrap.Modal.getOrCreateInstance(el("modal_upsert")).hide();

@@ -101,6 +101,7 @@
       <div class="ms-auto d-flex align-items-center gap-2">
         <a class="btn btn-outline-secondary btn-sm" href="dashboard.html">Dashboard</a>
         <a class="btn btn-outline-secondary btn-sm" href="inventory-audit.html">Inventario</a>
+        <a class="btn btn-outline-secondary btn-sm" href="catalog.html">Catalogo</a>
         <a class="btn btn-outline-secondary btn-sm" href="expiration-dashboard.html">Vencimientos</a>
         <a class="btn btn-outline-secondary btn-sm" href="availability.html">Disponibilidad</a>
         <a class="btn btn-outline-secondary btn-sm" href="imports.html">Importaciones</a>
@@ -386,10 +387,13 @@
     async function logoutAndGoLogin(){ try{ const s=getSession(); if(s.token) await callRpc("rpc_logout",{p_session_token:s.token}); }catch(_){} ["dp_session_token","dp_role","dp_display_name","dp_user_id","dp_expires_at","dp_last_activity"].forEach(k=>localStorage.removeItem(k)); window.location.href=ROUTES.login; }
 
     function decisionBadge(decision){
+      if(decision === "No comprar") return "text-bg-dark";
       if(decision === "Pedir") return "text-bg-danger";
       if(decision === "Vigilar") return "text-bg-warning";
       return "text-bg-secondary";
     }
+
+    function isPurchaseBlocked(row){ return !!row?.purchase_blocked || row?.decision === "No comprar"; }
 
     function renderResults(){
       const house = el("house_filter").value;
@@ -400,26 +404,28 @@
       el("visible_items").textContent = visibleRows.length;
       el("visible_qty").textContent = num(totalQty);
       el("visible_value").textContent = money(totalValue);
-      el("tbody_results").innerHTML = visibleRows.length ? visibleRows.map((r,idx)=>`
-        <tr>
-          <td data-label="Medicamento"><div class="fw-semibold truncate">${r.medicine_name||"-"}</div><div class="small text-muted">${r.external_code||""} - Casa: ${r.model||"-"}</div></td>
-          <td data-label="Decision"><span class="badge ${decisionBadge(r.decision)}">${r.decision||"-"}</span></td>
+      el("tbody_results").innerHTML = visibleRows.length ? visibleRows.map((r,idx)=>{
+        const blocked = isPurchaseBlocked(r);
+        return `
+        <tr class="${blocked ? "table-secondary" : ""}">
+          <td data-label="Medicamento"><div class="fw-semibold truncate">${esc(r.medicine_name||"-")}</div><div class="small text-muted">${esc(r.external_code||"")} - Casa: ${esc(r.model||"-")}</div>${blocked ? '<div class="small text-danger fw-semibold mt-1">Marcado en catalogo como No comprar.</div>' : ""}</td>
+          <td data-label="Decision"><span class="badge ${decisionBadge(r.decision)}">${esc(r.decision||"-")}</span></td>
           <td class="text-end" data-label="Exist. / rotacion">
             <div class="fw-semibold">${num(r.stock_qty)}</div>
             <div class="mt-1"><span class="coverage-chip">Rot. ${num(r.monthly_rotation)} / mes</span></div>
             <div class="mt-1"><span class="coverage-chip">${r.coverage_days == null ? "Sin cobertura" : `${num(r.coverage_days)} dias`}</span></div>
           </td>
-          <td data-label="Proveedor">${r.supplier_name||"-"}<div class="small text-muted">${r.last_purchase_date||""}</div></td>
+          <td data-label="Proveedor">${esc(r.supplier_name||"-")}<div class="small text-muted">${esc(r.last_purchase_date||"")}</div></td>
           <td class="text-end small" data-label="Costos">Ult ${money(r.last_cost)}<br>Prom ${money(r.avg_cost)}<br>Min ${money(r.min_cost)}</td>
           <td class="text-end" data-label="Referencia">${money(r.reference_price)}<div class="small text-muted">${r.reference_is_manual ? "manual" : "archivo"}</div></td>
           <td class="text-end" data-label="Accion">
             <div class="action-stack">
-              <button class="btn btn-sm btn-success" data-add="${idx}">Agregar automático</button>
-              <button class="btn btn-sm btn-outline-primary" data-analyze="${idx}">Negociar</button>
+              <button class="btn btn-sm ${blocked ? "btn-outline-secondary" : "btn-success"}" data-add="${idx}" ${blocked ? "disabled" : ""}>${blocked ? "No comprar" : "Agregar automatico"}</button>
+              <button class="btn btn-sm btn-outline-primary" data-analyze="${idx}" ${blocked ? "disabled" : ""}>Negociar</button>
               <button class="btn btn-sm btn-outline-secondary" data-ref="${idx}">Editar ref.</button>
             </div>
           </td>
-        </tr>`).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin resultados.</td></tr>`;
+        </tr>`; }).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin resultados.</td></tr>`;
       document.querySelectorAll("[data-analyze]").forEach(btn=>btn.addEventListener("click",()=>selectForAnalysis(visibleRows[Number(btn.dataset.analyze)])));
       document.querySelectorAll("[data-add]").forEach(btn=>btn.addEventListener("click",()=>addToCart(visibleRows[Number(btn.dataset.add)])));
       document.querySelectorAll("[data-ref]").forEach(btn=>btn.addEventListener("click",()=>editReference(visibleRows[Number(btn.dataset.ref)])));
@@ -543,6 +549,7 @@
     }
 
     function addToCart(row){
+      if(isPurchaseBlocked(row)){ showAlert(`${row.medicine_name || "Este producto"} esta marcado como No comprar en catalogo.`); return; }
       const qty = Number(row.suggested_qty || 0) > 0 ? Math.round(Number(row.suggested_qty)) : 1;
       const cost = costUsed(row);
       if(!Number.isFinite(cost) || cost <= 0){
@@ -557,6 +564,7 @@
 
     function addCalculatedToCart(){
       if(!selectedRow) return;
+      if(isPurchaseBlocked(selectedRow)){ showAlert(`${selectedRow.medicine_name || "Este producto"} esta marcado como No comprar en catalogo.`); return; }
       const calc = calculateAnalysis();
       if(!calc){ showAlert("Completa costo, GM e IVA validos."); return; }
       if(!Number.isFinite(calc.cost) || calc.cost <= 0){ showAlert("El costo unitario debe ser mayor que 0."); return; }
