@@ -339,6 +339,15 @@
       const latest = payload && payload.latest ? payload.latest : null;
       const files = payload && Array.isArray(payload.files) ? payload.files : [];
       const issues = payload && Array.isArray(payload.issues) ? payload.issues : [];
+      const duplicateAlerts = files
+        .filter(row => Number(row.duplicate_rows_detected || 0) > 0)
+        .map(row => ({
+          severity:"info",
+          issue_code:"Duplicados omitidos",
+          source_type:row.source_type || "",
+          message:`${Number(row.duplicate_rows_detected || 0).toLocaleString("es-SV")} lineas duplicadas fueron ignoradas para no incrementar inventario ni ventas dos veces.`
+        }));
+      const visibleIssues = duplicateAlerts.concat(issues);
       const purchaseCheckpoint = payload && payload.purchase_checkpoint ? payload.purchase_checkpoint : null;
       const salesProfitCheckpoint = payload && payload.sales_profit_checkpoint ? payload.sales_profit_checkpoint : null;
 
@@ -369,8 +378,8 @@
         </tr>
       `).join("") : `<tr><td colspan="5" class="text-center text-muted py-4">Sin archivos registrados.</td></tr>`;
 
-      el("issues_list").innerHTML = issues.length ? issues.map(issue => {
-        const cls = issue.severity === "error" ? "alert-danger" : issue.severity === "warning" ? "alert-warning" : "alert-secondary";
+      el("issues_list").innerHTML = visibleIssues.length ? visibleIssues.map(issue => {
+        const cls = issue.severity === "error" ? "alert-danger" : issue.severity === "warning" ? "alert-warning" : issue.severity === "info" ? "alert-info" : "alert-secondary";
         return `<div class="alert ${cls} mb-0 py-2">
           <div class="fw-semibold">${issue.issue_code}</div>
           <div class="small">${issue.message}</div>
