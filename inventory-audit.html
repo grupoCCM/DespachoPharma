@@ -49,6 +49,11 @@
     .modal-backdrop-lite.show{ display:flex; }
     .finding-modal{ width:min(620px,100%); background:#fff; border-radius:14px; box-shadow:0 24px 60px rgba(15,23,42,.28); }
     .selected-product{ min-height:44px; border:1px solid var(--border); border-radius:8px; padding:8px 10px; background:#f8fafc; }
+    .inventory-tabs{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; border-bottom:1px solid var(--border); }
+    .inventory-tab-btn{ border:0; background:transparent; color:#475569; font-weight:700; padding:10px 12px; border-bottom:3px solid transparent; }
+    .inventory-tab-btn:hover{ color:#0f172a; background:#f8fafc; }
+    .inventory-tab-btn.active{ color:#0d6efd; border-bottom-color:#0d6efd; }
+    .inventory-tab-hint{ color:var(--muted); font-size:.86rem; margin:-6px 0 14px; }
     .variance-card{ border:1px solid var(--border); border-radius:10px; padding:12px; min-height:104px; background:#fff; }
     .variance-card.danger{ border-color:#fecaca; background:#fff7f7; }
     .variance-card.success{ border-color:#bbf7d0; background:#f7fff9; }
@@ -114,13 +119,25 @@
     <div id="alert_page" class="alert alert-danger d-none" role="alert"></div>
     <div id="ok_page" class="alert alert-success d-none" role="alert"></div>
 
-    <div class="app-card p-3 mb-3 admin-panel">
+    <div class="inventory-tabs" role="tablist" aria-label="Opciones de inventario">
+      <button type="button" class="inventory-tab-btn active" data-inventory-tab="point">Conteo puntual</button>
+      <button type="button" class="inventory-tab-btn" data-inventory-tab="session">Conteo físico</button>
+      <button type="button" class="inventory-tab-btn admin-panel" data-inventory-tab="differences">Diferencias</button>
+      <button type="button" class="inventory-tab-btn admin-panel" data-inventory-tab="movements">Movimientos</button>
+      <button type="button" class="inventory-tab-btn admin-panel" data-inventory-tab="adjustments">Ajustes</button>
+    </div>
+    <div id="inventory_tab_hint" class="inventory-tab-hint">Revisa un producto puntual sin abrir una sesión completa.</div>
+
+    <div class="app-card p-3 mb-3 admin-panel d-none" data-inventory-section="adjustments">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
           <div class="fw-semibold">Reclasificar inventario</div>
           <div class="text-muted small">Corrige compras registradas en un producto equivocado sin borrar historial.</div>
         </div>
         <span class="badge text-bg-light border">Solo admin</span>
+      </div>
+      <div class="alert alert-light border small mt-3 mb-0">
+        Este tab agrupa correcciones administrativas. El ajuste puntual por nota de credito, devolucion o producto no apto se agregara aqui como flujo separado.
       </div>
       <div class="row g-3 mt-1">
         <div class="col-12 col-lg-6">
@@ -161,7 +178,7 @@
       </div>
     </div>
 
-    <div class="app-card p-3 mb-3 admin-panel">
+    <div class="app-card p-3 mb-3 admin-panel d-none" data-inventory-section="movements">
       <div class="row g-3 align-items-end">
         <div class="col-12 col-lg-6">
           <label class="form-label" for="q">Buscar movimiento</label>
@@ -183,7 +200,7 @@
       </div>
     </div>
 
-    <div class="app-card p-3 mb-3">
+    <div class="app-card p-3 mb-3" data-inventory-section="point">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
           <div class="fw-semibold">Conteo manual</div>
@@ -235,7 +252,7 @@
       </div>
     </div>
 
-    <div class="app-card p-3 mb-3">
+    <div class="app-card p-3 mb-3 d-none" data-inventory-section="session">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
           <div class="fw-semibold">Sesion de conteo fisico</div>
@@ -298,7 +315,7 @@
       </div>
     </div>
 
-    <div class="row g-3 mb-3 admin-panel">
+    <div class="row g-3 mb-3 admin-panel d-none" data-inventory-section="movements">
       <div class="col-6 col-lg-3">
         <div class="app-card p-3 metric">
           <div class="text-muted small">Unidades vivas</div>
@@ -329,7 +346,7 @@
       </div>
     </div>
 
-    <div class="app-card p-3 mb-3 admin-panel">
+    <div class="app-card p-3 mb-3 admin-panel d-none" data-inventory-section="differences">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
           <div class="fw-semibold">Control de diferencias de inventario</div>
@@ -413,7 +430,7 @@
       </div>
     </div>
 
-    <div class="row g-3 admin-panel">
+    <div class="row g-3 admin-panel d-none" data-inventory-section="movements">
       <div class="col-12 col-xl-8">
         <div class="app-card p-3">
           <div class="d-flex justify-content-between align-items-center">
@@ -560,6 +577,24 @@
     function hideOk(){ el("ok_page").textContent=""; el("ok_page").classList.add("d-none"); }
     function setLoading(v){ el("btn_refresh").disabled=v; el("btn_search").disabled=v; el("btn_refresh_spinner").classList.toggle("d-none",!v); el("btn_refresh_text").textContent=v?"Actualizando...":"Actualizar"; }
     function isAdmin(){ return getSession().role === "admin"; }
+    const INVENTORY_TAB_HINTS = {
+      point:"Revisa un producto puntual sin abrir una sesion completa.",
+      session:"Conteo fisico por lista. Los productos no digitados quedan pendientes hasta cerrar o cancelar la sesion.",
+      differences:"Seguimiento de faltantes, sobrantes, hallazgos y diferencias ya solventadas.",
+      movements:"Kardex interno, cambios posteriores a la foto y movimientos sin cruce.",
+      adjustments:"Correcciones administrativas. El ajuste puntual por nota de credito quedara aqui en una siguiente etapa."
+    };
+    function switchInventoryTab(tab){
+      const target = tab || "point";
+      document.querySelectorAll("[data-inventory-tab]").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.inventoryTab === target);
+      });
+      document.querySelectorAll("[data-inventory-section]").forEach(section => {
+        section.classList.toggle("d-none", section.dataset.inventorySection !== target);
+      });
+      const hint = el("inventory_tab_hint");
+      if(hint) hint.textContent = INVENTORY_TAB_HINTS[target] || "";
+    }
     function applyRoleUi(){
       const admin = isAdmin();
       document.querySelectorAll(".admin-panel").forEach(node => node.classList.toggle("d-none", !admin));
@@ -1631,6 +1666,10 @@
         el("brand_home").href = s.role === "cashier" ? ROUTES.cashier : ROUTES.dispatch;
       }
       applyRoleUi();
+      document.querySelectorAll("[data-inventory-tab]").forEach(btn => {
+        btn.addEventListener("click", () => switchInventoryTab(btn.dataset.inventoryTab || "point"));
+      });
+      switchInventoryTab("point");
       el("btn_logout").addEventListener("click", logoutAndGoLogin);
       if(isAdmin()){
         el("btn_refresh").addEventListener("click", loadAudit);
