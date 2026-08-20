@@ -285,7 +285,7 @@
           <div id="session_progress" class="small fw-semibold mt-1">Sin sesion activa.</div>
         </div>
         <div class="d-flex flex-wrap gap-2">
-          <button id="btn_new_session" class="btn btn-outline-primary btn-sm admin-action">Nuevo conteo</button>
+          <button id="btn_new_session" class="btn btn-outline-primary btn-sm">Nuevo conteo</button>
           <button id="btn_reload_session" class="btn btn-outline-secondary btn-sm">Recargar</button>
           <button id="btn_close_session" class="btn btn-outline-success btn-sm admin-action" disabled>Cerrar</button>
           <button id="btn_cancel_session" class="btn btn-outline-danger btn-sm admin-action" disabled>Cancelar</button>
@@ -677,7 +677,7 @@
       document.querySelectorAll(".admin-action").forEach(node => node.classList.toggle("d-none", !admin));
       if(!admin){
         el("page_title").textContent = "Conteo fisico de inventario";
-        el("page_subtitle").textContent = "Usa una sesion vigente para inventario general o ajuste puntual para revisar pocos productos.";
+        el("page_subtitle").textContent = "Crea o continua una sesion vigente para inventario general. El administrador aplica diferencias.";
         el("count_help").textContent = "Registra un ajuste puntual con usuario y hora. El administrador revisa y aplica el ajuste si corresponde.";
       }
     }
@@ -1258,9 +1258,9 @@
       if(!session){
         el("session_meta").textContent = isAdmin()
           ? "Valida todos los productos activos. Campo vacio = pendiente; 0 = contado y confirmado en cero."
-          : "Cuando el administrador abra una sesion, aqui podras registrar el conteo fisico producto por producto.";
+          : "Puedes crear una sesion de conteo o recargar una vigente. Campo vacio = pendiente; 0 = contado y confirmado en cero.";
         el("session_progress").textContent = "Sin sesion activa.";
-        el("tbody_session_items").innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">${isAdmin() ? "Crea o recarga una sesion de conteo." : "No hay sesion activa. Puedes usar Conteo manual para revisar productos puntuales."}</td></tr>`;
+        el("tbody_session_items").innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">Crea o recarga una sesion de conteo.</td></tr>`;
         el("btn_close_session").disabled = true;
         el("btn_cancel_session").disabled = true;
         el("btn_print_session").disabled = !printableCountSessionId;
