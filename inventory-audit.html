@@ -584,6 +584,14 @@
     let sessionItems = [];
     let sessionFilterTimer = null;
     let findingRowIndex = null;
+    let activeInventoryTab = "session";
+    const inventoryTabLoaded = {
+      session:false,
+      point:false,
+      differences:false,
+      adjustments:false,
+      movements:false
+    };
 
     function getSession(){ return { token:localStorage.getItem("dp_session_token")||"", role:(localStorage.getItem("dp_role")||"").toLowerCase(), name:localStorage.getItem("dp_display_name")||"" }; }
     function num(v,d=0){ return new Intl.NumberFormat("es-SV",{maximumFractionDigits:d}).format(Number(v || 0)); }
@@ -637,8 +645,9 @@
       adjustments:"Correcciones administrativas entre productos, como compras registradas en el articulo equivocado.",
       movements:"Kardex interno: compras, despachos, conteos, reversos y movimientos sin cruce."
     };
-    function switchInventoryTab(tab){
+    function showInventoryTab(tab){
       const target = tab || "session";
+      activeInventoryTab = target;
       document.querySelectorAll("[data-inventory-tab]").forEach(btn => {
         btn.classList.toggle("active", btn.dataset.inventoryTab === target);
       });
@@ -647,6 +656,20 @@
       });
       const hint = el("inventory_tab_hint");
       if(hint) hint.textContent = INVENTORY_TAB_HINTS[target] || "";
+    }
+    function switchInventoryTab(tab){
+      const target = tab || "session";
+      showInventoryTab(target);
+      void loadInventoryTab(target);
+    }
+    function markAuditStale(){
+      inventoryTabLoaded.differences = false;
+      inventoryTabLoaded.movements = false;
+    }
+    async function reloadAuditIfVisible(){
+      if(activeInventoryTab === "differences" || activeInventoryTab === "movements"){
+        await loadInventoryTab(activeInventoryTab, true);
+      }
     }
     function applyRoleUi(){
       const admin = isAdmin();
@@ -953,7 +976,7 @@
       if(!row) return;
       el("q").value = row.external_code || row.medicine_name || "";
       hideSuggestions();
-      if(isAdmin()) loadAudit();
+      if(isAdmin()) loadInventoryTab("movements", true);
     }
 
     function renderCountProduct(row){
@@ -1135,7 +1158,10 @@
         ["reclass_from_q","reclass_to_q","reclass_qty","reclass_reference","reclass_reason","reclass_note"].forEach(id => el(id).value = "");
         renderReclassSelected("from", null);
         renderReclassSelected("to", null);
-        await Promise.all([loadAudit(), loadManualCounts(), loadCurrentSession()]);
+        markAuditStale();
+        inventoryTabLoaded.point = false;
+        inventoryTabLoaded.session = false;
+        await reloadAuditIfVisible();
       }catch(err){
         showAlert(err.message || "No se pudo reclasificar inventario.");
       }finally{
@@ -1199,8 +1225,10 @@
         showOk(`Conteo registrado: ${row?.medicine_name || "producto"} diferencia ${units(row?.variance_qty)}.`);
         el("count_qty").value = "";
         el("count_note").value = "";
-        if(isAdmin()) await Promise.all([loadManualCounts(), loadAudit()]);
-        else await loadManualCounts();
+        markAuditStale();
+        await loadManualCounts();
+        inventoryTabLoaded.point = true;
+        if(isAdmin()) await reloadAuditIfVisible();
       }catch(err){
         showAlert(err.message || "No se pudo registrar el conteo.");
       }
@@ -1214,8 +1242,11 @@
         const s = getSession();
         const row = await callRpc("rpc_inventory_manual_count_apply", { p_session_token:s.token, p_count_id:countId });
         showOk(`Ajuste aplicado: ${row?.medicine_name || "producto"} diferencia ${units(row?.variance_qty)}.`);
-        if(isAdmin()) await Promise.all([loadManualCounts(), loadAudit()]);
-        else await loadManualCounts();
+        markAuditStale();
+        inventoryTabLoaded.session = false;
+        await loadManualCounts();
+        inventoryTabLoaded.point = true;
+        if(isAdmin()) await reloadAuditIfVisible();
       }catch(err){
         showAlert(err.message || "No se pudo aplicar el ajuste.");
       }
@@ -1329,6 +1360,7 @@
         activeCountSession = session;
         showOk(`Sesion creada con ${num(session?.total_items)} productos. Los productos con esperado 0 quedan pendientes hasta confirmar conteo 0.`);
         await loadSessionItems();
+        inventoryTabLoaded.session = true;
       }catch(err){
         showAlert(err.message || "No se pudo crear la sesion de conteo.");
       }
@@ -1511,7 +1543,9 @@
         activeCountSession = null;
         renderSessionSummary(null);
         await loadCurrentSession();
-        await loadManualCounts();
+        inventoryTabLoaded.session = true;
+        markAuditStale();
+        await reloadAuditIfVisible();
       }catch(err){
         showAlert(err.message || "No se pudo finalizar la sesion.");
       }
@@ -1633,6 +1667,7 @@
         showOk(conditionStatus === "ok" ? "Producto marcado como OK." : `Hallazgo guardado: ${conditionLabel(conditionStatus)}.`);
         closeFindingModal();
         await loadSessionItems();
+        inventoryTabLoaded.session = true;
       }catch(err){
         showFindingAlert(err.message || "No se pudo guardar el hallazgo.");
       }
@@ -1645,6 +1680,7 @@
         if(!saved) return;
         showOk(`Conteo guardado: ${saved?.medicine_name || "producto"} contado ${units(saved?.counted_qty)}.`);
         await loadSessionItems();
+        inventoryTabLoaded.session = true;
       }catch(err){
         showAlert(err.message || "No se pudo guardar el conteo.");
       }
@@ -1661,8 +1697,10 @@
         const s = getSession();
         const applied = await callRpc("rpc_inventory_count_session_item_apply", { p_session_token:s.token, p_item_id:row.id });
         showOk(`Ajuste aplicado: ${applied?.medicine_name || "producto"} diferencia ${units(applied?.variance_qty)}.`);
-        if(isAdmin()) await Promise.all([loadSessionItems(), loadAudit()]);
-        else await loadSessionItems();
+        markAuditStale();
+        await loadSessionItems();
+        inventoryTabLoaded.session = true;
+        if(isAdmin()) await reloadAuditIfVisible();
       }catch(err){
         showAlert(err.message || "No se pudo aplicar el ajuste.");
       }
@@ -1705,10 +1743,40 @@
         }else{
           renderResolutionBoard(resolution || {});
         }
+        inventoryTabLoaded.differences = true;
+        inventoryTabLoaded.movements = true;
       }catch(err){
         showAlert(err.message || "No se pudo cargar la auditoria.");
       }finally{
         setLoading(false);
+      }
+    }
+
+    async function loadInventoryTab(tab, force=false){
+      const target = tab || "session";
+      if(target === "session"){
+        if(force || !inventoryTabLoaded.session){
+          await loadCurrentSession();
+          inventoryTabLoaded.session = true;
+        }
+        return;
+      }
+      if(target === "point"){
+        if(force || !inventoryTabLoaded.point){
+          await loadManualCounts();
+          inventoryTabLoaded.point = true;
+        }
+        return;
+      }
+      if(target === "differences" || target === "movements"){
+        if(!isAdmin()) return;
+        if(force || !inventoryTabLoaded.differences || !inventoryTabLoaded.movements){
+          await loadAudit();
+        }
+        return;
+      }
+      if(target === "adjustments"){
+        inventoryTabLoaded.adjustments = true;
       }
     }
 
@@ -1730,11 +1798,11 @@
       document.querySelectorAll("[data-inventory-tab]").forEach(btn => {
         btn.addEventListener("click", () => switchInventoryTab(btn.dataset.inventoryTab || "session"));
       });
-      switchInventoryTab("session");
+      showInventoryTab("session");
       el("btn_logout").addEventListener("click", logoutAndGoLogin);
       if(isAdmin()){
-        el("btn_refresh").addEventListener("click", loadAudit);
-        el("btn_search").addEventListener("click", loadAudit);
+        el("btn_refresh").addEventListener("click", () => loadInventoryTab(activeInventoryTab, true));
+        el("btn_search").addEventListener("click", () => loadInventoryTab("movements", true));
         document.querySelectorAll("[data-variance-filter]").forEach(btn => {
           btn.addEventListener("click", () => {
             varianceFilter = btn.dataset.varianceFilter || "all";
@@ -1794,7 +1862,7 @@
         if(e.key === "Enter"){
           e.preventDefault();
           if(!el("suggestions").classList.contains("d-none") && suggestionRows.length) chooseSuggestion(suggestionRows[0]);
-          else if(isAdmin()) loadAudit();
+          else if(isAdmin()) loadInventoryTab("movements", true);
         }
         if(e.key === "Escape") hideSuggestions();
       });
@@ -1821,11 +1889,9 @@
         }
       });
       if(isAdmin()){
-        el("limit").addEventListener("change", loadAudit);
-        await loadAudit();
+        el("limit").addEventListener("change", () => loadInventoryTab("movements", true));
       }
-      await loadManualCounts();
-      await loadCurrentSession();
+      await loadInventoryTab("session", true);
     }
 
     init().catch(err => showAlert(err.message || "Error inicializando auditoria."));
