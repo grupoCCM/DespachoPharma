@@ -8,6 +8,8 @@
   <style>
     :root{ --bg:#f8fafc; --card:#fff; --border:#e2e8f0; --text:#0f172a; --muted:#64748b; }
     body{ background:var(--bg); color:var(--text); }
+    body:not(.role-ready) .admin-panel,
+    body:not(.role-ready) .admin-action{ display:none !important; }
     body > .navbar{ position:sticky; top:0; z-index:1030; box-shadow:0 2px 10px rgba(15,23,42,.06); }
     .app-card{ background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:0 6px 20px rgba(15,23,42,.06); }
     .brand-dot{ width:10px;height:10px;border-radius:999px;background:#3b82f6;display:inline-block;margin-right:8px; }
@@ -680,6 +682,7 @@
         el("page_subtitle").textContent = "Crea o continua una sesion vigente para inventario general. El administrador aplica diferencias.";
         el("count_help").textContent = "Registra un ajuste puntual con usuario y hora. El administrador revisa y aplica el ajuste si corresponde.";
       }
+      document.body.classList.add("role-ready");
     }
     function availabilityBadge(status){
       if(status === "Inactivo") return "text-bg-secondary";
