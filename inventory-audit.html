@@ -1264,6 +1264,7 @@
           : "Puedes crear una sesion de conteo o recargar una vigente. Campo vacio = pendiente; 0 = contado y confirmado en cero.";
         el("session_progress").textContent = "Sin sesion activa.";
         el("tbody_session_items").innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">Crea o recarga una sesion de conteo.</td></tr>`;
+        el("btn_new_session").disabled = false;
         el("btn_close_session").disabled = true;
         el("btn_cancel_session").disabled = true;
         el("btn_print_session").disabled = !printableCountSessionId;
@@ -1280,6 +1281,7 @@
       el("session_meta").textContent = `${session.title || "Conteo fisico"} - iniciado ${fmtDate(session.started_at)} por ${session.started_by_name || "-"}.`;
       el("session_progress").textContent = `${counted}/${total} productos contados (${pct}%). Pendientes: ${pending}. Ajustes aplicados: ${applied}. Hallazgos: ${findings}. Ultimo codigo: ${session.last_counted_code || "-"}.${days > 0 ? ` Antiguedad: ${days} dia${days === 1 ? "" : "s"}.` : ""}${locked ? " Aplicacion bloqueada por conteo antiguo." : ""}`;
       const canFinish = session.status === "open" && ["admin","dispatch","cashier"].includes(getSession().role);
+      el("btn_new_session").disabled = session.status === "open";
       el("btn_close_session").disabled = !canFinish;
       el("btn_cancel_session").disabled = !canFinish;
       el("btn_print_session").disabled = false;
@@ -1353,6 +1355,10 @@
     async function createCountSession(){
       hideAlert();
       hideOk();
+      if(activeCountSession?.status === "open"){
+        showAlert("Ya hay una sesion de conteo abierta. Finaliza o cancela la sesion actual antes de crear otra.");
+        return;
+      }
       try{
         const s = getSession();
         const session = await callRpc("rpc_inventory_count_session_create", {
@@ -1361,7 +1367,11 @@
           p_scope:el("session_scope").value
         });
         activeCountSession = session;
-        showOk(`Sesion creada con ${num(session?.total_items)} productos. Los productos con esperado 0 quedan pendientes hasta confirmar conteo 0.`);
+        if(session?.reused_open_session){
+          showAlert("Ya habia una sesion de conteo abierta. Se cargo la sesion vigente para continuar.");
+        }else{
+          showOk(`Sesion creada con ${num(session?.total_items)} productos. Los productos con esperado 0 quedan pendientes hasta confirmar conteo 0.`);
+        }
         await loadSessionItems();
         inventoryTabLoaded.session = true;
       }catch(err){
