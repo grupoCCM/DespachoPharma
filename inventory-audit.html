@@ -54,6 +54,13 @@
     .inventory-tab-btn:hover{ color:#0f172a; background:#f8fafc; }
     .inventory-tab-btn.active{ color:#0d6efd; border-bottom-color:#0d6efd; }
     .inventory-tab-hint{ color:var(--muted); font-size:.86rem; margin:-6px 0 14px; }
+    .inventory-flow{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+    .flow-step{ border:1px solid var(--border); border-radius:10px; padding:10px 12px; background:#fff; min-height:96px; }
+    .flow-step strong{ display:block; font-size:.9rem; margin-bottom:4px; }
+    .flow-step span{ display:block; color:var(--muted); font-size:.82rem; line-height:1.25; }
+    .flow-step.primary{ border-color:#bfdbfe; background:#eff6ff; }
+    @media (max-width: 992px){ .inventory-flow{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width: 576px){ .inventory-flow{ grid-template-columns:1fr; } }
     .variance-card{ border:1px solid var(--border); border-radius:10px; padding:12px; min-height:104px; background:#fff; }
     .variance-card.danger{ border-color:#fecaca; background:#fff7f7; }
     .variance-card.success{ border-color:#bbf7d0; background:#f7fff9; }
@@ -120,24 +127,42 @@
     <div id="ok_page" class="alert alert-success d-none" role="alert"></div>
 
     <div class="inventory-tabs" role="tablist" aria-label="Opciones de inventario">
-      <button type="button" class="inventory-tab-btn active" data-inventory-tab="point">Conteo puntual</button>
-      <button type="button" class="inventory-tab-btn" data-inventory-tab="session">Conteo físico</button>
+      <button type="button" class="inventory-tab-btn active" data-inventory-tab="session">Conteo físico</button>
+      <button type="button" class="inventory-tab-btn" data-inventory-tab="point">Ajuste puntual</button>
       <button type="button" class="inventory-tab-btn admin-panel" data-inventory-tab="differences">Diferencias</button>
-      <button type="button" class="inventory-tab-btn admin-panel" data-inventory-tab="movements">Movimientos</button>
-      <button type="button" class="inventory-tab-btn admin-panel" data-inventory-tab="adjustments">Ajustes</button>
+      <button type="button" class="inventory-tab-btn admin-panel" data-inventory-tab="adjustments">Correcciones</button>
+      <button type="button" class="inventory-tab-btn admin-panel" data-inventory-tab="movements">Kardex</button>
     </div>
-    <div id="inventory_tab_hint" class="inventory-tab-hint">Revisa un producto puntual sin abrir una sesión completa.</div>
+    <div id="inventory_tab_hint" class="inventory-tab-hint">Abre un conteo nuevo para inventarios reales; el esperado queda congelado en ese momento.</div>
+    <div class="inventory-flow">
+      <div class="flow-step primary">
+        <strong>Conteo físico</strong>
+        <span>Usalo para inventario general. Siempre crea una sesion nueva para congelar el esperado actual.</span>
+      </div>
+      <div class="flow-step">
+        <strong>Ajuste puntual</strong>
+        <span>Usalo cuando revisas uno o pocos productos. Queda pendiente hasta que admin aplique el ajuste.</span>
+      </div>
+      <div class="flow-step admin-panel">
+        <strong>Diferencias</strong>
+        <span>Revisa faltantes, sobrantes y hallazgos del ultimo conteo sin confundirlos con compras nuevas.</span>
+      </div>
+      <div class="flow-step admin-panel">
+        <strong>Kardex</strong>
+        <span>Consulta trazabilidad: compras, despachos, conteos, reversos y correcciones administrativas.</span>
+      </div>
+    </div>
 
     <div class="app-card p-3 mb-3 admin-panel d-none" data-inventory-section="adjustments">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
           <div class="fw-semibold">Reclasificar inventario</div>
-          <div class="text-muted small">Corrige compras registradas en un producto equivocado sin borrar historial.</div>
+          <div class="text-muted small">Correccion administrativa: mueve unidades entre productos por error de compra o clasificacion, sin borrar historial.</div>
         </div>
         <span class="badge text-bg-light border">Solo admin</span>
       </div>
       <div class="alert alert-light border small mt-3 mb-0">
-        Este tab agrupa correcciones administrativas. El ajuste puntual por nota de credito, devolucion o producto no apto se agregara aqui como flujo separado.
+        Usa esta seccion solo cuando ya sabes que la cantidad pertenece a otro producto. Para ajustar un producto aislado, usa Ajuste puntual.
       </div>
       <div class="row g-3 mt-1">
         <div class="col-12 col-lg-6">
@@ -203,8 +228,8 @@
     <div class="app-card p-3 mb-3" data-inventory-section="point">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
-          <div class="fw-semibold">Conteo manual</div>
-          <div id="count_help" class="text-muted small">Registra un conteo fisico con usuario, hora y diferencia. Aplicar ajuste cambia la existencia viva.</div>
+          <div class="fw-semibold">Ajuste puntual por conteo</div>
+          <div id="count_help" class="text-muted small">Revisa uno o pocos productos sin abrir una sesion completa. Guardar registra el hallazgo; aplicar ajuste cambia la existencia viva.</div>
         </div>
         <span id="count_selected_status" class="badge text-bg-light border">Sin producto</span>
       </div>
@@ -219,7 +244,7 @@
           <div id="count_expected" class="form-control bg-light">-</div>
         </div>
         <div class="col-6 col-lg-2">
-          <label class="form-label" for="count_qty">Conteo fisico</label>
+          <label class="form-label" for="count_qty">Cantidad fisica</label>
           <input id="count_qty" class="form-control" type="number" min="0" step="1" placeholder="0">
         </div>
         <div class="col-12 col-lg-3">
@@ -256,7 +281,7 @@
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
           <div class="fw-semibold">Sesion de conteo fisico</div>
-          <div id="session_meta" class="text-muted small">Valida todos los productos activos. Campo vacio = pendiente; 0 = contado y confirmado en cero.</div>
+          <div id="session_meta" class="text-muted small">Inventario general. El esperado queda congelado al crear la sesion; no reutilices conteos viejos.</div>
           <div id="session_progress" class="small fw-semibold mt-1">Sin sesion activa.</div>
         </div>
         <div class="d-flex flex-wrap gap-2">
@@ -606,14 +631,14 @@
     function setLoading(v){ el("btn_refresh").disabled=v; el("btn_search").disabled=v; el("btn_refresh_spinner").classList.toggle("d-none",!v); el("btn_refresh_text").textContent=v?"Actualizando...":"Actualizar"; }
     function isAdmin(){ return getSession().role === "admin"; }
     const INVENTORY_TAB_HINTS = {
-      point:"Revisa un producto puntual sin abrir una sesion completa.",
-      session:"Conteo fisico por lista. Los productos no digitados quedan pendientes hasta cerrar o cancelar la sesion.",
+      session:"Abre un conteo nuevo para inventarios reales; el esperado queda congelado en ese momento.",
+      point:"Ajuste puntual para uno o pocos productos. Guardar registra el hallazgo; admin decide si aplica existencia.",
       differences:"Seguimiento de faltantes, sobrantes, hallazgos y diferencias ya solventadas.",
-      movements:"Kardex interno, cambios posteriores a la foto y movimientos sin cruce.",
-      adjustments:"Correcciones administrativas. El ajuste puntual por nota de credito quedara aqui en una siguiente etapa."
+      adjustments:"Correcciones administrativas entre productos, como compras registradas en el articulo equivocado.",
+      movements:"Kardex interno: compras, despachos, conteos, reversos y movimientos sin cruce."
     };
     function switchInventoryTab(tab){
-      const target = tab || "point";
+      const target = tab || "session";
       document.querySelectorAll("[data-inventory-tab]").forEach(btn => {
         btn.classList.toggle("active", btn.dataset.inventoryTab === target);
       });
@@ -629,8 +654,8 @@
       document.querySelectorAll(".admin-action").forEach(node => node.classList.toggle("d-none", !admin));
       if(!admin){
         el("page_title").textContent = "Conteo fisico de inventario";
-        el("page_subtitle").textContent = "Registra conteos fisicos con usuario y hora. El administrador revisa y aplica ajustes.";
-        el("count_help").textContent = "Registra un conteo puntual con usuario y hora. El administrador revisa y aplica el ajuste si corresponde.";
+        el("page_subtitle").textContent = "Usa una sesion vigente para inventario general o ajuste puntual para revisar pocos productos.";
+        el("count_help").textContent = "Registra un ajuste puntual con usuario y hora. El administrador revisa y aplica el ajuste si corresponde.";
       }
     }
     function availabilityBadge(status){
@@ -1703,9 +1728,9 @@
       }
       applyRoleUi();
       document.querySelectorAll("[data-inventory-tab]").forEach(btn => {
-        btn.addEventListener("click", () => switchInventoryTab(btn.dataset.inventoryTab || "point"));
+        btn.addEventListener("click", () => switchInventoryTab(btn.dataset.inventoryTab || "session"));
       });
-      switchInventoryTab("point");
+      switchInventoryTab("session");
       el("btn_logout").addEventListener("click", logoutAndGoLogin);
       if(isAdmin()){
         el("btn_refresh").addEventListener("click", loadAudit);
