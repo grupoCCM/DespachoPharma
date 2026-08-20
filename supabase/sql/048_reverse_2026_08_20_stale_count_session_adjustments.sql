@@ -76,7 +76,7 @@ session_cancel as (
 )
 insert into public.audit_log(event_type, user_id, metadata)
 select
-  'STALE_COUNT_SESSION_REVERSAL',
+  'INVENTORY_RECLASSIFY',
   (select created_by from target_movements where created_by is not null limit 1),
   jsonb_build_object(
     'stale_session_id', 'c1d2eb6f-1d37-4383-8839-3986c4d51ef4',
