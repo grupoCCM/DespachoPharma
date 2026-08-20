@@ -267,6 +267,7 @@
           <button id="btn_print_session" class="btn btn-outline-dark btn-sm" disabled>Imprimir PDF</button>
         </div>
       </div>
+      <div id="session_age_warning" class="alert alert-warning small mt-3 mb-0 d-none"></div>
 
       <div class="row g-2 align-items-end mt-2">
         <div class="col-12 col-lg-5">
@@ -566,6 +567,33 @@
     function esc(value){ return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch])); }
     function fmtDate(value){ if(!value) return "-"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString("es-SV"); }
     function plural(n, one, many){ return Number(n || 0) === 1 ? one : many; }
+    function sessionAgeDays(session){
+      if(!session?.started_at) return 0;
+      const started = new Date(session.started_at);
+      if(Number.isNaN(started.getTime())) return 0;
+      return Math.floor((Date.now() - started.getTime()) / 86400000);
+    }
+    function sessionApplyLocked(session){ return session?.status === "open" && sessionAgeDays(session) > 3; }
+    function renderSessionAgeWarning(session){
+      const box = el("session_age_warning");
+      if(!box) return;
+      if(!session){
+        box.classList.add("d-none");
+        box.textContent = "";
+        return;
+      }
+      const days = sessionAgeDays(session);
+      if(days <= 0){
+        box.classList.add("d-none");
+        box.textContent = "";
+        return;
+      }
+      box.classList.remove("alert-warning", "alert-danger", "d-none");
+      box.classList.add(days > 3 ? "alert-danger" : "alert-warning");
+      box.textContent = days > 3
+        ? `Atencion: este conteo fue creado hace ${days} dias. El esperado quedo congelado al iniciar la sesion. No se permiten ajustes; cancela o cierra esta sesion y crea un nuevo conteo.`
+        : `Aviso: este conteo fue creado hace ${days} dia${days === 1 ? "" : "s"}. El esperado esta congelado desde esa fecha; confirma que aun corresponde antes de aplicar diferencias.`;
+    }
     function conditionLabel(status){
       return ({ ok:"OK", expired:"Vencido", damaged:"Da\u00f1ado", not_sellable:"No apto", review:"Revisi\u00f3n" })[status || "ok"] || "OK";
     }
@@ -1170,6 +1198,7 @@
 
     function renderSessionSummary(session){
       activeCountSession = session || null;
+      renderSessionAgeWarning(session);
       if(!session){
         el("session_meta").textContent = isAdmin()
           ? "Valida todos los productos activos. Campo vacio = pendiente; 0 = contado y confirmado en cero."
@@ -1187,8 +1216,10 @@
       const applied = Number(session.applied_items || 0);
       const findings = Number(session.finding_items || 0);
       const pct = total ? Math.round((counted / total) * 100) : 0;
+      const days = sessionAgeDays(session);
+      const locked = sessionApplyLocked(session);
       el("session_meta").textContent = `${session.title || "Conteo fisico"} - iniciado ${fmtDate(session.started_at)} por ${session.started_by_name || "-"}.`;
-      el("session_progress").textContent = `${counted}/${total} productos contados (${pct}%). Pendientes: ${pending}. Ajustes aplicados: ${applied}. Hallazgos: ${findings}. Ultimo codigo: ${session.last_counted_code || "-"}.`;
+      el("session_progress").textContent = `${counted}/${total} productos contados (${pct}%). Pendientes: ${pending}. Ajustes aplicados: ${applied}. Hallazgos: ${findings}. Ultimo codigo: ${session.last_counted_code || "-"}.${days > 0 ? ` Antiguedad: ${days} dia${days === 1 ? "" : "s"}.` : ""}${locked ? " Aplicacion bloqueada por conteo antiguo." : ""}`;
       const canFinish = session.status === "open" && getSession().role === "admin";
       el("btn_close_session").disabled = !canFinish;
       el("btn_cancel_session").disabled = !canFinish;
@@ -1210,8 +1241,9 @@
         const statusClass = row.status === "applied" ? "text-bg-success" : row.status === "counted" ? "text-bg-primary" : "text-bg-warning";
         const rowClass = row.status === "applied" ? "count-row-applied" : row.status === "counted" ? "count-row-counted" : "count-row-pending";
         const canEdit = row.status !== "applied";
-        const canApply = row.status === "counted" && isAdmin();
-        const applyButton = isAdmin() ? `<button class="btn btn-outline-primary" data-session-apply="${idx}" ${canApply ? "" : "disabled"}>Aplicar</button>` : "";
+        const sessionLocked = sessionApplyLocked(session);
+        const canApply = row.status === "counted" && isAdmin() && !sessionLocked;
+        const applyButton = isAdmin() ? `<button class="btn btn-outline-primary" data-session-apply="${idx}" ${canApply ? "" : "disabled"} title="${sessionLocked ? "Crea un nuevo conteo para aplicar diferencias actuales." : ""}">Aplicar</button>` : "";
         const countedBy = row.counted_by_name || (row.status === "pending" ? "Pendiente" : getSession().name || "-");
         const countedByClass = row.status === "pending" ? "small text-muted" : "small fw-semibold";
         const findingText = isFinding(row) ? `${conditionLabel(row.condition_status)} · ${units(row.condition_qty)}` : "OK";
@@ -1596,6 +1628,10 @@
     async function applySessionItem(idx){
       const row = sessionItems[idx];
       if(!row) return;
+      if(sessionApplyLocked(activeCountSession)){
+        showAlert("Este conteo es antiguo y tiene el esperado congelado. Crea un nuevo conteo para aplicar diferencias actuales.");
+        return;
+      }
       try{
         const s = getSession();
         const applied = await callRpc("rpc_inventory_count_session_item_apply", { p_session_token:s.token, p_item_id:row.id });
