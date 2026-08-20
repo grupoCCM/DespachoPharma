@@ -289,8 +289,8 @@
         <div class="d-flex flex-wrap gap-2">
           <button id="btn_new_session" class="btn btn-outline-primary btn-sm">Nuevo conteo</button>
           <button id="btn_reload_session" class="btn btn-outline-secondary btn-sm">Recargar</button>
-          <button id="btn_close_session" class="btn btn-outline-success btn-sm admin-action" disabled>Cerrar</button>
-          <button id="btn_cancel_session" class="btn btn-outline-danger btn-sm admin-action" disabled>Cancelar</button>
+          <button id="btn_close_session" class="btn btn-outline-success btn-sm" disabled>Finalizar</button>
+          <button id="btn_cancel_session" class="btn btn-outline-danger btn-sm" disabled>Cancelar</button>
           <button id="btn_print_session" class="btn btn-outline-dark btn-sm" disabled>Imprimir PDF</button>
         </div>
       </div>
@@ -1279,7 +1279,7 @@
       const locked = sessionApplyLocked(session);
       el("session_meta").textContent = `${session.title || "Conteo fisico"} - iniciado ${fmtDate(session.started_at)} por ${session.started_by_name || "-"}.`;
       el("session_progress").textContent = `${counted}/${total} productos contados (${pct}%). Pendientes: ${pending}. Ajustes aplicados: ${applied}. Hallazgos: ${findings}. Ultimo codigo: ${session.last_counted_code || "-"}.${days > 0 ? ` Antiguedad: ${days} dia${days === 1 ? "" : "s"}.` : ""}${locked ? " Aplicacion bloqueada por conteo antiguo." : ""}`;
-      const canFinish = session.status === "open" && getSession().role === "admin";
+      const canFinish = session.status === "open" && ["admin","dispatch","cashier"].includes(getSession().role);
       el("btn_close_session").disabled = !canFinish;
       el("btn_cancel_session").disabled = !canFinish;
       el("btn_print_session").disabled = false;
@@ -1526,8 +1526,8 @@
         showAlert("No hay sesion activa.");
         return;
       }
-      const label = action === "cancel" ? "cancelar" : "cerrar";
-      const note = window.prompt(`Motivo para ${label} conteo`, action === "cancel" ? "Prueba cancelada" : "Conteo finalizado");
+      const label = action === "cancel" ? "cancelar" : "finalizar";
+      const note = window.prompt(`Motivo para ${label} conteo`, action === "cancel" ? "Prueba cancelada" : "Conteo terminado");
       if(note === null) return;
       try{
         const s = getSession();
@@ -1537,7 +1537,7 @@
           p_action:action,
           p_note:note
         });
-        showOk(action === "cancel" ? "Sesion de conteo cancelada." : "Sesion de conteo cerrada.");
+        showOk(action === "cancel" ? "Sesion de conteo cancelada." : "Sesion de conteo finalizada.");
         printableCountSessionId = session?.id || activeCountSession.id;
         if(action === "close"){
           const payload = await fetchSessionPrintPayload(printableCountSessionId);
