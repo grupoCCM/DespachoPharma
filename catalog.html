@@ -20,6 +20,7 @@
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
     .table td,.table th{ vertical-align:middle; }
     .nav-tabs .nav-link{ border-top-left-radius:12px; border-top-right-radius:12px; }
+    .catalog-pagination{ border-top:1px solid var(--border); padding-top:.75rem; }
   </style>
 </head>
 
@@ -93,7 +94,7 @@
               <div class="text-muted small">Articulos del catalogo y usuarios administrativos.</div>
             </div>
             <div class="text-end">
-              <div class="text-muted small">Total</div>
+              <div class="text-muted small">Vista</div>
               <div class="fw-semibold"><span id="count">0</span></div>
             </div>
           </div>
@@ -132,6 +133,19 @@
                     <tr><td colspan="6" class="text-center text-muted py-4">Busca para ver resultados.</td></tr>
                   </tbody>
                 </table>
+              </div>
+              <div class="catalog-pagination d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+                <div class="small text-muted" id="product_page_meta">Pagina 1</div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                  <label class="small text-muted mb-0" for="product_page_size">Por pagina</label>
+                  <select id="product_page_size" class="form-select form-select-sm" style="width:auto">
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                  <button id="btn_prev_page" class="btn btn-outline-secondary btn-sm" type="button">Anterior</button>
+                  <button id="btn_next_page" class="btn btn-outline-secondary btn-sm" type="button">Siguiente</button>
+                </div>
               </div>
             </div>
 
@@ -518,6 +532,9 @@
     let currentRows = [];
     let productSuggestionRows = [];
     let productSuggestTimer = null;
+    let productPage = 1;
+    let productPageSize = 25;
+    let productHasNextPage = false;
 
     function renderProducts(rows){
       currentRows = rows;
@@ -558,6 +575,26 @@
       });
     }
 
+    function renderProductPagination(){
+      const meta = el("product_page_meta");
+      const prev = el("btn_prev_page");
+      const next = el("btn_next_page");
+      const size = el("product_page_size");
+
+      if(size) size.value = String(productPageSize);
+
+      if(!currentRows.length){
+        meta.textContent = `Pagina ${productPage} - sin resultados`;
+      } else {
+        const start = ((productPage - 1) * productPageSize) + 1;
+        const end = start + currentRows.length - 1;
+        meta.textContent = `Pagina ${productPage} - mostrando ${start}-${end}`;
+      }
+
+      prev.disabled = productPage <= 1;
+      next.disabled = !productHasNextPage;
+    }
+
     function hideProductSuggestions(){
       el("product_suggestions").classList.add("d-none");
       el("product_suggestions").innerHTML = "";
@@ -587,7 +624,10 @@
     function chooseProductSuggestion(row){
       if(!row) return;
       el("q").value = row.product_name || row.barcode || "";
+      productPage = 1;
+      productHasNextPage = false;
       renderProducts(productSuggestionRows.length ? productSuggestionRows : [row]);
+      renderProductPagination();
       hideProductSuggestions();
     }
 
@@ -677,11 +717,14 @@
         p_q: q,
         p_barcode: null,
         p_active,
-        p_limit: 200,
-        p_offset: 0
+        p_limit: productPageSize + 1,
+        p_offset: (productPage - 1) * productPageSize
       });
 
-      renderProducts(Array.isArray(rows) ? rows : []);
+      const list = Array.isArray(rows) ? rows : [];
+      productHasNextPage = list.length > productPageSize;
+      renderProducts(list.slice(0, productPageSize));
+      renderProductPagination();
     }
 
     async function saveProduct(){
@@ -978,6 +1021,7 @@
       // Productos
       el("btn_search").addEventListener("click", async ()=>{
         try{
+          productPage = 1;
           btnLoad("btn_search","btn_search_text","btn_search_spinner", true, "Buscando...", "Buscar");
           await doProductSearch();
         } catch(err){
@@ -999,6 +1043,40 @@
           else el("btn_search").click();
         }
         if(e.key==="Escape") hideProductSuggestions();
+      });
+
+      el("active_filter").addEventListener("change", ()=>el("btn_search").click());
+
+      el("product_page_size").addEventListener("change", async ()=>{
+        productPageSize = Number(el("product_page_size").value || 25);
+        productPage = 1;
+        try{
+          await doProductSearch();
+        } catch(err){
+          showAlert("alert_table", err.message || "No se pudo cambiar la paginacion.");
+        }
+      });
+
+      el("btn_prev_page").addEventListener("click", async ()=>{
+        if(productPage <= 1) return;
+        productPage -= 1;
+        try{
+          await doProductSearch();
+        } catch(err){
+          productPage += 1;
+          showAlert("alert_table", err.message || "No se pudo cambiar de pagina.");
+        }
+      });
+
+      el("btn_next_page").addEventListener("click", async ()=>{
+        if(!productHasNextPage) return;
+        productPage += 1;
+        try{
+          await doProductSearch();
+        } catch(err){
+          productPage -= 1;
+          showAlert("alert_table", err.message || "No se pudo cambiar de pagina.");
+        }
       });
 
       document.addEventListener("click",e=>{
