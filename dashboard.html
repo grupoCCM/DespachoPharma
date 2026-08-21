@@ -40,10 +40,28 @@
     .status-review{ background:#fef3c7; color:#92400e; }
     .status-ok{ background:#dcfce7; color:#166534; }
     .status-risk{ background:#ede9fe; color:#5b21b6; }
+    .price-margin-wrap{ max-height:62vh; overflow:auto; border:1px solid var(--border); border-radius:8px; }
+    .price-margin-table{ min-width:1120px; margin-bottom:0; }
+    .price-margin-table thead th{ position:sticky; top:0; z-index:1; background:#f8fafc; color:#475569; font-size:.74rem; text-transform:uppercase; letter-spacing:.02em; }
+    .price-margin-table tbody tr{ border-left:4px solid transparent; }
+    .price-margin-table tbody tr.pm-row-critical{ border-left-color:#ef4444; background:#fffafa; }
+    .price-margin-table tbody tr.pm-row-review{ border-left-color:#f59e0b; background:#fffdf5; }
+    .pm-product{ min-width:290px; }
+    .pm-product-name{ max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pm-stack{ display:grid; gap:.15rem; }
+    .pm-main-value{ font-weight:800; color:#0f172a; }
+    .pm-sub-value{ color:#64748b; font-size:.78rem; }
+    .pm-price-box{ display:grid; grid-template-columns:1fr; gap:.2rem; white-space:nowrap; }
+    .pm-price-line{ display:flex; justify-content:flex-end; gap:.4rem; }
+    .pm-price-label{ color:#64748b; font-size:.76rem; }
+    .pm-good{ color:#15803d; font-weight:700; }
+    .pm-bad{ color:#dc2626; font-weight:700; }
+    .pm-note{ max-width:230px; }
     @media (max-width: 768px){
       .insight-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
       .bar-row{ grid-template-columns:64px 1fr; }
       .bar-row > div:last-child{ grid-column:2; text-align:left !important; }
+      .price-margin-wrap{ max-height:70vh; }
     }
   </style>
 </head>
@@ -376,24 +394,21 @@
           </div>
           <span class="badge text-bg-light border">IVA 13% · mínimo 20% · deseado 25%</span>
         </div>
-        <div class="table-responsive mt-3">
-          <table class="table table-sm">
+        <div class="table-responsive mt-3 price-margin-wrap">
+          <table class="table table-sm table-hover align-middle price-margin-table">
             <thead class="table-light">
               <tr>
                 <th>Producto</th>
-                <th>Estado</th>
-                <th class="text-end">Margen</th>
-                <th class="text-end">Costo &uacute;lt.</th>
-                <th class="text-end">Venta sin IVA</th>
-                <th class="text-end">Venta con IVA</th>
-                <th class="text-end">Sugerido 20%</th>
-                <th class="text-end">Sugerido 25%</th>
+                <th class="text-center">Estado</th>
+                <th class="text-end">Costo</th>
+                <th class="text-end">Venta actual</th>
+                <th class="text-end">Precio sugerido</th>
                 <th class="text-end">Referencia</th>
                 <th>Lectura</th>
               </tr>
             </thead>
             <tbody id="tbody_price_margin">
-              <tr><td colspan="10" class="text-center text-muted py-4">Cargando...</td></tr>
+              <tr><td colspan="7" class="text-center text-muted py-4">Cargando...</td></tr>
             </tbody>
           </table>
         </div>
@@ -606,25 +621,66 @@
       el("pm_review").textContent = num(s.desired_gap_items);
       el("pm_negotiation").textContent = num(s.negotiation_risk_items);
       el("tbody_price_margin").innerHTML = tableRows(rows, row => {
+        const rowClass = row.margin_status === "critical" ? "pm-row-critical" : row.margin_status === "review" ? "pm-row-review" : "";
         const risk = row.negotiation_risk ? `<span class="status-pill status-risk">Ref. limita</span>` : "";
+        const referenceGapValue = row.reference_vs_suggested_25_gross === null || row.reference_vs_suggested_25_gross === undefined
+          ? null
+          : Number(row.reference_vs_suggested_25_gross);
+        const currentRefGapValue = row.reference_vs_current_gross === null || row.reference_vs_current_gross === undefined
+          ? null
+          : Number(row.reference_vs_current_gross);
         const refGap = row.reference_vs_suggested_25_gross === null || row.reference_vs_suggested_25_gross === undefined
           ? "Sin referencia"
           : Number(row.reference_vs_suggested_25_gross) < 0
             ? `Sugerido 25% supera ref. por ${money(Math.abs(Number(row.reference_vs_suggested_25_gross)))}`
             : `Ref. permite +${money(row.reference_vs_suggested_25_gross)}`;
-        return `<tr>
-          <td><div class="truncate fw-semibold">${esc(row.medicine_name || "-")}</div><div class="small text-muted">${esc(row.external_code || "")} - Casa: ${esc(row.model || "-")}</div></td>
-          <td><span class="status-pill ${marginStatusClass(row.margin_status)}">${marginStatusLabel(row.margin_status)}</span> ${risk}</td>
-          <td class="text-end fw-semibold">${pct(row.margin_net_pct)}</td>
-          <td class="text-end">${money(row.last_cost)}<div class="small text-muted">${shortDate(row.last_purchase_date)}</div></td>
-          <td class="text-end">${money(row.sale_price_net)}</td>
-          <td class="text-end">${money(row.sale_price_gross)}</td>
-          <td class="text-end">${money(row.suggested_20_gross)}<div class="small text-muted">${money(row.suggested_20_net)} sin IVA</div></td>
-          <td class="text-end fw-semibold">${money(row.suggested_25_gross)}<div class="small text-muted">${money(row.suggested_25_net)} sin IVA</div></td>
-          <td class="text-end">${row.reference_price_gross === null || row.reference_price_gross === undefined ? "-" : money(row.reference_price_gross)}<div class="small text-muted">${row.reference_is_manual ? "manual" : "archivo"}</div></td>
-          <td><div>${esc(row.recommendation || "-")}</div><div class="small text-muted">${esc(refGap)}</div></td>
+        const refGapClass = referenceGapValue === null ? "" : referenceGapValue < 0 ? "pm-bad" : "pm-good";
+        const currentGapClass = currentRefGapValue === null ? "" : currentRefGapValue < 0 ? "pm-bad" : "pm-good";
+        return `<tr class="${rowClass}">
+          <td class="pm-product">
+            <div class="pm-product-name fw-semibold">${esc(row.medicine_name || "-")}</div>
+            <div class="small text-muted">${esc(row.external_code || "")} - Casa: ${esc(row.model || "-")}</div>
+            <div class="small text-muted">${esc(row.supplier_name || "Sin proveedor")}</div>
+          </td>
+          <td class="text-center">
+            <div class="pm-stack align-items-center">
+              <span class="status-pill ${marginStatusClass(row.margin_status)}">${marginStatusLabel(row.margin_status)}</span>
+              <span class="pm-main-value">${pct(row.margin_net_pct)}</span>
+              ${risk}
+            </div>
+          </td>
+          <td class="text-end">
+            <div class="pm-price-box">
+              <div class="pm-main-value">${money(row.last_cost)}</div>
+              <div class="pm-sub-value">ult. ${shortDate(row.last_purchase_date)}</div>
+            </div>
+          </td>
+          <td class="text-end">
+            <div class="pm-price-box">
+              <div class="pm-price-line"><span class="pm-price-label">sin IVA</span><span>${money(row.sale_price_net)}</span></div>
+              <div class="pm-price-line"><span class="pm-price-label">con IVA</span><span class="pm-main-value">${money(row.sale_price_gross)}</span></div>
+            </div>
+          </td>
+          <td class="text-end">
+            <div class="pm-price-box">
+              <div class="pm-price-line"><span class="pm-price-label">20%</span><span>${money(row.suggested_20_gross)}</span></div>
+              <div class="pm-price-line"><span class="pm-price-label">25%</span><span class="pm-main-value">${money(row.suggested_25_gross)}</span></div>
+              <div class="pm-sub-value">${money(row.suggested_25_net)} sin IVA</div>
+            </div>
+          </td>
+          <td class="text-end">
+            <div class="pm-price-box">
+              <div class="pm-main-value">${row.reference_price_gross === null || row.reference_price_gross === undefined ? "-" : money(row.reference_price_gross)}</div>
+              <div class="pm-sub-value">${row.reference_is_manual ? "manual" : "archivo"}</div>
+              <div class="${currentGapClass} small">${currentRefGapValue === null ? "Sin comparacion" : currentRefGapValue < 0 ? `Sobre ref. ${money(Math.abs(currentRefGapValue))}` : `Espacio ${money(currentRefGapValue)}`}</div>
+            </div>
+          </td>
+          <td class="pm-note">
+            <div class="fw-semibold">${esc(row.recommendation || "-")}</div>
+            <div class="${refGapClass} small">${esc(refGap)}</div>
+          </td>
         </tr>`;
-      }, 10);
+      }, 7);
     }
 
     function renderBars(containerId, rows, valueKey, labelFn, valueFn, fillClass=""){
