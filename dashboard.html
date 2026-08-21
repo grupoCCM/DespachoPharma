@@ -57,6 +57,8 @@
     .pm-good{ color:#15803d; font-weight:700; }
     .pm-bad{ color:#dc2626; font-weight:700; }
     .pm-note{ max-width:180px; font-size:.82rem; line-height:1.25; }
+    .pm-alert-cell{ min-width:120px; max-width:150px; }
+    .pm-alert-stack{ display:flex; flex-wrap:wrap; gap:.25rem; justify-content:center; }
     .pm-filter-card{ background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:.75rem; }
     .pm-filter-card .form-control{ min-height:38px; }
     .pm-muted-note{ color:#64748b; font-size:.78rem; }
@@ -417,6 +419,7 @@
               <tr>
                 <th>Producto</th>
                 <th class="text-center">Estado</th>
+                <th class="text-center">Alerta</th>
                 <th class="text-end">Costo</th>
                 <th class="text-end">Venta actual</th>
                 <th class="text-end">Precio sugerido</th>
@@ -425,7 +428,7 @@
               </tr>
             </thead>
             <tbody id="tbody_price_margin">
-              <tr><td colspan="7" class="text-center text-muted py-4">Cargando...</td></tr>
+              <tr><td colspan="8" class="text-center text-muted py-4">Cargando...</td></tr>
             </tbody>
           </table>
         </div>
@@ -649,7 +652,8 @@
         : "Mostrando solo productos con alerta. Busca para revisar cualquier producto.";
       el("tbody_price_margin").innerHTML = tableRows(rows, row => {
         const rowClass = row.margin_status === "critical" ? "pm-row-critical" : row.margin_status === "review" ? "pm-row-review" : "";
-        const risk = row.negotiation_risk ? `<span class="status-pill status-risk">Ref. limita</span>` : "";
+        const alerts = [];
+        if(row.negotiation_risk) alerts.push(`<span class="status-pill status-risk">Ref. limita</span>`);
         const referenceGapValue = row.reference_vs_suggested_25_gross === null || row.reference_vs_suggested_25_gross === undefined
           ? null
           : Number(row.reference_vs_suggested_25_gross);
@@ -679,8 +683,10 @@
             <div class="pm-stack align-items-center">
               <span class="status-pill ${marginStatusClass(row.margin_status)}">${marginStatusLabel(row.margin_status)}</span>
               <span class="pm-main-value">${pct(row.margin_net_pct)}</span>
-              ${risk}
             </div>
+          </td>
+          <td class="text-center pm-alert-cell">
+            <div class="pm-alert-stack">${alerts.length ? alerts.join("") : `<span class="pm-sub-value">-</span>`}</div>
           </td>
           <td class="text-end">
             <div class="pm-price-box">
@@ -713,7 +719,7 @@
             <div class="${refGapClass} small">${esc(refGap)}</div>
           </td>
         </tr>`;
-      }, 7);
+      }, 8);
     }
 
     function renderBars(containerId, rows, valueKey, labelFn, valueFn, fillClass=""){
