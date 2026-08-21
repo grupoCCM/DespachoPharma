@@ -710,7 +710,6 @@
           <td class="text-end">
             <div class="pm-price-box">
               <div class="pm-main-value">${row.reference_price_gross === null || row.reference_price_gross === undefined ? "-" : money(row.reference_price_gross)}</div>
-              <div class="pm-sub-value">${row.reference_is_manual ? "manual" : "archivo"}</div>
               <div class="${currentGapClass} small">${currentRefGapValue === null ? "Sin comparacion" : currentRefGapValue < 0 ? `Sobre ref. ${money(Math.abs(currentRefGapValue))}` : `Espacio ${money(currentRefGapValue)}`}</div>
             </div>
           </td>
