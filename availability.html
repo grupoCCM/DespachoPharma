@@ -26,6 +26,30 @@
     .search-help{ border:1px solid var(--border); border-radius:12px; background:#f8fafc; box-shadow:0 10px 26px rgba(15,23,42,.08); }
     .help-tag{ border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:999px; padding:.2rem .55rem; font-size:.78rem; line-height:1.2; }
     .help-tag:hover{ border-color:#2563eb; color:#1d4ed8; background:#eff6ff; }
+    .mobile-results{ display:none; }
+    .mobile-result-card{ border:1px solid var(--border); border-radius:10px; background:#fff; padding:.8rem; box-shadow:0 4px 14px rgba(15,23,42,.05); }
+    .mobile-result-card + .mobile-result-card{ margin-top:.65rem; }
+    .mobile-result-title{ font-weight:700; line-height:1.2; }
+    .mobile-result-meta{ color:var(--muted); font-size:.8rem; }
+    .mobile-result-main{ display:grid; grid-template-columns:1fr 1fr; gap:.65rem; margin:.7rem 0; }
+    .mobile-result-value{ font-size:1.2rem; font-weight:800; line-height:1.1; }
+    .mobile-sale-bar{ display:none; }
+    @media (max-width: 767.98px){
+      body{ padding-bottom:76px; }
+      .navbar .container{ gap:.5rem; }
+      .navbar-brand{ max-width:48vw; }
+      .navbar-brand .fw-semibold{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      main.container{ padding-top:1rem !important; }
+      .app-card{ border-radius:12px; }
+      #search_panel .app-card{ position:sticky; top:0; z-index:10; }
+      .suggestions{ max-height:55vh; }
+      .detail-grid > [class*="col-"]{ width:50%; }
+      .desktop-results{ display:none; }
+      .mobile-results{ display:block; }
+      .mobile-sale-bar{ position:fixed; left:0; right:0; bottom:0; z-index:1040; display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.7rem .9rem; background:#fff; border-top:1px solid var(--border); box-shadow:0 -10px 24px rgba(15,23,42,.14); }
+      .modal-backdrop-lite{ align-items:flex-end; padding:0; }
+      .sale-modal{ width:100%; max-height:88vh; border-radius:16px 16px 0 0; }
+    }
   </style>
 </head>
 <body>
@@ -87,7 +111,7 @@
               <span id="detail_status" class="badge text-bg-light border">-</span>
             </div>
           </div>
-          <div class="row g-3 mt-1">
+          <div class="row g-3 mt-1 detail-grid">
             <div class="col-6 col-md-3">
               <div class="muted-label">Existencia</div>
               <div id="detail_stock" class="big-stock">-</div>
@@ -112,7 +136,7 @@
             <div class="fw-semibold">Resultados</div>
             <span id="count" class="badge text-bg-light border">0</span>
           </div>
-          <div class="table-responsive mt-3">
+          <div class="table-responsive mt-3 desktop-results">
             <table class="table table-sm">
               <thead class="table-light">
                 <tr>
@@ -130,10 +154,21 @@
               </tbody>
             </table>
           </div>
+          <div id="mobile_results" class="mobile-results mt-3">
+            <div class="text-center text-muted py-4">Escribe y busca.</div>
+          </div>
         </div>
       </div>
     </div>
   </main>
+
+  <button id="mobile_sale_bar" class="mobile-sale-bar btn text-start" type="button">
+    <span>
+      <span class="fw-semibold">Venta</span>
+      <span id="mobile_sale_meta" class="d-block small text-muted">0 productos</span>
+    </span>
+    <span id="mobile_sale_total" class="fw-bold">$0.00</span>
+  </button>
 
   <div id="sale_modal" class="modal-backdrop-lite" aria-hidden="true">
     <div class="sale-modal">
@@ -283,10 +318,40 @@
           <td class="text-end">${money(row.sale_price)}</td>
           <td class="text-end"><button class="btn btn-sm btn-outline-success" data-add-sale="${idx}" ${canSell(row) ? "" : "disabled"}>Agregar</button></td>
         </tr>`).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin resultados.</td></tr>`;
+      el("mobile_results").innerHTML = rows.length ? rows.map((row, idx) => `
+        <div class="mobile-result-card" data-mobile-idx="${idx}">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div>
+              <div class="mobile-result-title">${esc(row.medicine_name || "-")}</div>
+              <div class="mobile-result-meta">${esc(row.external_code || "")} - Casa: ${esc(row.model || "-")}</div>
+            </div>
+            <span class="badge ${badge(row.availability_status)}">${esc(row.availability_status || "-")}</span>
+          </div>
+          <div class="mobile-result-meta mt-1">${esc(row.secondary_name || "Sin componente")}</div>
+          <div class="mobile-result-main">
+            <div>
+              <div class="muted-label">Existencia</div>
+              <div class="mobile-result-value">${units(row.stock_qty)}</div>
+            </div>
+            <div class="text-end">
+              <div class="muted-label">Precio</div>
+              <div class="mobile-result-value">${money(row.sale_price)}</div>
+            </div>
+          </div>
+          <button class="btn btn-success w-100" data-mobile-add-sale="${idx}" ${canSell(row) ? "" : "disabled"}>Agregar</button>
+        </div>`).join("") : `<div class="text-center text-muted py-4">Sin resultados.</div>`;
       document.querySelectorAll(".result-row").forEach(tr => tr.addEventListener("click", () => renderDetail(currentRows[Number(tr.dataset.idx)])));
       document.querySelectorAll("[data-add-sale]").forEach(btn => btn.addEventListener("click", e => {
         e.stopPropagation();
         addSaleItem(currentRows[Number(btn.dataset.addSale)]);
+      }));
+      document.querySelectorAll("[data-mobile-idx]").forEach(card => card.addEventListener("click", event => {
+        if(event.target.closest("[data-mobile-add-sale]")) return;
+        renderDetail(currentRows[Number(card.dataset.mobileIdx)]);
+      }));
+      document.querySelectorAll("[data-mobile-add-sale]").forEach(btn => btn.addEventListener("click", e => {
+        e.stopPropagation();
+        addSaleItem(currentRows[Number(btn.dataset.mobileAddSale)]);
       }));
       renderDetail(rows[0] || null);
     }
@@ -317,6 +382,8 @@
       el("sale_count").textContent = units(totalQty);
       el("sale_total").textContent = money(total);
       el("sale_meta").textContent = `${saleCart.length} productos - ${units(totalQty)} unidades`;
+      el("mobile_sale_meta").textContent = `${saleCart.length} productos - ${units(totalQty)} unidades`;
+      el("mobile_sale_total").textContent = money(total);
       el("tbody_sale").innerHTML = saleCart.length ? saleCart.map((row, idx) => `
         <tr>
           <td><div class="fw-semibold">${esc(row.medicine_name)}</div><div class="small text-muted">${esc(row.code)} - ${esc(row.model)} - Disp: ${units(row.stock_qty)}</div></td>
@@ -441,6 +508,7 @@
     el("btn_search_help").addEventListener("click", () => toggleSearchHelp());
     el("btn_add_selected").addEventListener("click", () => addSaleItem(selectedRow));
     el("btn_sale_open").addEventListener("click", () => { el("sale_modal").classList.add("show"); el("sale_modal").setAttribute("aria-hidden","false"); });
+    el("mobile_sale_bar").addEventListener("click", () => el("btn_sale_open").click());
     el("btn_sale_close").addEventListener("click", () => { el("sale_modal").classList.remove("show"); el("sale_modal").setAttribute("aria-hidden","true"); });
     el("btn_sale_copy").addEventListener("click", copySaleSummary);
     el("btn_sale_clear").addEventListener("click", clearSaleCart);
