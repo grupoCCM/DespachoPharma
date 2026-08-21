@@ -14,8 +14,7 @@ declare
   v_user_id uuid;
   v_role public.user_role;
   v_limit integer := greatest(1, least(coalesce(p_limit, 250), 500));
-  v_summary jsonb;
-  v_rows jsonb;
+  v_result jsonb;
 begin
   select user_id, role into v_user_id, v_role
   from public.app_require_session(p_session_token);
@@ -133,23 +132,33 @@ begin
       stock_qty desc,
       medicine_name
     limit v_limit
+  ),
+  summary_json as (
+    select jsonb_build_object(
+      'total_review_items', count(*) filter (where margin_status in ('critical', 'review')),
+      'critical_items', count(*) filter (where margin_status = 'critical'),
+      'desired_gap_items', count(*) filter (where margin_status = 'review'),
+      'negotiation_risk_items', count(*) filter (where margin_status in ('critical','review') and negotiation_risk),
+      'avg_margin_net_pct', round(avg(margin_net_pct) filter (where margin_status in ('critical','review'))::numeric, 2),
+      'desired_margin_pct', 25,
+      'minimum_margin_pct', 20,
+      'vat_pct', 13
+    ) as summary
+    from flagged
+  ),
+  rows_json as (
+    select coalesce(jsonb_agg(to_jsonb(rows_base)), '[]'::jsonb) as rows
+    from rows_base
   )
   select jsonb_build_object(
-    'total_review_items', count(*) filter (where margin_status in ('critical', 'review')),
-    'critical_items', count(*) filter (where margin_status = 'critical'),
-    'desired_gap_items', count(*) filter (where margin_status = 'review'),
-    'negotiation_risk_items', count(*) filter (where margin_status in ('critical','review') and negotiation_risk),
-    'avg_margin_net_pct', round(avg(margin_net_pct) filter (where margin_status in ('critical','review'))::numeric, 2),
-    'desired_margin_pct', 25,
-    'minimum_margin_pct', 20,
-    'vat_pct', 13
-  ) into v_summary
-  from flagged;
+    'summary', coalesce(summary_json.summary, '{}'::jsonb),
+    'rows', coalesce(rows_json.rows, '[]'::jsonb)
+  )
+  into v_result
+  from summary_json
+  cross join rows_json;
 
-  select coalesce(jsonb_agg(to_jsonb(rows_base)), '[]'::jsonb) into v_rows
-  from rows_base;
-
-  return jsonb_build_object('summary', coalesce(v_summary, '{}'::jsonb), 'rows', v_rows);
+  return coalesce(v_result, jsonb_build_object('summary', '{}'::jsonb, 'rows', '[]'::jsonb));
 end;
 $$;
 

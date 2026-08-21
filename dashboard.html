@@ -864,8 +864,12 @@
         const [data, priceMargin] = await Promise.all([
           callRpc("rpc_dashboard_overview", { p_session_token:s.token }),
           callRpc("rpc_dashboard_price_margin_watch", { p_session_token:s.token, p_limit:250 })
+            .catch(err => ({ rpc_error: err.message || "No se pudo cargar Precios / margen.", summary:{}, rows:[] }))
         ]);
         renderDashboard({ ...(data || {}), price_margin: priceMargin || {} });
+        if(priceMargin && priceMargin.rpc_error){
+          showAlert(`No se pudo cargar Precios / margen: ${priceMargin.rpc_error}`);
+        }
       }catch(err){
         showAlert(err.message || "No se pudo cargar el dashboard.");
       }finally{
