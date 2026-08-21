@@ -664,7 +664,7 @@
           ? "Sin referencia"
           : Number(row.reference_vs_suggested_25_gross) < 0
             ? `Ref. limita ${money(Math.abs(Number(row.reference_vs_suggested_25_gross)))}`
-            : `Espacio ${money(row.reference_vs_suggested_25_gross)}`;
+            : `GPM: ${money(row.reference_vs_suggested_25_gross)}`;
         const refGapClass = referenceGapValue === null ? "" : referenceGapValue < 0 ? "pm-bad" : "pm-good";
         const currentGapClass = currentRefGapValue === null ? "" : currentRefGapValue < 0 ? "pm-bad" : "pm-good";
         const reading = row.margin_status === "critical"
