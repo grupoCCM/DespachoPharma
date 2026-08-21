@@ -41,7 +41,7 @@
     .status-ok{ background:#dcfce7; color:#166534; }
     .status-risk{ background:#ede9fe; color:#5b21b6; }
     .price-margin-wrap{ max-height:62vh; overflow:auto; border:1px solid var(--border); border-radius:8px; }
-    .price-margin-table{ min-width:1120px; margin-bottom:0; }
+    .price-margin-table{ min-width:1120px; margin-bottom:0; font-size:.86rem; }
     .price-margin-table thead th{ position:sticky; top:0; z-index:1; background:#f8fafc; color:#475569; font-size:.74rem; text-transform:uppercase; letter-spacing:.02em; }
     .price-margin-table tbody tr{ border-left:4px solid transparent; }
     .price-margin-table tbody tr.pm-row-critical{ border-left-color:#ef4444; background:#fffafa; }
@@ -56,7 +56,10 @@
     .pm-price-label{ color:#64748b; font-size:.76rem; }
     .pm-good{ color:#15803d; font-weight:700; }
     .pm-bad{ color:#dc2626; font-weight:700; }
-    .pm-note{ max-width:230px; }
+    .pm-note{ max-width:180px; font-size:.82rem; line-height:1.25; }
+    .pm-filter-card{ background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:.75rem; }
+    .pm-filter-card .form-control{ min-height:38px; }
+    .pm-muted-note{ color:#64748b; font-size:.78rem; }
     @media (max-width: 768px){
       .insight-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
       .bar-row{ grid-template-columns:64px 1fr; }
@@ -394,6 +397,20 @@
           </div>
           <span class="badge text-bg-light border">IVA 13% · mínimo 20% · deseado 25%</span>
         </div>
+        <div class="pm-filter-card mt-3">
+          <div class="row g-2 align-items-end">
+            <div class="col-12 col-lg-7">
+              <label class="form-label small text-muted mb-1" for="pm_search">Buscar producto para revisar</label>
+              <input id="pm_search" class="form-control" type="search" placeholder="Nombre, código, casa o proveedor">
+            </div>
+            <div class="col-12 col-lg-auto">
+              <button id="pm_clear_search" type="button" class="btn btn-outline-secondary w-100">Limpiar</button>
+            </div>
+            <div class="col-12 col-lg">
+              <div id="pm_search_hint" class="pm-muted-note">Mostrando solo productos con alerta. Busca para revisar cualquier producto.</div>
+            </div>
+          </div>
+        </div>
         <div class="table-responsive mt-3 price-margin-wrap">
           <table class="table table-sm table-hover align-middle price-margin-table">
             <thead class="table-light">
@@ -423,6 +440,8 @@
     const el = (id) => document.getElementById(id);
     let dashboardData = null;
     let activeDashboardTab = "main";
+    let priceMarginSearch = "";
+    let priceMarginTimer = null;
 
     function getSession(){
       return {
@@ -439,6 +458,10 @@
     function pct(v){ return v === null || v === undefined ? "-" : `${num(v,2)}%`; }
     function shortDate(v){ return v ? String(v).slice(0,10) : "-"; }
     function esc(value){ return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch])); }
+    function debouncePriceMarginSearch(){
+      clearTimeout(priceMarginTimer);
+      priceMarginTimer = setTimeout(loadPriceMarginOnly, 350);
+    }
     function monthLabel(v){
       if(!v) return "-";
       const d = new Date(`${String(v).slice(0,10)}T00:00:00`);
@@ -616,10 +639,14 @@
       const data = payload || {};
       const s = data.summary || {};
       const rows = Array.isArray(data.rows) ? data.rows : [];
+      const isSearching = Boolean(data.search || priceMarginSearch);
       el("pm_total").textContent = num(s.total_review_items);
       el("pm_critical").textContent = num(s.critical_items);
       el("pm_review").textContent = num(s.desired_gap_items);
       el("pm_negotiation").textContent = num(s.negotiation_risk_items);
+      el("pm_search_hint").textContent = isSearching
+        ? "Mostrando coincidencias de busqueda, aunque no tengan alerta."
+        : "Mostrando solo productos con alerta. Busca para revisar cualquier producto.";
       el("tbody_price_margin").innerHTML = tableRows(rows, row => {
         const rowClass = row.margin_status === "critical" ? "pm-row-critical" : row.margin_status === "review" ? "pm-row-review" : "";
         const risk = row.negotiation_risk ? `<span class="status-pill status-risk">Ref. limita</span>` : "";
@@ -632,10 +659,16 @@
         const refGap = row.reference_vs_suggested_25_gross === null || row.reference_vs_suggested_25_gross === undefined
           ? "Sin referencia"
           : Number(row.reference_vs_suggested_25_gross) < 0
-            ? `Sugerido 25% supera ref. por ${money(Math.abs(Number(row.reference_vs_suggested_25_gross)))}`
-            : `Ref. permite +${money(row.reference_vs_suggested_25_gross)}`;
+            ? `Ref. limita ${money(Math.abs(Number(row.reference_vs_suggested_25_gross)))}`
+            : `Espacio ${money(row.reference_vs_suggested_25_gross)}`;
         const refGapClass = referenceGapValue === null ? "" : referenceGapValue < 0 ? "pm-bad" : "pm-good";
         const currentGapClass = currentRefGapValue === null ? "" : currentRefGapValue < 0 ? "pm-bad" : "pm-good";
+        const reading = row.margin_status === "critical"
+          ? "Subir precio"
+          : row.margin_status === "review"
+            ? "Revisar precio"
+            : "Sin alerta";
+        const readingClass = row.margin_status === "critical" ? "pm-bad" : row.margin_status === "review" ? "text-warning fw-semibold" : "pm-good";
         return `<tr class="${rowClass}">
           <td class="pm-product">
             <div class="pm-product-name fw-semibold">${esc(row.medicine_name || "-")}</div>
@@ -676,7 +709,7 @@
             </div>
           </td>
           <td class="pm-note">
-            <div class="fw-semibold">${esc(row.recommendation || "-")}</div>
+            <div class="${readingClass}">${esc(reading)}</div>
             <div class="${refGapClass} small">${esc(refGap)}</div>
           </td>
         </tr>`;
@@ -919,7 +952,7 @@
         const s = getSession();
         const [data, priceMargin] = await Promise.all([
           callRpc("rpc_dashboard_overview", { p_session_token:s.token }),
-          callRpc("rpc_dashboard_price_margin_watch", { p_session_token:s.token, p_limit:250 })
+          fetchPriceMargin(s)
             .catch(err => ({ rpc_error: err.message || "No se pudo cargar Precios / margen.", summary:{}, rows:[] }))
         ]);
         renderDashboard({ ...(data || {}), price_margin: priceMargin || {} });
@@ -933,6 +966,31 @@
       }
     }
 
+    function fetchPriceMargin(session){
+      const search = priceMarginSearch.trim();
+      return callRpc("rpc_dashboard_price_margin_watch", {
+        p_session_token:session.token,
+        p_limit:250,
+        p_search:search || null,
+        p_only_alerts:!search
+      });
+    }
+
+    async function loadPriceMarginOnly(){
+      hideAlert();
+      setLoading(true);
+      try{
+        const s = getSession();
+        const priceMargin = await fetchPriceMargin(s);
+        renderPriceMargin(priceMargin || {});
+      }catch(err){
+        renderPriceMargin({ summary:{}, rows:[] });
+        showAlert(err.message || "No se pudo cargar Precios / margen.");
+      }finally{
+        setLoading(false);
+      }
+    }
+
     async function init(){
       const s = getSession();
       if(!s.token) return window.location.href = ROUTES.login;
@@ -941,6 +999,15 @@
       el("nav_user").textContent = s.name || "-";
       el("btn_logout").addEventListener("click", logoutAndGoLogin);
       el("btn_refresh").addEventListener("click", loadDashboard);
+      el("pm_search").addEventListener("input", event => {
+        priceMarginSearch = event.target.value.trim();
+        debouncePriceMarginSearch();
+      });
+      el("pm_clear_search").addEventListener("click", () => {
+        el("pm_search").value = "";
+        priceMarginSearch = "";
+        loadPriceMarginOnly();
+      });
       document.querySelectorAll("[data-dashboard-tab]").forEach(btn => {
         btn.addEventListener("click", () => switchDashboardTab(btn.dataset.dashboardTab || "main"));
       });

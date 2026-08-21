@@ -1,9 +1,13 @@
 -- Dashboard price/margin watch.
 -- Margin is calculated on net sale price (without VAT). Reference comparison uses final sale price with VAT.
 
+drop function if exists public.rpc_dashboard_price_margin_watch(text, integer);
+
 create or replace function public.rpc_dashboard_price_margin_watch(
   p_session_token text,
-  p_limit integer default 250
+  p_limit integer default 250,
+  p_search text default null,
+  p_only_alerts boolean default true
 )
 returns jsonb
 language plpgsql
@@ -14,6 +18,8 @@ declare
   v_user_id uuid;
   v_role public.user_role;
   v_limit integer := greatest(1, least(coalesce(p_limit, 250), 500));
+  v_search text := nullif(trim(coalesce(p_search, '')), '');
+  v_only_alerts boolean := coalesce(p_only_alerts, true);
   v_result jsonb;
 begin
   select user_id, role into v_user_id, v_role
@@ -124,7 +130,20 @@ begin
   rows_base as (
     select *
     from flagged
-    where margin_status in ('critical', 'review')
+    where (
+      v_search is null
+      and (v_only_alerts is false or margin_status in ('critical', 'review'))
+    ) or (
+      v_search is not null
+      and (
+        external_code::text ilike '%' || v_search || '%'
+        or medicine_name ilike '%' || v_search || '%'
+        or coalesce(secondary_name, '') ilike '%' || v_search || '%'
+        or coalesce(model, '') ilike '%' || v_search || '%'
+        or coalesce(subgroup_name, '') ilike '%' || v_search || '%'
+        or coalesce(supplier_name, '') ilike '%' || v_search || '%'
+      )
+    )
     order by
       case margin_status when 'critical' then 0 when 'review' then 1 else 2 end,
       negotiation_risk desc,
@@ -152,7 +171,9 @@ begin
   )
   select jsonb_build_object(
     'summary', coalesce(summary_json.summary, '{}'::jsonb),
-    'rows', coalesce(rows_json.rows, '[]'::jsonb)
+    'rows', coalesce(rows_json.rows, '[]'::jsonb),
+    'search', v_search,
+    'only_alerts', v_only_alerts
   )
   into v_result
   from summary_json
@@ -162,4 +183,4 @@ begin
 end;
 $$;
 
-grant execute on function public.rpc_dashboard_price_margin_watch(text, integer) to anon, authenticated;
+grant execute on function public.rpc_dashboard_price_margin_watch(text, integer, text, boolean) to anon, authenticated;
