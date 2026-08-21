@@ -1,5 +1,6 @@
 -- Dashboard price/margin watch.
--- Margin is calculated on net sale price (without VAT). Reference comparison uses final sale price with VAT.
+-- price_1 stores the office sale price with VAT.
+-- Margin is calculated on net sale price (price_1 / 1.13). Reference comparison uses final sale price with VAT.
 
 drop function if exists public.rpc_dashboard_price_margin_watch(text, integer);
 
@@ -68,8 +69,8 @@ begin
       m.model,
       m.subgroup_name,
       coalesce(m.purchase_blocked, false) as purchase_blocked,
-      m.price_1 as sale_price_net,
-      round((coalesce(m.price_1, 0) * 1.13)::numeric, 2) as sale_price_gross,
+      round((coalesce(m.price_1, 0) / 1.13)::numeric, 2) as sale_price_net,
+      m.price_1 as sale_price_gross,
       coalesce(o.reference_price, lr.reference_price) as reference_price_gross,
       case when o.id is not null then true else false end as reference_is_manual,
       lp.last_cost,
