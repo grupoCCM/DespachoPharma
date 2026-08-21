@@ -32,6 +32,14 @@
     .delta-flat{ color:var(--muted); font-weight:600; }
     .insight-grid{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; }
     .insight-box{ border:1px solid var(--border); border-radius:8px; padding:.75rem; background:#fff; }
+    .dashboard-tabs{ display:flex; flex-wrap:wrap; gap:.5rem; }
+    .dashboard-tab-btn{ border:1px solid var(--border); background:#fff; color:#475569; border-radius:999px; padding:.45rem .85rem; font-weight:600; }
+    .dashboard-tab-btn.active{ background:#0f172a; color:#fff; border-color:#0f172a; }
+    .status-pill{ display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:.25rem .55rem; font-weight:700; font-size:.78rem; white-space:nowrap; }
+    .status-critical{ background:#fee2e2; color:#991b1b; }
+    .status-review{ background:#fef3c7; color:#92400e; }
+    .status-ok{ background:#dcfce7; color:#166534; }
+    .status-risk{ background:#ede9fe; color:#5b21b6; }
     @media (max-width: 768px){
       .insight-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
       .bar-row{ grid-template-columns:64px 1fr; }
@@ -76,6 +84,12 @@
 
     <div id="alert_page" class="alert alert-danger d-none" role="alert"></div>
 
+    <div class="dashboard-tabs mb-3" role="tablist" aria-label="Vistas del dashboard">
+      <button type="button" class="dashboard-tab-btn active" data-dashboard-tab="main">Resumen</button>
+      <button type="button" class="dashboard-tab-btn" data-dashboard-tab="price_margin">Precios / margen</button>
+    </div>
+
+    <section data-dashboard-section="main">
     <div class="app-card p-3 mb-3">
       <div class="row g-3 align-items-end">
         <div class="col-12 col-md-4">
@@ -320,6 +334,71 @@
         </div>
       </div>
     </div>
+    </section>
+
+    <section class="d-none" data-dashboard-section="price_margin">
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="app-card p-3 metric">
+            <div class="metric-label">Productos a revisar</div>
+            <div id="pm_total" class="metric-value">0</div>
+            <div class="small text-muted">margen menor a 25%</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="app-card p-3 metric">
+            <div class="metric-label">Cr&iacute;ticos</div>
+            <div id="pm_critical" class="metric-value text-danger">0</div>
+            <div class="small text-muted">margen menor a 20%</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="app-card p-3 metric">
+            <div class="metric-label">Bajo deseado</div>
+            <div id="pm_review" class="metric-value text-warning">0</div>
+            <div class="small text-muted">entre 20% y 25%</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+          <div class="app-card p-3 metric">
+            <div class="metric-label">Riesgo negociaci&oacute;n</div>
+            <div id="pm_negotiation" class="metric-value">0</div>
+            <div class="small text-muted">precio 25% supera referencia</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="app-card p-3">
+        <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start">
+          <div>
+            <div class="fw-semibold">Control de precios por margen</div>
+            <div class="text-muted small">Margen calculado sobre venta sin IVA; referencia comparada contra venta final con IVA.</div>
+          </div>
+          <span class="badge text-bg-light border">IVA 13% · mínimo 20% · deseado 25%</span>
+        </div>
+        <div class="table-responsive mt-3">
+          <table class="table table-sm">
+            <thead class="table-light">
+              <tr>
+                <th>Producto</th>
+                <th>Estado</th>
+                <th class="text-end">Margen</th>
+                <th class="text-end">Costo &uacute;lt.</th>
+                <th class="text-end">Venta sin IVA</th>
+                <th class="text-end">Venta con IVA</th>
+                <th class="text-end">Sugerido 20%</th>
+                <th class="text-end">Sugerido 25%</th>
+                <th class="text-end">Referencia</th>
+                <th>Lectura</th>
+              </tr>
+            </thead>
+            <tbody id="tbody_price_margin">
+              <tr><td colspan="10" class="text-center text-muted py-4">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -328,6 +407,7 @@
     const ROUTES = { login:"index.html", dispatch:"dispatch.html", cashier:"cashier.html" };
     const el = (id) => document.getElementById(id);
     let dashboardData = null;
+    let activeDashboardTab = "main";
 
     function getSession(){
       return {
@@ -343,6 +423,7 @@
     function num(v, digits=0){ return new Intl.NumberFormat("es-SV",{maximumFractionDigits:digits}).format(Number(v || 0)); }
     function pct(v){ return v === null || v === undefined ? "-" : `${num(v,2)}%`; }
     function shortDate(v){ return v ? String(v).slice(0,10) : "-"; }
+    function esc(value){ return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch])); }
     function monthLabel(v){
       if(!v) return "-";
       const d = new Date(`${String(v).slice(0,10)}T00:00:00`);
@@ -494,6 +575,56 @@
 
     function tableRows(rows, render, colspan){
       return rows && rows.length ? rows.map(render).join("") : `<tr><td colspan="${colspan}" class="text-center text-muted py-4">Sin datos.</td></tr>`;
+    }
+
+    function switchDashboardTab(tab){
+      activeDashboardTab = tab || "main";
+      document.querySelectorAll("[data-dashboard-tab]").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.dashboardTab === activeDashboardTab);
+      });
+      document.querySelectorAll("[data-dashboard-section]").forEach(section => {
+        section.classList.toggle("d-none", section.dataset.dashboardSection !== activeDashboardTab);
+      });
+    }
+
+    function marginStatusLabel(status){
+      if(status === "critical") return "Crítico";
+      if(status === "review") return "Revisar";
+      return "OK";
+    }
+    function marginStatusClass(status){
+      if(status === "critical") return "status-critical";
+      if(status === "review") return "status-review";
+      return "status-ok";
+    }
+    function renderPriceMargin(payload){
+      const data = payload || {};
+      const s = data.summary || {};
+      const rows = Array.isArray(data.rows) ? data.rows : [];
+      el("pm_total").textContent = num(s.total_review_items);
+      el("pm_critical").textContent = num(s.critical_items);
+      el("pm_review").textContent = num(s.desired_gap_items);
+      el("pm_negotiation").textContent = num(s.negotiation_risk_items);
+      el("tbody_price_margin").innerHTML = tableRows(rows, row => {
+        const risk = row.negotiation_risk ? `<span class="status-pill status-risk">Ref. limita</span>` : "";
+        const refGap = row.reference_vs_suggested_25_gross === null || row.reference_vs_suggested_25_gross === undefined
+          ? "Sin referencia"
+          : Number(row.reference_vs_suggested_25_gross) < 0
+            ? `Sugerido 25% supera ref. por ${money(Math.abs(Number(row.reference_vs_suggested_25_gross)))}`
+            : `Ref. permite +${money(row.reference_vs_suggested_25_gross)}`;
+        return `<tr>
+          <td><div class="truncate fw-semibold">${esc(row.medicine_name || "-")}</div><div class="small text-muted">${esc(row.external_code || "")} - Casa: ${esc(row.model || "-")}</div></td>
+          <td><span class="status-pill ${marginStatusClass(row.margin_status)}">${marginStatusLabel(row.margin_status)}</span> ${risk}</td>
+          <td class="text-end fw-semibold">${pct(row.margin_net_pct)}</td>
+          <td class="text-end">${money(row.last_cost)}<div class="small text-muted">${shortDate(row.last_purchase_date)}</div></td>
+          <td class="text-end">${money(row.sale_price_net)}</td>
+          <td class="text-end">${money(row.sale_price_gross)}</td>
+          <td class="text-end">${money(row.suggested_20_gross)}<div class="small text-muted">${money(row.suggested_20_net)} sin IVA</div></td>
+          <td class="text-end fw-semibold">${money(row.suggested_25_gross)}<div class="small text-muted">${money(row.suggested_25_net)} sin IVA</div></td>
+          <td class="text-end">${row.reference_price_gross === null || row.reference_price_gross === undefined ? "-" : money(row.reference_price_gross)}<div class="small text-muted">${row.reference_is_manual ? "manual" : "archivo"}</div></td>
+          <td><div>${esc(row.recommendation || "-")}</div><div class="small text-muted">${esc(refGap)}</div></td>
+        </tr>`;
+      }, 10);
     }
 
     function renderBars(containerId, rows, valueKey, labelFn, valueFn, fillClass=""){
@@ -722,6 +853,7 @@
       el("tbody_negative").innerHTML = tableRows(data.negative_margin, row => `
         <tr><td>${shortDate(row.sale_date)}</td><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td class="text-end">${money(row.net_sale)}</td><td class="text-end text-danger">${money(row.profit)}</td></tr>
       `, 4);
+      renderPriceMargin(data.price_margin || {});
     }
 
     async function loadDashboard(){
@@ -729,8 +861,11 @@
       setLoading(true);
       try{
         const s = getSession();
-        const data = await callRpc("rpc_dashboard_overview", { p_session_token:s.token });
-        renderDashboard(data || {});
+        const [data, priceMargin] = await Promise.all([
+          callRpc("rpc_dashboard_overview", { p_session_token:s.token }),
+          callRpc("rpc_dashboard_price_margin_watch", { p_session_token:s.token, p_limit:250 })
+        ]);
+        renderDashboard({ ...(data || {}), price_margin: priceMargin || {} });
       }catch(err){
         showAlert(err.message || "No se pudo cargar el dashboard.");
       }finally{
@@ -746,11 +881,15 @@
       el("nav_user").textContent = s.name || "-";
       el("btn_logout").addEventListener("click", logoutAndGoLogin);
       el("btn_refresh").addEventListener("click", loadDashboard);
+      document.querySelectorAll("[data-dashboard-tab]").forEach(btn => {
+        btn.addEventListener("click", () => switchDashboardTab(btn.dataset.dashboardTab || "main"));
+      });
       el("month_filter").addEventListener("change", () => {
         const monthly = (dashboardData?.monthly_sales || []).slice().sort((a,b) => String(a.month).localeCompare(String(b.month)));
         const penetration = (dashboardData?.penetration || []).slice().sort((a,b) => String(b.month).localeCompare(String(a.month)));
         renderMonthlyViews(monthly, penetration);
       });
+      switchDashboardTab("main");
       await loadDashboard();
     }
 
