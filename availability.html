@@ -95,7 +95,7 @@
             <button id="btn_clear" class="btn btn-outline-secondary">Limpiar</button>
           </div>
           <hr>
-          <div class="small text-muted">Muestra precio de venta y existencia. No muestra costos, utilidad ni proveedores.</div>
+          <div class="small text-muted">Muestra precio de venta y cantidad disponible para venta. No muestra costos, utilidad ni proveedores.</div>
         </div>
       </div>
 
@@ -104,7 +104,7 @@
           <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start">
             <div>
               <div id="detail_name" class="h5 mb-1">Busca un medicamento</div>
-              <div id="detail_meta" class="text-muted small">Existencia, precio de venta y datos comerciales.</div>
+              <div id="detail_meta" class="text-muted small">Disponible para venta, precio y datos comerciales.</div>
             </div>
             <div class="d-flex gap-2 align-items-start">
               <button id="btn_add_selected" class="btn btn-success btn-sm" disabled>Agregar</button>
@@ -113,7 +113,7 @@
           </div>
           <div class="row g-3 mt-1 detail-grid">
             <div class="col-6 col-md-3">
-              <div class="muted-label">Existencia</div>
+              <div class="muted-label">Disponible</div>
               <div id="detail_stock" class="big-stock">-</div>
             </div>
             <div class="col-6 col-md-3">
@@ -143,7 +143,7 @@
                   <th>Medicamento</th>
                   <th>Componente</th>
                   <th>Casa</th>
-                  <th class="text-end">Exist.</th>
+                  <th class="text-end">Disp.</th>
                   <th>Estado</th>
                   <th class="text-end">Precio</th>
                   <th class="text-end">Venta</th>
@@ -256,7 +256,7 @@
     }
     function stockLabel(row){
       const qty = Math.max(0, Math.trunc(Number(row?.stock_qty || 0)));
-      return qty > 0 ? `Existencia: ${units(qty)}` : "Sin existencia: 0";
+      return qty > 0 ? `Disponible: ${units(qty)}` : "Sin existencia: 0";
     }
     function stockBadge(row){
       const qty = Math.max(0, Math.trunc(Number(row?.stock_qty || 0)));
@@ -287,7 +287,7 @@
       if(!row){
         selectedRow = null;
         el("detail_name").textContent = "Busca un medicamento";
-        el("detail_meta").textContent = "Existencia, precio de venta y datos comerciales.";
+        el("detail_meta").textContent = "Disponible para venta, precio y datos comerciales.";
         el("detail_status").textContent = "-";
         el("detail_status").className = "badge text-bg-light border";
         el("btn_add_selected").disabled = true;
@@ -330,7 +330,7 @@
           <div class="mobile-result-meta mt-1">${esc(row.secondary_name || "Sin componente")}</div>
           <div class="mobile-result-main">
             <div>
-              <div class="muted-label">Existencia</div>
+              <div class="muted-label">Disponible</div>
               <div class="mobile-result-value">${units(row.stock_qty)}</div>
             </div>
             <div class="text-end">
