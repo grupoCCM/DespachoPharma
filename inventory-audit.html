@@ -1489,6 +1489,13 @@
       el("btn_return_create_text").textContent = v ? "Creando..." : "Crear hoja";
     }
 
+    function clearReturnCreateForm(){
+      el("return_supplier").value = "";
+      el("return_sheet").value = "";
+      el("return_note").value = "";
+      el("return_date").value = new Date().toISOString().slice(0, 10);
+    }
+
     async function createSupplierReturn(){
       hideAlert();
       hideOk();
@@ -1666,6 +1673,7 @@
         });
         await loadSupplierReturns();
         await loadReturnDetail(selectedReturnDoc.id);
+        clearReturnCreateForm();
         markAuditStale();
         inventoryTabLoaded.session = false;
         inventoryTabLoaded.point = false;
@@ -1691,6 +1699,7 @@
         selectedReturnDoc = null;
         returnItems = [];
         renderReturnItems();
+        clearReturnCreateForm();
         await loadSupplierReturns();
         showOk("Borrador anulado. No movio inventario.");
       }catch(err){
