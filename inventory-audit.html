@@ -56,7 +56,7 @@
     .inventory-tab-btn:hover{ color:#0f172a; background:#f8fafc; }
     .inventory-tab-btn.active{ color:#0d6efd; border-bottom-color:#0d6efd; }
     .inventory-tab-hint{ color:var(--muted); font-size:.86rem; margin:-6px 0 14px; }
-    .inventory-flow{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+    .inventory-flow{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
     .flow-step{ border:1px solid var(--border); border-radius:10px; padding:10px 12px; background:#fff; min-height:96px; text-align:left; transition:border-color .15s ease, box-shadow .15s ease, background-color .15s ease, transform .15s ease; }
     .flow-step[type="button"]{ cursor:pointer; }
     .flow-step[type="button"]:hover{ border-color:#bfdbfe; box-shadow:0 8px 22px rgba(15,23,42,.08); transform:translateY(-1px); }
@@ -93,6 +93,12 @@
     .resolution-step{ color:#334155; font-size:.88rem; }
     .resolution-meta{ color:var(--muted); font-size:.78rem; display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:6px; }
     .resolution-meta span{ white-space:nowrap; }
+    .return-current{ border:1px solid #bfdbfe; background:#eff6ff; border-radius:12px; padding:12px; }
+    .return-lines{ max-height:340px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
+    .return-lines table{ min-width:860px; margin-bottom:0; }
+    .return-lines thead th{ position:sticky; top:0; background:#f8fafc; z-index:2; }
+    .return-doc-row{ cursor:pointer; }
+    .return-doc-row:hover{ background:#f8fafc; }
     .resolution-empty{ padding:22px 16px; text-align:center; color:var(--muted); }
     @media (max-width: 991.98px){ .resolution-row{ grid-template-columns:1fr; align-items:start; } }
     @media (max-width: 575.98px){ .resolution-row{ grid-template-columns:1fr; } }
@@ -138,6 +144,7 @@
       <button type="button" class="inventory-tab-btn" data-inventory-tab="point">Ajuste puntual</button>
       <button type="button" class="inventory-tab-btn admin-panel" data-inventory-tab="differences">Diferencias</button>
       <button type="button" class="inventory-tab-btn admin-panel" data-inventory-tab="adjustments">Correcciones</button>
+      <button type="button" class="inventory-tab-btn admin-panel" data-inventory-tab="returns">Devoluciones</button>
       <button type="button" class="inventory-tab-btn admin-panel" data-inventory-tab="movements">Kardex</button>
     </div>
     <div id="inventory_tab_hint" class="inventory-tab-hint">Abre un conteo nuevo para inventarios reales; el esperado queda congelado en ese momento.</div>
@@ -157,6 +164,10 @@
       <button type="button" class="flow-step admin-panel" data-inventory-card="adjustments">
         <strong>Correcciones</strong>
         <span>Reclasifica cantidades entre productos cuando una compra fue registrada en el articulo equivocado.</span>
+      </button>
+      <button type="button" class="flow-step admin-panel" data-inventory-card="returns">
+        <strong>Devoluciones</strong>
+        <span>Registra retiros a proveedor por lote. Descuenta inventario al aplicar; la nota de credito solo concilia.</span>
       </button>
       <button type="button" class="flow-step admin-panel" data-inventory-card="movements">
         <strong>Kardex</strong>
@@ -210,6 +221,142 @@
         <div class="col-12">
           <label class="form-label" for="reclass_note">Comentario</label>
           <input id="reclass_note" class="form-control" maxlength="500" placeholder="Detalle para auditoria">
+        </div>
+      </div>
+    </div>
+
+    <div class="app-card p-3 mb-3 admin-panel d-none" data-inventory-section="returns">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <div class="fw-semibold">Devolucion de mercaderia a proveedor</div>
+          <div class="text-muted small">La hoja de retiro descuenta inventario por lote. La nota de credito se registra despues y no vuelve a descontar.</div>
+        </div>
+        <span id="return_doc_status" class="badge text-bg-light border">Sin documento</span>
+      </div>
+
+      <div class="alert alert-light border small mt-3 mb-0">
+        Usa este flujo cuando el proveedor ya retiro producto fisicamente. Si solo recibiste una nota de credito de algo ya devuelto, conciliala con el documento aplicado.
+      </div>
+
+      <div class="row g-3 align-items-end mt-1">
+        <div class="col-12 col-lg-3">
+          <label class="form-label" for="return_supplier">Proveedor</label>
+          <input id="return_supplier" class="form-control" placeholder="Nombre proveedor">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label" for="return_sheet">Hoja devolucion</label>
+          <input id="return_sheet" class="form-control" placeholder="No. hoja">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label" for="return_date">Fecha retiro</label>
+          <input id="return_date" class="form-control" type="date">
+        </div>
+        <div class="col-12 col-lg-3">
+          <label class="form-label" for="return_note">Comentario</label>
+          <input id="return_note" class="form-control" placeholder="Observacion opcional">
+        </div>
+        <div class="col-12 col-lg-2 d-grid">
+          <button id="btn_return_create" class="btn btn-primary">
+            <span id="btn_return_create_text">Crear hoja</span>
+            <span id="btn_return_create_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+          </button>
+        </div>
+      </div>
+
+      <div id="return_current_box" class="return-current mt-3 d-none">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+          <div>
+            <div id="return_current_title" class="fw-semibold">Hoja activa</div>
+            <div id="return_current_meta" class="small text-muted">Agrega productos por lote antes de aplicar.</div>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <button id="btn_return_apply" class="btn btn-success btn-sm">Aplicar salida</button>
+            <button id="btn_return_void" class="btn btn-outline-danger btn-sm">Anular borrador</button>
+          </div>
+        </div>
+
+        <div class="row g-3 align-items-end mt-1">
+          <div class="col-12 col-lg-5">
+            <label class="form-label" for="return_lot_q">Producto / lote</label>
+            <input id="return_lot_q" class="form-control" placeholder="Producto, codigo, barra, casa o lote" autocomplete="off">
+            <div id="return_lot_suggestions" class="list-group mt-2 suggestions d-none"></div>
+            <div id="return_lot_selected" class="selected-product text-muted small mt-2">Sin lote seleccionado.</div>
+          </div>
+          <div class="col-6 col-lg-2">
+            <label class="form-label" for="return_qty">Cantidad</label>
+            <input id="return_qty" class="form-control" type="number" min="1" step="1" placeholder="0">
+          </div>
+          <div class="col-12 col-lg-3">
+            <label class="form-label" for="return_reason">Motivo retiro</label>
+            <input id="return_reason" class="form-control" placeholder="Vencimiento, error de recepcion, dañado">
+          </div>
+          <div class="col-6 col-lg-2 d-grid">
+            <button id="btn_return_add_item" class="btn btn-outline-primary">Agregar</button>
+          </div>
+        </div>
+
+        <div class="return-lines mt-3">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th class="text-center">Lote</th>
+                <th class="text-center">Vence</th>
+                <th class="text-center">Cant.</th>
+                <th>Motivo</th>
+                <th class="text-end">Costo</th>
+              </tr>
+            </thead>
+            <tbody id="tbody_return_items">
+              <tr><td colspan="6" class="text-center text-muted py-4">Sin productos en la hoja.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="row g-3 mt-1">
+        <div class="col-12 col-xl-7">
+          <div class="fw-semibold mb-2">Devoluciones recientes</div>
+          <div class="audit-table-box compact">
+            <table class="table table-sm align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Hoja</th>
+                  <th>Proveedor</th>
+                  <th>Estado</th>
+                  <th class="text-center">Lineas</th>
+                  <th class="text-center">Unid.</th>
+                </tr>
+              </thead>
+              <tbody id="tbody_return_docs">
+                <tr><td colspan="5" class="text-center text-muted py-4">Sin devoluciones recientes.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="col-12 col-xl-5">
+          <div class="fw-semibold mb-2">Conciliar nota de credito</div>
+          <div class="border rounded-3 p-3 bg-light">
+            <div id="return_reconcile_help" class="small text-muted mb-2">Selecciona una devolucion aplicada pendiente de nota de credito.</div>
+            <div class="row g-2">
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="return_credit_no">Nota credito</label>
+                <input id="return_credit_no" class="form-control" placeholder="No. NC">
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="return_credit_date">Fecha</label>
+                <input id="return_credit_date" class="form-control" type="date">
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label" for="return_credit_amount">Monto</label>
+                <input id="return_credit_amount" class="form-control" type="number" min="0" step="0.01" placeholder="0.00">
+              </div>
+              <div class="col-12 col-md-6 d-grid">
+                <label class="form-label">&nbsp;</label>
+                <button id="btn_return_reconcile" class="btn btn-outline-success" disabled>Conciliar</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -589,6 +736,12 @@
     let reclassToTimer = null;
     let selectedReclassFrom = null;
     let selectedReclassTo = null;
+    let selectedReturnDoc = null;
+    let selectedReturnLot = null;
+    let returnDocs = [];
+    let returnItems = [];
+    let returnLotRows = [];
+    let returnLotTimer = null;
     let selectedCountProduct = null;
     let activeCountSession = null;
     let printableCountSessionId = null;
@@ -601,6 +754,7 @@
       point:false,
       differences:false,
       adjustments:false,
+      returns:false,
       movements:false
     };
 
@@ -654,6 +808,7 @@
       point:"Ajuste puntual para uno o pocos productos. Guardar registra el hallazgo; admin decide si aplica existencia.",
       differences:"Seguimiento de faltantes, sobrantes, hallazgos y diferencias ya solventadas.",
       adjustments:"Correcciones administrativas entre productos, como compras registradas en el articulo equivocado.",
+      returns:"Devoluciones a proveedor: registra la hoja de retiro, descuenta por lote y luego concilia la nota de credito.",
       movements:"Kardex interno: compras, despachos, conteos, reversos y movimientos sin cruce."
     };
     function showInventoryTab(tab){
@@ -1181,6 +1336,349 @@
         showAlert(err.message || "No se pudo reclasificar inventario.");
       }finally{
         setReclassLoading(false);
+      }
+    }
+
+    function returnStatusBadge(status){
+      if(status === "draft") return `<span class="badge text-bg-secondary">Borrador</span>`;
+      if(status === "applied_pending_credit_note") return `<span class="badge text-bg-warning">Pendiente NC</span>`;
+      if(status === "credit_note_reconciled") return `<span class="badge text-bg-success">Conciliada</span>`;
+      if(status === "voided") return `<span class="badge text-bg-dark">Anulada</span>`;
+      return `<span class="badge text-bg-light border">${esc(status || "-")}</span>`;
+    }
+
+    function resetReturnLotSelection(){
+      selectedReturnLot = null;
+      el("return_lot_selected").className = "selected-product text-muted small mt-2";
+      el("return_lot_selected").textContent = "Sin lote seleccionado.";
+    }
+
+    function hideReturnLotSuggestions(){
+      el("return_lot_suggestions").classList.add("d-none");
+      el("return_lot_suggestions").innerHTML = "";
+    }
+
+    function renderReturnDocStatus(){
+      const badge = el("return_doc_status");
+      if(!selectedReturnDoc){
+        badge.className = "badge text-bg-light border";
+        badge.textContent = "Sin documento";
+        el("return_current_box").classList.add("d-none");
+        el("btn_return_reconcile").disabled = true;
+        el("return_reconcile_help").textContent = "Selecciona una devolucion aplicada pendiente de nota de credito.";
+        return;
+      }
+      const status = selectedReturnDoc.status || "draft";
+      badge.className = `badge ${status === "draft" ? "text-bg-secondary" : status === "applied_pending_credit_note" ? "text-bg-warning" : status === "credit_note_reconciled" ? "text-bg-success" : "text-bg-dark"}`;
+      badge.textContent = status === "draft" ? "Borrador" : status === "applied_pending_credit_note" ? "Pendiente NC" : status === "credit_note_reconciled" ? "Conciliada" : "Anulada";
+      el("return_current_box").classList.toggle("d-none", status !== "draft");
+      el("return_current_title").textContent = `Hoja ${selectedReturnDoc.return_sheet_no || "-"}`;
+      el("return_current_meta").textContent = `${selectedReturnDoc.supplier_display_name || selectedReturnDoc.supplier_name || "Proveedor sin identificar"} - ${fmtDate(selectedReturnDoc.return_date)} - ${units(selectedReturnDoc.total_units || 0)} unidades.`;
+      el("btn_return_apply").disabled = status !== "draft" || !returnItems.length;
+      el("btn_return_void").disabled = status !== "draft";
+      el("btn_return_reconcile").disabled = status !== "applied_pending_credit_note";
+      el("return_reconcile_help").textContent = status === "applied_pending_credit_note"
+        ? `Conciliando hoja ${selectedReturnDoc.return_sheet_no || "-"}; esta accion no mueve inventario.`
+        : "Selecciona una devolucion aplicada pendiente de nota de credito.";
+    }
+
+    function renderReturnItems(){
+      const body = el("tbody_return_items");
+      body.innerHTML = returnItems.length ? returnItems.map(item => `
+        <tr>
+          <td>
+            <div class="fw-semibold">${esc(item.medicine_name_snapshot || "-")}</div>
+            <div class="small text-muted">${esc(item.external_code || "")} - ${esc(item.barcode || "")}</div>
+          </td>
+          <td class="text-center">${esc(item.lot_no || "-")}</td>
+          <td class="text-center">${esc(item.expires_at || "-")}</td>
+          <td class="text-center fw-semibold">${units(item.qty)}</td>
+          <td>${esc(item.reason || "-")}</td>
+          <td class="text-end">${money(item.unit_cost)}</td>
+        </tr>`).join("") : `<tr><td colspan="6" class="text-center text-muted py-4">Sin productos en la hoja.</td></tr>`;
+      renderReturnDocStatus();
+    }
+
+    function renderReturnDocs(rows){
+      returnDocs = Array.isArray(rows) ? rows : [];
+      el("tbody_return_docs").innerHTML = returnDocs.length ? returnDocs.map((doc, idx) => `
+        <tr class="return-doc-row" data-return-doc="${idx}">
+          <td>
+            <div class="fw-semibold">${esc(doc.return_sheet_no || "-")}</div>
+            <div class="small text-muted">${fmtDate(doc.return_date)}</div>
+          </td>
+          <td>${esc(doc.supplier_display_name || "-")}</td>
+          <td>${returnStatusBadge(doc.status)}</td>
+          <td class="text-center">${units(doc.line_count)}</td>
+          <td class="text-center">${units(doc.total_units)}</td>
+        </tr>`).join("") : `<tr><td colspan="5" class="text-center text-muted py-4">Sin devoluciones recientes.</td></tr>`;
+      document.querySelectorAll("[data-return-doc]").forEach(row => {
+        row.addEventListener("click", () => loadReturnDetail(returnDocs[Number(row.dataset.returnDoc)]?.id));
+      });
+    }
+
+    async function loadSupplierReturns(){
+      if(!isAdmin()) return;
+      try{
+        const s = getSession();
+        const payload = await callRpc("rpc_supplier_return_list", {
+          p_session_token:s.token,
+          p_status:"",
+          p_query:"",
+          p_limit:80
+        });
+        renderReturnDocs(payload?.documents || []);
+        inventoryTabLoaded.returns = true;
+      }catch(err){
+        showAlert(err.message || "No se pudieron cargar las devoluciones.");
+      }
+    }
+
+    async function loadReturnDetail(documentId){
+      if(!documentId) return;
+      try{
+        const s = getSession();
+        const payload = await callRpc("rpc_supplier_return_document_detail", {
+          p_session_token:s.token,
+          p_document_id:documentId
+        });
+        selectedReturnDoc = payload?.document || null;
+        returnItems = payload?.items || [];
+        renderReturnItems();
+        if(selectedReturnDoc?.status === "applied_pending_credit_note"){
+          el("return_credit_no").focus();
+        }
+      }catch(err){
+        showAlert(err.message || "No se pudo abrir la devolucion.");
+      }
+    }
+
+    function setReturnCreateLoading(v){
+      el("btn_return_create").disabled = v;
+      el("btn_return_create_spinner").classList.toggle("d-none", !v);
+      el("btn_return_create_text").textContent = v ? "Creando..." : "Crear hoja";
+    }
+
+    async function createSupplierReturn(){
+      hideAlert();
+      hideOk();
+      const sheet = el("return_sheet").value.trim();
+      if(!sheet){
+        showAlert("Indica el numero de hoja de devolucion.");
+        el("return_sheet").focus();
+        return;
+      }
+      setReturnCreateLoading(true);
+      try{
+        const s = getSession();
+        const result = await callRpc("rpc_supplier_return_document_create", {
+          p_session_token:s.token,
+          p_supplier_name:el("return_supplier").value.trim(),
+          p_return_sheet_no:sheet,
+          p_return_date:el("return_date").value || null,
+          p_note:el("return_note").value.trim()
+        });
+        await loadSupplierReturns();
+        await loadReturnDetail(result?.document_id);
+        showOk(`Hoja ${sheet} creada. Agrega los productos por lote antes de aplicar.`);
+      }catch(err){
+        showAlert(err.message || "No se pudo crear la devolucion.");
+      }finally{
+        setReturnCreateLoading(false);
+      }
+    }
+
+    function renderReturnLotSelected(row){
+      if(!row){
+        resetReturnLotSelection();
+        return;
+      }
+      selectedReturnLot = row;
+      el("return_lot_selected").className = "selected-product small mt-2";
+      el("return_lot_selected").innerHTML = `
+        <div class="fw-semibold">${esc(row.medicine_name || "-")}</div>
+        <div class="text-muted">Codigo ${esc(row.external_code || "")} - Lote ${esc(row.lot_no || "-")} - Vence ${esc(row.expires_at || "-")} - Disponible lote ${units(row.lot_qty)}</div>`;
+    }
+
+    function renderReturnLotSuggestions(rows){
+      returnLotRows = rows.slice(0, 10);
+      const box = el("return_lot_suggestions");
+      if(!returnLotRows.length){
+        box.innerHTML = `<div class="list-group-item text-muted small">Sin lotes disponibles.</div>`;
+        box.classList.remove("d-none");
+        return;
+      }
+      box.innerHTML = returnLotRows.map((row, idx) => `
+        <button type="button" class="list-group-item list-group-item-action" data-return-lot="${idx}">
+          <div class="d-flex justify-content-between gap-2">
+            <span class="fw-semibold">${esc(row.medicine_name || "-")}</span>
+            <span class="badge text-bg-light border">Lote: ${esc(row.lot_no || "-")}</span>
+          </div>
+          <div class="small text-muted">Codigo ${esc(row.external_code || "")} - Vence ${esc(row.expires_at || "-")} - Exist. lote ${units(row.lot_qty)} - Casa ${esc(row.model || "-")}</div>
+        </button>`).join("");
+      box.classList.remove("d-none");
+      document.querySelectorAll("[data-return-lot]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const row = returnLotRows[Number(btn.dataset.returnLot)];
+          renderReturnLotSelected(row);
+          el("return_lot_q").value = row?.medicine_name || "";
+          hideReturnLotSuggestions();
+        });
+      });
+    }
+
+    async function suggestReturnLots(){
+      const q = el("return_lot_q").value.trim();
+      resetReturnLotSelection();
+      if(q.length < 2){
+        hideReturnLotSuggestions();
+        return;
+      }
+      try{
+        const s = getSession();
+        const payload = await callRpc("rpc_supplier_return_lookup_lots", {
+          p_session_token:s.token,
+          p_query:q,
+          p_limit:30
+        });
+        renderReturnLotSuggestions(payload?.items || []);
+      }catch(_){
+        hideReturnLotSuggestions();
+      }
+    }
+
+    async function addSupplierReturnItem(){
+      hideAlert();
+      hideOk();
+      if(!selectedReturnDoc || selectedReturnDoc.status !== "draft"){
+        showAlert("Crea o selecciona una hoja en borrador.");
+        return;
+      }
+      if(!selectedReturnLot){
+        showAlert("Selecciona el producto y lote que retiro el proveedor.");
+        el("return_lot_q").focus();
+        return;
+      }
+      const qty = Math.trunc(Number(el("return_qty").value || 0));
+      if(!Number.isFinite(qty) || qty <= 0){
+        showAlert("La cantidad debe ser un entero mayor que 0.");
+        el("return_qty").focus();
+        return;
+      }
+      if(Number(selectedReturnLot.lot_qty || 0) < qty){
+        showAlert(`No se puede devolver ${units(qty)}. Disponible en lote: ${units(selectedReturnLot.lot_qty)}.`);
+        return;
+      }
+      const reason = el("return_reason").value.trim();
+      if(!reason){
+        showAlert("Indica el motivo de retiro.");
+        el("return_reason").focus();
+        return;
+      }
+      try{
+        const s = getSession();
+        await callRpc("rpc_supplier_return_item_add", {
+          p_session_token:s.token,
+          p_document_id:selectedReturnDoc.id,
+          p_external_code:Number(selectedReturnLot.external_code),
+          p_lot_id:selectedReturnLot.lot_id,
+          p_qty:qty,
+          p_reason:reason,
+          p_note:""
+        });
+        el("return_lot_q").value = "";
+        el("return_qty").value = "";
+        el("return_reason").value = "";
+        resetReturnLotSelection();
+        hideReturnLotSuggestions();
+        await loadReturnDetail(selectedReturnDoc.id);
+        await loadSupplierReturns();
+        showOk("Producto agregado a la hoja de devolucion.");
+      }catch(err){
+        showAlert(err.message || "No se pudo agregar el producto.");
+      }
+    }
+
+    async function applySupplierReturn(){
+      hideAlert();
+      hideOk();
+      if(!selectedReturnDoc || selectedReturnDoc.status !== "draft") return;
+      if(!returnItems.length){
+        showAlert("Agrega al menos un producto antes de aplicar la devolucion.");
+        return;
+      }
+      if(!confirm(`Aplicar salida de ${units(returnItems.reduce((sum, item) => sum + Number(item.qty || 0), 0))} unidades?\n\nEsto descuenta inventario y lote. La nota de credito se conciliara despues.`)) return;
+      try{
+        const s = getSession();
+        const result = await callRpc("rpc_supplier_return_apply", {
+          p_session_token:s.token,
+          p_document_id:selectedReturnDoc.id
+        });
+        await loadSupplierReturns();
+        await loadReturnDetail(selectedReturnDoc.id);
+        markAuditStale();
+        inventoryTabLoaded.session = false;
+        inventoryTabLoaded.point = false;
+        showOk(`Devolucion aplicada: ${units(result?.units || 0)} unidades descontadas. Queda pendiente conciliar nota de credito.`);
+      }catch(err){
+        showAlert(err.message || "No se pudo aplicar la devolucion.");
+      }
+    }
+
+    async function voidSupplierReturnDraft(){
+      hideAlert();
+      hideOk();
+      if(!selectedReturnDoc || selectedReturnDoc.status !== "draft") return;
+      const reason = prompt("Motivo para anular el borrador:", "Borrador de prueba");
+      if(reason === null) return;
+      try{
+        const s = getSession();
+        await callRpc("rpc_supplier_return_draft_void", {
+          p_session_token:s.token,
+          p_document_id:selectedReturnDoc.id,
+          p_reason:reason
+        });
+        selectedReturnDoc = null;
+        returnItems = [];
+        renderReturnItems();
+        await loadSupplierReturns();
+        showOk("Borrador anulado. No movio inventario.");
+      }catch(err){
+        showAlert(err.message || "No se pudo anular el borrador.");
+      }
+    }
+
+    async function reconcileSupplierReturnCredit(){
+      hideAlert();
+      hideOk();
+      if(!selectedReturnDoc || selectedReturnDoc.status !== "applied_pending_credit_note"){
+        showAlert("Selecciona una devolucion aplicada pendiente de nota de credito.");
+        return;
+      }
+      const creditNo = el("return_credit_no").value.trim();
+      if(!creditNo){
+        showAlert("Indica el numero de nota de credito.");
+        el("return_credit_no").focus();
+        return;
+      }
+      try{
+        const s = getSession();
+        await callRpc("rpc_supplier_return_credit_note_reconcile", {
+          p_session_token:s.token,
+          p_document_id:selectedReturnDoc.id,
+          p_credit_note_no:creditNo,
+          p_credit_note_date:el("return_credit_date").value || null,
+          p_credit_note_amount:el("return_credit_amount").value ? Number(el("return_credit_amount").value) : null,
+          p_note:null
+        });
+        el("return_credit_no").value = "";
+        el("return_credit_date").value = "";
+        el("return_credit_amount").value = "";
+        await loadSupplierReturns();
+        await loadReturnDetail(selectedReturnDoc.id);
+        showOk("Nota de credito conciliada. No se movio inventario nuevamente.");
+      }catch(err){
+        showAlert(err.message || "No se pudo conciliar la nota de credito.");
       }
     }
 
@@ -1803,6 +2301,12 @@
       if(target === "adjustments"){
         inventoryTabLoaded.adjustments = true;
       }
+      if(target === "returns"){
+        if(!isAdmin()) return;
+        if(force || !inventoryTabLoaded.returns){
+          await loadSupplierReturns();
+        }
+      }
     }
 
     async function init(){
@@ -1838,6 +2342,29 @@
           });
         });
         el("btn_reclassify").addEventListener("click", submitReclassification);
+        el("btn_return_create").addEventListener("click", createSupplierReturn);
+        el("btn_return_add_item").addEventListener("click", addSupplierReturnItem);
+        el("btn_return_apply").addEventListener("click", applySupplierReturn);
+        el("btn_return_void").addEventListener("click", voidSupplierReturnDraft);
+        el("btn_return_reconcile").addEventListener("click", reconcileSupplierReturnCredit);
+        el("return_date").value = new Date().toISOString().slice(0, 10);
+        el("return_credit_date").value = new Date().toISOString().slice(0, 10);
+        el("return_lot_q").addEventListener("input", () => {
+          clearTimeout(returnLotTimer);
+          returnLotTimer = setTimeout(suggestReturnLots, 250);
+        });
+        el("return_lot_q").addEventListener("keydown", e => {
+          if(e.key === "Enter"){
+            e.preventDefault();
+            if(!el("return_lot_suggestions").classList.contains("d-none") && returnLotRows.length){
+              const row = returnLotRows[0];
+              renderReturnLotSelected(row);
+              el("return_lot_q").value = row?.medicine_name || "";
+              hideReturnLotSuggestions();
+            }
+          }
+          if(e.key === "Escape") hideReturnLotSuggestions();
+        });
         el("reclass_from_q").addEventListener("input", () => {
           clearTimeout(reclassFromTimer);
           reclassFromTimer = setTimeout(() => suggestReclassSearch("from"), 250);
@@ -1914,6 +2441,7 @@
         if(isAdmin()){
           if(!el("reclass_from_q").contains(e.target) && !el("reclass_from_suggestions").contains(e.target)) hideReclassSuggestions("from");
           if(!el("reclass_to_q").contains(e.target) && !el("reclass_to_suggestions").contains(e.target)) hideReclassSuggestions("to");
+          if(!el("return_lot_q").contains(e.target) && !el("return_lot_suggestions").contains(e.target)) hideReturnLotSuggestions();
         }
       });
       if(isAdmin()){
