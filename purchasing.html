@@ -34,7 +34,13 @@
     .result-med-name{ font-weight:700; line-height:1.25; overflow-wrap:anywhere; }
     .result-meta{ color:var(--muted); font-size:.8rem; margin-top:4px; line-height:1.25; }
     .result-stock{ text-align:center; }
-    .result-stock .stock-qty{ font-size:1.05rem; font-weight:800; }
+    .result-stock .stock-qty{ font-size:1.08rem; font-weight:800; }
+    .stock-stack{ display:flex; flex-direction:column; align-items:center; gap:5px; min-width:118px; }
+    .stock-main{ display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap; }
+    .stock-main .unit{ font-size:.72rem; font-weight:500; color:var(--muted); }
+    .stock-detail{ color:var(--muted); font-size:.76rem; line-height:1.25; }
+    .stock-badges{ display:flex; justify-content:center; gap:5px; flex-wrap:wrap; }
+    .stock-badge{ font-size:.7rem; font-weight:700; }
     .result-supplier{ line-height:1.25; overflow-wrap:anywhere; }
     .result-costs{ line-height:1.35; white-space:nowrap; }
     .result-ref{ line-height:1.25; }
@@ -414,6 +420,46 @@
 
     function isPurchaseBlocked(row){ return !!row?.purchase_blocked || row?.decision === "No comprar"; }
 
+    function initTooltips(scope=document){
+      if(!window.bootstrap?.Tooltip) return;
+      scope.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(node => {
+        const current = bootstrap.Tooltip.getInstance(node);
+        if(current) current.dispose();
+        bootstrap.Tooltip.getOrCreateInstance(node);
+      });
+    }
+
+    function renderStockColumn(row){
+      const sellable = Math.max(0, Number(row?.stock_qty || 0));
+      const physical = Math.max(0, Number(row?.physical_qty || sellable || 0));
+      const expired = Math.max(0, Number(row?.expired_qty || 0));
+      const notSellable = Math.max(0, Number(row?.not_sellable_qty || 0));
+      const quarantine = Math.max(0, Number(row?.quarantine_qty || 0));
+      const inbound = Math.max(0, Number(row?.inbound_order_qty || 0));
+      const blocked = notSellable + quarantine;
+      const badges = [];
+      if(expired > 0){
+        badges.push(`<span class="badge rounded-pill text-bg-danger stock-badge" data-bs-toggle="tooltip" title="${esc(num(expired))} unidades vencidas: cuentan físicamente, pero no se consideran para compra ni despacho.">! ${num(expired)} vencidas</span>`);
+      }
+      if(blocked > 0){
+        badges.push(`<span class="badge rounded-pill text-bg-warning stock-badge" data-bs-toggle="tooltip" title="${esc(num(blocked))} unidades en cuarentena o no aptas para venta.">! ${num(blocked)} inmovilizadas</span>`);
+      }
+      if(inbound > 0){
+        badges.push(`<span class="badge rounded-pill text-bg-primary stock-badge" data-bs-toggle="tooltip" title="${esc(num(inbound))} unidades en tránsito.">+${num(inbound)} en camino</span>`);
+      }
+      return `
+        <div class="stock-stack">
+          <div class="stock-main">
+            <span class="stock-qty text-success" data-bs-toggle="tooltip" title="Stock vendible usado para la decisión de compra.">${num(sellable)}</span>
+            <span class="unit">ud</span>
+          </div>
+          ${badges.length ? `<div class="stock-badges">${badges.join("")}</div>` : ""}
+          <div class="stock-detail">Físico total: ${num(physical)}</div>
+          <div><span class="coverage-chip">Rot. ${num(row?.monthly_rotation)} / mes</span></div>
+          <div><span class="coverage-chip">${row?.coverage_days == null ? "Sin cobertura" : `${num(row.coverage_days)} dias`}</span></div>
+        </div>`;
+    }
+
     function renderResults(){
       const house = el("house_filter").value;
       visibleRows = house ? rows.filter(r => (r.model || "") === house) : rows.slice();
@@ -434,9 +480,7 @@
           </td>
           <td class="text-center" data-label="Decision"><span class="badge ${decisionBadge(r.decision)}">${esc(r.decision||"-")}</span></td>
           <td class="result-stock" data-label="Exist. / rotacion">
-            <div class="stock-qty">${num(r.stock_qty)}</div>
-            <div class="mt-1"><span class="coverage-chip">Rot. ${num(r.monthly_rotation)} / mes</span></div>
-            <div class="mt-1"><span class="coverage-chip">${r.coverage_days == null ? "Sin cobertura" : `${num(r.coverage_days)} dias`}</span></div>
+            ${renderStockColumn(r)}
           </td>
           <td class="result-supplier" data-label="Proveedor">
             <div>${esc(r.supplier_name||"-")}</div>
@@ -462,6 +506,7 @@
       document.querySelectorAll("[data-analyze]").forEach(btn=>btn.addEventListener("click",()=>selectForAnalysis(visibleRows[Number(btn.dataset.analyze)])));
       document.querySelectorAll("[data-add]").forEach(btn=>btn.addEventListener("click",()=>addToCart(visibleRows[Number(btn.dataset.add)])));
       document.querySelectorAll("[data-ref]").forEach(btn=>btn.addEventListener("click",()=>editReference(visibleRows[Number(btn.dataset.ref)])));
+      initTooltips(el("results_panel"));
     }
 
     function renderHouseFilter(){
