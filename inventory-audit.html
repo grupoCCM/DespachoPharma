@@ -94,11 +94,18 @@
     .resolution-meta{ color:var(--muted); font-size:.78rem; display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:6px; }
     .resolution-meta span{ white-space:nowrap; }
     .return-current{ border:1px solid #bfdbfe; background:#eff6ff; border-radius:12px; padding:12px; }
+    .return-steps{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+    .return-step{ border:1px solid var(--border); border-radius:10px; background:#fff; padding:10px 12px; min-height:72px; }
+    .return-step strong{ display:block; font-size:.86rem; margin-bottom:3px; }
+    .return-step span{ display:block; color:var(--muted); font-size:.78rem; line-height:1.2; }
+    .return-step.active{ border-color:#60a5fa; background:#eff6ff; }
     .return-lines{ max-height:340px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
-    .return-lines table{ min-width:860px; margin-bottom:0; }
+    .return-lines table{ min-width:940px; margin-bottom:0; }
     .return-lines thead th{ position:sticky; top:0; background:#f8fafc; z-index:2; }
     .return-doc-row{ cursor:pointer; }
     .return-doc-row:hover{ background:#f8fafc; }
+    @media (max-width: 992px){ .return-steps{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width: 576px){ .return-steps{ grid-template-columns:1fr; } }
     .resolution-empty{ padding:22px 16px; text-align:center; color:var(--muted); }
     @media (max-width: 991.98px){ .resolution-row{ grid-template-columns:1fr; align-items:start; } }
     @media (max-width: 575.98px){ .resolution-row{ grid-template-columns:1fr; } }
@@ -234,8 +241,23 @@
         <span id="return_doc_status" class="badge text-bg-light border">Sin documento</span>
       </div>
 
-      <div class="alert alert-light border small mt-3 mb-0">
-        Usa este flujo cuando el proveedor ya retiro producto fisicamente. Si solo recibiste una nota de credito de algo ya devuelto, conciliala con el documento aplicado.
+      <div class="return-steps mt-3">
+        <div class="return-step active">
+          <strong>1. Crear hoja</strong>
+          <span>Registra proveedor, fecha y numero de hoja de retiro.</span>
+        </div>
+        <div class="return-step">
+          <strong>2. Agregar lotes</strong>
+          <span>Selecciona producto/lote y cantidad retirada.</span>
+        </div>
+        <div class="return-step">
+          <strong>3. Aplicar salida</strong>
+          <span>Descuenta inventario cuando la hoja este correcta.</span>
+        </div>
+        <div class="return-step">
+          <strong>4. Conciliar NC</strong>
+          <span>Cuando llegue la nota de credito, solo vincula el documento.</span>
+        </div>
       </div>
 
       <div class="row g-3 align-items-end mt-1">
@@ -305,10 +327,11 @@
                 <th class="text-center">Cant.</th>
                 <th>Motivo</th>
                 <th class="text-end">Costo</th>
+                <th class="text-end">Accion</th>
               </tr>
             </thead>
             <tbody id="tbody_return_items">
-              <tr><td colspan="6" class="text-center text-muted py-4">Sin productos en la hoja.</td></tr>
+              <tr><td colspan="7" class="text-center text-muted py-4">Sin productos en la hoja.</td></tr>
             </tbody>
           </table>
         </div>
@@ -1384,7 +1407,8 @@
 
     function renderReturnItems(){
       const body = el("tbody_return_items");
-      body.innerHTML = returnItems.length ? returnItems.map(item => `
+      const canEdit = selectedReturnDoc?.status === "draft";
+      body.innerHTML = returnItems.length ? returnItems.map((item, idx) => `
         <tr>
           <td>
             <div class="fw-semibold">${esc(item.medicine_name_snapshot || "-")}</div>
@@ -1395,7 +1419,13 @@
           <td class="text-center fw-semibold">${units(item.qty)}</td>
           <td>${esc(item.reason || "-")}</td>
           <td class="text-end">${money(item.unit_cost)}</td>
-        </tr>`).join("") : `<tr><td colspan="6" class="text-center text-muted py-4">Sin productos en la hoja.</td></tr>`;
+          <td class="text-end">
+            <button type="button" class="btn btn-outline-danger btn-sm" data-return-remove="${idx}" ${canEdit ? "" : "disabled"}>Quitar</button>
+          </td>
+        </tr>`).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin productos en la hoja.</td></tr>`;
+      document.querySelectorAll("[data-return-remove]").forEach(btn => {
+        btn.addEventListener("click", () => removeSupplierReturnItem(Number(btn.dataset.returnRemove)));
+      });
       renderReturnDocStatus();
     }
 
@@ -1596,6 +1626,26 @@
         showOk("Producto agregado a la hoja de devolucion.");
       }catch(err){
         showAlert(err.message || "No se pudo agregar el producto.");
+      }
+    }
+
+    async function removeSupplierReturnItem(idx){
+      hideAlert();
+      hideOk();
+      const item = returnItems[idx];
+      if(!selectedReturnDoc || selectedReturnDoc.status !== "draft" || !item) return;
+      if(!confirm(`Quitar esta linea del borrador?\n\n${item.medicine_name_snapshot || "-"}\nLote: ${item.lot_no || "-"} - Cantidad: ${units(item.qty)}`)) return;
+      try{
+        const s = getSession();
+        await callRpc("rpc_supplier_return_item_remove", {
+          p_session_token:s.token,
+          p_item_id:item.id
+        });
+        await loadReturnDetail(selectedReturnDoc.id);
+        await loadSupplierReturns();
+        showOk("Linea quitada del borrador. No movio inventario.");
+      }catch(err){
+        showAlert(err.message || "No se pudo quitar la linea.");
       }
     }
 
