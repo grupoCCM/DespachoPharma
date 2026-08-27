@@ -21,6 +21,13 @@
     .table td,.table th{ vertical-align:middle; }
     .kbd-hint{ border:1px solid var(--border); border-radius:10px; padding:.15rem .45rem; background:#fff; }
     .soft{ color:#475569; }
+    .lot-panel{ border:1px solid var(--border); border-radius:12px; background:#f8fafc; }
+    .lot-row{ display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; padding:9px 10px; border-bottom:1px solid var(--border); }
+    .lot-row:last-child{ border-bottom:0; }
+    .lot-row.disabled{ background:#f1f5f9; opacity:.58; }
+    .lot-meta{ color:#64748b; font-size:.78rem; line-height:1.25; }
+    .lot-qty{ font-weight:800; text-align:right; }
+    .qty-limit.is-invalid{ border-color:#dc3545; box-shadow:0 0 0 .2rem rgba(220,53,69,.12); }
   </style>
 </head>
 
@@ -91,6 +98,17 @@
               </button>
               <button id="btn_clear" class="btn btn-outline-secondary btn-sm">Limpiar</button>
             </div>
+          </div>
+
+          <div id="lot_panel" class="lot-panel mt-3 d-none">
+            <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+              <div>
+                <div class="fw-semibold small">Lotes FEFO</div>
+                <div class="text-muted small">La base descuenta primero el lote vendible mas proximo a vencer.</div>
+              </div>
+              <span id="lot_summary" class="badge text-bg-light border">-</span>
+            </div>
+            <div id="lot_list"></div>
           </div>
 
           <hr class="my-3">
@@ -285,6 +303,80 @@
       cartTotals();
     }
 
+    function clearLots(){
+      el("lot_panel").classList.add("d-none");
+      el("lot_summary").textContent = "-";
+      el("lot_list").innerHTML = "";
+    }
+
+    function lotBadge(lot){
+      if(Number(lot.sellable_lot_qty || 0) > 0 && lot.is_sellable === true) return `<span class="badge text-bg-success">Vendible</span>`;
+      if(lot.expiration_status === "expired") return `<span class="badge bg-danger">VENCIDO</span>`;
+      return `<span class="badge bg-warning text-dark">RETENIDO</span>`;
+    }
+
+    function dateText(value){
+      if(!value) return "Sin vencimiento";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("es-SV");
+    }
+
+    function renderLots(lots){
+      const physical = lots.reduce((sum,lot)=>sum + Math.max(0, Math.trunc(Number(lot.physical_lot_qty || 0))), 0);
+      const sellable = lots.reduce((sum,lot)=>sum + Math.max(0, Math.trunc(Number(lot.sellable_lot_qty || 0))), 0);
+      el("lot_summary").textContent = `${sellable}/${physical} vendibles`;
+      el("lot_list").innerHTML = lots.length ? lots.map(lot => {
+        const sellableQty = Math.max(0, Math.trunc(Number(lot.sellable_lot_qty || 0)));
+        const physicalQty = Math.max(0, Math.trunc(Number(lot.physical_lot_qty || 0)));
+        const disabled = !(sellableQty > 0 && lot.is_sellable === true);
+        return `
+          <div class="lot-row ${disabled ? "disabled bg-light" : ""}">
+            <div>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="fw-semibold">Lote ${esc(lot.lot_no || "-")}</span>
+                ${lotBadge(lot)}
+              </div>
+              <div class="lot-meta">Vence: ${esc(dateText(lot.expires_at))} · Fisico: ${physicalQty} · Vendible: ${sellableQty}</div>
+            </div>
+            <div class="lot-qty">${sellableQty}</div>
+          </div>`;
+      }).join("") : `<div class="p-3 text-muted small">Sin lotes fisicos registrados para este producto.</div>`;
+      el("lot_panel").classList.remove("d-none");
+    }
+
+    async function fetchLots(externalCode){
+      if(!externalCode){ clearLots(); return; }
+      const url = `${SUPABASE_URL}/rest/v1/vw_lot_stock_state?external_code=eq.${encodeURIComponent(externalCode)}&select=lot_no,expires_at,expiration_status,physical_lot_qty,sellable_lot_qty,is_sellable&order=expires_at.asc.nullslast,lot_no.asc.nullslast`;
+      const res = await fetch(url, { headers:{ "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${SUPABASE_ANON_KEY}` } });
+      const text = await res.text();
+      let data = null; try{ data = text ? JSON.parse(text) : null; }catch{ data = null; }
+      if(!res.ok) throw new Error(data?.message || data?.details || "No se pudieron cargar los lotes.");
+      renderLots(Array.isArray(data) ? data : []);
+    }
+
+    function setQtyLimit(availableQty){
+      const available = Math.max(0, Math.trunc(Number(availableQty || 0)));
+      const qty = el("qty");
+      if(available > 0) qty.setAttribute("max", String(available));
+      else qty.removeAttribute("max");
+      qty.classList.toggle("qty-limit", available > 0);
+      qty.classList.remove("is-invalid");
+    }
+
+    function enforceQtyLimit(){
+      const qty = el("qty");
+      const max = Number(qty.getAttribute("max") || 0);
+      const current = Math.max(1, parseInt(normalizeDigits(qty.value) || "1", 10));
+      if(max > 0 && current > max){
+        qty.value = String(max);
+        qty.classList.add("is-invalid");
+        showAlert("alert_main", `Cantidad ajustada al maximo disponible: ${max}.`);
+        return max;
+      }
+      qty.classList.remove("is-invalid");
+      return current;
+    }
+
     /***********************
      * Lookup (pharma_catalog)
      ***********************/
@@ -300,6 +392,7 @@
       const normalizedMatch = normalizeDigits(data?.barcode);
       const value = {
         barcode: normalizedMatch || normalizedInput,
+        external_code: data.external_code || null,
         name: data.name,
         active: !!data.active,
         available_qty: Number(data.available_qty || 0),
@@ -333,6 +426,8 @@
       const bc = normalizeDigits(barcode);
       if(!bc){
         setLookupUI({ ok:false, name:"-", msg:"" });
+        clearLots();
+        setQtyLimit(0);
         return;
       }
 
@@ -344,6 +439,8 @@
         }else{
           setLookupUI({ ok:Number(c.available_qty || 0) > 0, name:c.name, msg:stockBadge(c) });
         }
+        setQtyLimit(c.available_qty);
+        fetchLots(c.external_code).catch(()=>clearLots());
         return c;
       }
 
@@ -361,6 +458,8 @@
             name:"No identificado",
             msg:`<span class="badge text-bg-warning ms-2">No existe en catalogo</span>`
           });
+          clearLots();
+          setQtyLimit(0);
           return null;
         }
 
@@ -371,6 +470,7 @@
 
         const cached = cacheLookup(bc, {
           barcode:r.barcode || bc,
+          external_code: stock?.external_code || r.external_code || null,
           name:r.product_name,
           active:!!r.active,
           available_qty: stock ? Number(stock.available_qty || 0) : 0,
@@ -384,10 +484,14 @@
         }else{
           setLookupUI({ ok:true, name:r.product_name, msg:stockBadge(stock) });
         }
+        setQtyLimit(cached.available_qty);
+        fetchLots(cached.external_code).catch(()=>clearLots());
         return cached;
       } catch(err){
         showAlert("alert_main", err.message || "No se pudo consultar el catalogo.");
         setLookupUI({ ok:false, name:"-", msg:"" });
+        clearLots();
+        setQtyLimit(0);
         return null;
       }
     }
@@ -400,7 +504,18 @@
       el("barcode").value = "";
       el("qty").value = "1";
       setLookupUI({ ok:false, name:"-", msg:"" });
+      clearLots();
+      setQtyLimit(0);
       el("barcode").focus();
+    }
+
+    function fefoInventoryChangedMessage(){
+      return "El inventario disponible cambio durante la operacion. Vuelve a cargar el producto/lotes e intenta de nuevo.";
+    }
+
+    function isFefoInventoryError(err){
+      const message = String(err?.message || err || "");
+      return /lotes vendibles suficientes|inventario disponible cambio|sellable/i.test(message);
     }
 
     async function addToCart(){
@@ -422,7 +537,7 @@
         return;
       }
 
-      const qty = Math.max(1, parseInt(normalizeDigits(el("qty").value) || "1", 10));
+      const qty = enforceQtyLimit();
       window.clearTimeout(window.__lk);
       const cached = lookupCache.get(bc) || await lookupBarcode(bc);
 
@@ -434,11 +549,23 @@
       const cartBarcode = normalizeDigits(cached.barcode || bc);
       const currentQty = cart.has(cartBarcode) ? Number(cart.get(cartBarcode).qty || 0) : 0;
       const requestedQty = currentQty + qty;
+      const availableCached = Math.max(0, Math.trunc(Number(cached.available_qty || 0)));
+      if(availableCached > 0 && requestedQty > availableCached){
+        const remaining = Math.max(0, availableCached - currentQty);
+        el("qty").value = String(Math.max(1, remaining || 1));
+        el("qty").classList.add("is-invalid");
+        const extra = remaining > 0
+          ? `Puedes agregar ${remaining}.`
+          : "Ya tienes en el carrito todo lo disponible.";
+        showAlert("alert_main", `No se puede agregar ${qty} de ${cached.name}. En carrito: ${currentQty}. disponible: ${availableCached}. ${extra}`);
+        return;
+      }
       const stock = await checkStock(cartBarcode, requestedQty);
       if(!stock || stock.ok !== true){
         const available = Math.max(0, Math.trunc(Number(stock?.available_qty || 0)));
         showAlert("alert_main", `No se puede despachar ${cached.name}. disponible: ${available}.`);
-        cacheLookup(bc, { ...cached, available_qty: available, stock_qty: stock?.stock_qty || 0 });
+        cacheLookup(bc, { ...cached, external_code: stock?.external_code || cached.external_code, available_qty: available, stock_qty: stock?.stock_qty || 0 });
+        setQtyLimit(available);
         setLookupUI({ ok:false, name:cached.name, msg:stockBadge(stock) });
         return;
       }
@@ -484,7 +611,12 @@
         showAlert("alert_ok", `Despacho confirmado${delivery_no ? " | Entrega #"+delivery_no : ""}.`);
         clearInputs(false);
       } catch(err){
-        showAlert("alert_main", err.message || "No se pudo confirmar el despacho.");
+        if(isFefoInventoryError(err)){
+          lookupCache.clear();
+          showAlert("alert_main", fefoInventoryChangedMessage());
+        }else{
+          showAlert("alert_main", err.message || "No se pudo confirmar el despacho.");
+        }
       } finally {
         btnLoad("btn_confirm","btn_confirm_text","btn_confirm_spinner", false, "Confirmando...", "Confirmar despacho");
       }
@@ -519,7 +651,10 @@
 
       // Inputs normalize
       el("expediente").addEventListener("input",(e)=>{ e.target.value = normalizeDigits(e.target.value); });
-      el("qty").addEventListener("input",(e)=>{ e.target.value = normalizeDigits(e.target.value); });
+      el("qty").addEventListener("input",(e)=>{
+        e.target.value = normalizeDigits(e.target.value);
+        enforceQtyLimit();
+      });
 
       el("barcode").addEventListener("input",(e)=>{
         e.target.value = normalizeDigits(e.target.value);
