@@ -667,6 +667,7 @@ begin
       d.credit_note_date,
       d.line_count,
       d.total_units,
+      d.created_at,
       d.created_by_name,
       d.applied_by_name,
       d.applied_at,
