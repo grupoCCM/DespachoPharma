@@ -48,6 +48,25 @@ Dispositivos controla producto y unidad serializada. No se puede vender una unid
    - Documento o comentario.
 3. La unidad queda disponible para venta.
 
+## CRUD administrativo
+
+La administracion de dispositivos debe ser trazable. La accion normal no es borrar datos historicos, sino corregir o retirar unidades con motivo.
+
+Funciones incluidas en la migracion `064_device_admin_crud.sql`:
+
+- Carga masiva de codigos unicos desde pantalla admin.
+- Consulta administrable por serial, producto, documento, expediente o estado.
+- Correccion de unidades disponibles: producto, lote, vencimiento, costo, documento y comentario.
+- Retiro administrativo de unidades disponibles: retirado, danado, perdido o inactivo.
+- Auditoria de cambios admin en `device_admin_audit`.
+
+Reglas:
+
+- Solo admin puede corregir o retirar unidades.
+- Solo unidades `available` pueden ser corregidas o retiradas.
+- Una unidad vendida no se modifica desde CRUD; requiere un flujo separado de anulacion de venta.
+- Toda correccion o retiro requiere motivo.
+
 ## Separacion de datos
 
 La migracion `063_device_products_module.sql` crea tablas nuevas:
@@ -68,3 +87,4 @@ No modifica las tablas de farmacia ni sus movimientos.
 - Reporte de utilidad usando el archivo `Utilidad por Articulo`.
 - Historico descargable a Excel/PDF.
 - Manejo de anulacion de venta de dispositivos, si el proceso operativo lo requiere.
+- Anulacion de venta de dispositivos con devolucion controlada a disponible o retiro.
