@@ -496,9 +496,34 @@
               <tbody id="d_items_body"></tbody>
             </table>
           </div>
+
+          <div id="device_void_info" class="d-none mt-3">
+            <div class="alert alert-secondary mb-0">
+              <div class="fw-semibold mb-1">Venta anulada</div>
+              <div class="small">
+                <span class="me-3">Por: <span id="d_voided_by" class="fw-semibold">—</span></span>
+                <span>Fecha: <span id="d_voided_at" class="fw-semibold">—</span></span>
+              </div>
+              <div class="small mt-1">Motivo: <span id="d_void_reason" class="fw-semibold">—</span></div>
+            </div>
+          </div>
+
+          <div id="device_void_section" class="d-none mt-3 border rounded-3 p-3 bg-light">
+            <div id="alert_device_void_ok" class="alert alert-success d-none mb-2"></div>
+            <label class="form-label" for="device_void_reason">Motivo de anulación <span class="text-danger">*</span></label>
+            <textarea id="device_void_reason" class="form-control" rows="2" maxlength="500" placeholder="Ej: venta de prueba, error de escaneo, expediente incorrecto"></textarea>
+            <div class="d-flex justify-content-end gap-2 mt-3">
+              <button id="btn_device_void_cancel" class="btn btn-outline-secondary btn-sm" type="button">Cancelar</button>
+              <button id="btn_device_void" class="btn btn-danger btn-sm" type="button">
+                <span id="btn_device_void_text">Anular venta</span>
+                <span id="btn_device_void_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="modal-footer">
+          <button id="btn_device_void_show" class="btn btn-outline-danger me-auto d-none" type="button">Anular venta</button>
           <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
         </div>
       </div>
@@ -1236,6 +1261,7 @@
     let devicePageOffset = 0;
     let deviceLastFetchedCount = 0;
     let deviceRenderedRows = [];
+    let currentDeviceSaleNo = null;
 
     function setHistoryMode(mode){
       activeHistoryMode = mode;
@@ -1356,7 +1382,13 @@
 
     async function openDeviceDetail(saleNo){
       hideAlert("alert_device_modal");
+      hideAlert("alert_device_void_ok");
       el("d_items_body").innerHTML = "";
+      el("device_void_section").classList.add("d-none");
+      el("device_void_info").classList.add("d-none");
+      el("btn_device_void_show").classList.add("d-none");
+      el("device_void_reason").value = "";
+      currentDeviceSaleNo = null;
 
       const { token } = getSession();
       const ok = await touchSession(true);
@@ -1368,6 +1400,7 @@
           showAlert("alert_device_results", "No se pudo abrir el detalle de dispositivos.");
           return;
         }
+        currentDeviceSaleNo = Number(detail.sale_no || saleNo);
 
         const items = Array.isArray(detail.items) ? detail.items : [];
         const totalSale = items.reduce((acc,it) => acc + (Number(it.price) || 0), 0);
@@ -1384,6 +1417,15 @@
         el("d_profit").className = profit < 0 ? "fw-semibold text-danger" : "fw-semibold text-success";
         el("d_user").textContent = detail.created_by_name || "—";
         el("d_confirmed_at").textContent = fmtTime(detail.confirmed_at || detail.created_at);
+
+        if (detail.status === "voided"){
+          el("device_void_info").classList.remove("d-none");
+          el("d_voided_by").textContent = detail.voided_by_name || "—";
+          el("d_voided_at").textContent = detail.voided_at ? fmtTime(detail.voided_at) : "—";
+          el("d_void_reason").textContent = detail.void_reason || "Sin motivo registrado";
+        } else {
+          el("btn_device_void_show").classList.remove("d-none");
+        }
 
         const tb = el("d_items_body");
         if (!items.length){
@@ -1409,6 +1451,59 @@
         bootstrap.Modal.getOrCreateInstance(el("device_modal_detail")).show();
       }catch(err){
         showAlert("alert_device_results", err.message || "Error cargando detalle de dispositivos.");
+      }
+    }
+
+    function showDeviceVoidForm(){
+      hideAlert("alert_device_modal");
+      hideAlert("alert_device_void_ok");
+      el("device_void_section").classList.remove("d-none");
+      el("btn_device_void_show").classList.add("d-none");
+      setTimeout(() => el("device_void_reason").focus(), 50);
+    }
+
+    function hideDeviceVoidForm(){
+      hideAlert("alert_device_modal");
+      hideAlert("alert_device_void_ok");
+      el("device_void_section").classList.add("d-none");
+      el("btn_device_void_show").classList.remove("d-none");
+      el("device_void_reason").value = "";
+    }
+
+    async function voidDeviceSale(){
+      hideAlert("alert_device_modal");
+      hideAlert("alert_device_void_ok");
+      if (!currentDeviceSaleNo){
+        showAlert("alert_device_modal", "No se identificó la venta de dispositivos.");
+        return;
+      }
+      const reason = (el("device_void_reason").value || "").trim();
+      if (!reason){
+        showAlert("alert_device_modal", "Debe indicar un motivo para la anulación.");
+        el("device_void_reason").focus();
+        return;
+      }
+      if (!confirm("¿Anular esta venta de dispositivo y devolver sus unidades a disponibles?")) return;
+
+      const { token } = getSession();
+      const ok = await touchSession(true);
+      if (!ok) return logoutAndGoLogin();
+
+      try{
+        setBtnLoading("btn_device_void", "btn_device_void_text", "btn_device_void_spinner", true, "Anulando…", "Anular venta");
+        const result = await callRpc("rpc_device_sale_void", {
+          p_session_token: token,
+          p_sale_no: currentDeviceSaleNo,
+          p_reason: reason
+        });
+        el("alert_device_void_ok").textContent = `Venta anulada. Unidades devueltas: ${Number(result?.units_returned || 0)}.`;
+        el("alert_device_void_ok").classList.remove("d-none");
+        await deviceSearch();
+        await openDeviceDetail(currentDeviceSaleNo);
+      }catch(err){
+        showAlert("alert_device_modal", err.message || "No se pudo anular la venta de dispositivos.");
+      }finally{
+        setBtnLoading("btn_device_void", "btn_device_void_text", "btn_device_void_spinner", false, "Anulando…", "Anular venta");
       }
     }
 
@@ -1659,6 +1754,9 @@
       el("btn_export_pdf").addEventListener("click", exportPDF);
       el("btn_device_export_csv").addEventListener("click", exportDeviceCSV);
       el("btn_device_export_pdf").addEventListener("click", exportDevicePDF);
+      el("btn_device_void_show").addEventListener("click", showDeviceVoidForm);
+      el("btn_device_void_cancel").addEventListener("click", hideDeviceVoidForm);
+      el("btn_device_void").addEventListener("click", voidDeviceSale);
 
       // auto-search inicial
       try{

@@ -56,10 +56,10 @@
     <div id="alert_ok" class="alert alert-success d-none"></div>
 
     <div class="row g-3 mb-3">
-      <div class="col-6 col-lg-3"><div class="metric"><div class="label">Productos</div><div id="m_products" class="value">-</div></div></div>
+      <div class="col-6 col-lg-3"><div class="metric"><div class="label">Tipos activos</div><div id="m_products" class="value">-</div></div></div>
       <div class="col-6 col-lg-3"><div class="metric"><div class="label">Disponibles</div><div id="m_available" class="value text-success">-</div></div></div>
       <div class="col-6 col-lg-3"><div class="metric"><div class="label">Vendidos</div><div id="m_sold" class="value text-primary">-</div></div></div>
-      <div class="col-6 col-lg-3"><div class="metric"><div class="label">Valor disponible</div><div id="m_value" class="value">-</div></div></div>
+      <div class="col-6 col-lg-3"><div class="metric"><div class="label">Registradas</div><div id="m_registered" class="value">-</div></div></div>
     </div>
 
     <ul class="nav nav-tabs mb-3" id="tabs" role="tablist">
@@ -511,7 +511,7 @@
         el("m_products").textContent = Number(summary.products || 0);
         el("m_available").textContent = Number(summary.available_qty || 0);
         el("m_sold").textContent = Number(summary.sold_qty || 0);
-        el("m_value").textContent = money(summary.available_cost_value || 0);
+        el("m_registered").textContent = Number(summary.physical_units || 0);
         renderProducts(products);
         renderUnits(payload?.recent_units || []);
         loadProductSelect();
