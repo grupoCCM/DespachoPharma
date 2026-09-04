@@ -62,11 +62,15 @@
     .pm-filter-card{ background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:.75rem; }
     .pm-filter-card .form-control{ min-height:38px; }
     .pm-muted-note{ color:#64748b; font-size:.78rem; }
+    .nav-module-separator{ width:1px; height:28px; background:var(--border); margin:0 .25rem; }
+    .btn-device-module{ border-color:#0f766e; color:#0f766e; background:#ecfdf5; font-weight:700; }
+    .btn-device-module:hover,.btn-device-module:focus{ background:#0f766e; color:#fff; border-color:#0f766e; }
     @media (max-width: 768px){
       .insight-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
       .bar-row{ grid-template-columns:64px 1fr; }
       .bar-row > div:last-child{ grid-column:2; text-align:left !important; }
       .price-margin-wrap{ max-height:70vh; }
+      .nav-module-separator{ display:none; }
     }
   </style>
 </head>
@@ -84,7 +88,8 @@
         <a class="btn btn-outline-secondary btn-sm" href="inventory-audit.html">Inventario</a>
         <a class="btn btn-outline-secondary btn-sm" href="expiration-dashboard.html">Vencimientos</a>
         <a class="btn btn-outline-secondary btn-sm" href="imports.html">Importaciones</a>
-        <a class="btn btn-outline-secondary btn-sm" href="device-inventory.html">Dispositivos</a>
+        <span class="nav-module-separator" aria-hidden="true"></span>
+        <a class="btn btn-device-module btn-sm" href="device-inventory.html">Dispositivos</a>
         <a class="btn btn-outline-secondary btn-sm" href="catalog.html">Catalogo</a>
         <span class="badge text-bg-light border">
           <span class="text-muted">Usuario:</span> <span id="nav_user" class="ms-1 fw-semibold">-</span>

@@ -42,6 +42,10 @@
       text-overflow:ellipsis;
       white-space:nowrap;
     }
+    .nav-module-separator{ width:1px; height:28px; background:var(--border); margin:0 .25rem; }
+    .btn-device-module{ border-color:#0f766e; color:#0f766e; background:#ecfdf5; font-weight:700; }
+    .btn-device-module:hover,.btn-device-module:focus{ background:#0f766e; color:#fff; border-color:#0f766e; }
+    @media (max-width: 768px){ .nav-module-separator{ display:none; } }
   </style>
 </head>
 
@@ -58,7 +62,8 @@
         <a class="btn btn-outline-secondary btn-sm" href="purchasing.html">Compras</a>
         <a class="btn btn-outline-secondary btn-sm" href="imports.html">Importaciones</a>
         <a class="btn btn-outline-secondary btn-sm" href="expiration-dashboard.html">Vencimientos</a>
-        <a class="btn btn-outline-secondary btn-sm" href="device-inventory.html">Dispositivos</a>
+        <span class="nav-module-separator" aria-hidden="true"></span>
+        <a class="btn btn-device-module btn-sm" href="device-inventory.html">Dispositivos</a>
         <a class="btn btn-outline-secondary btn-sm" href="catalog.html">Catalogo</a>
         <span class="badge text-bg-light border">
           <span class="text-muted">Usuario:</span>

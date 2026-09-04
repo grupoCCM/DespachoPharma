@@ -109,6 +109,10 @@
     .resolution-empty{ padding:22px 16px; text-align:center; color:var(--muted); }
     @media (max-width: 991.98px){ .resolution-row{ grid-template-columns:1fr; align-items:start; } }
     @media (max-width: 575.98px){ .resolution-row{ grid-template-columns:1fr; } }
+    .nav-module-separator{ width:1px; height:28px; background:var(--border); margin:0 .25rem; }
+    .btn-device-module{ border-color:#0f766e; color:#0f766e; background:#ecfdf5; font-weight:700; }
+    .btn-device-module:hover,.btn-device-module:focus{ background:#0f766e; color:#fff; border-color:#0f766e; }
+    @media (max-width: 768px){ .nav-module-separator{ display:none; } }
   </style>
 </head>
 <body>
@@ -125,6 +129,8 @@
         <a class="btn btn-outline-secondary btn-sm nav-admin-only" href="expiration-dashboard.html">Vencimientos</a>
         <a class="btn btn-outline-secondary btn-sm nav-ops-only d-none" href="dispatch-menu.html">Despacho</a>
         <a class="btn btn-outline-secondary btn-sm" href="availability.html">Disponibilidad</a>
+        <span class="nav-module-separator nav-admin-only" aria-hidden="true"></span>
+        <a class="btn btn-device-module btn-sm nav-admin-only" href="device-inventory.html">Dispositivos</a>
         <span class="badge text-bg-light border"><span class="text-muted">Usuario:</span> <span id="nav_user" class="ms-1 fw-semibold">-</span></span>
         <button id="btn_logout" class="btn btn-outline-secondary btn-sm">Salir</button>
       </div>
