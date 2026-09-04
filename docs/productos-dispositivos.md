@@ -11,7 +11,7 @@ Productos base analizados:
 - `804` Estudio diagnóstico de apnea del sueño
 - `805` SIBIONICS GS1 CGM (Monitoreo de Glucosa)
 
-El despacho se maneja como venta definitiva. Cada unidad debe tener un codigo unico propio, por ejemplo:
+El despacho puede registrarse como venta definitiva o como reposicion. Cada unidad debe tener un codigo unico propio, por ejemplo:
 
 - Apnea: `AA2601GW80`
 - Glucosa: `2606386QBG78EEAN30`
@@ -33,9 +33,17 @@ Dispositivos controla producto y unidad serializada. No se puede vender una unid
 2. El sistema muestra selector de despacho:
    - Farmacia
    - Dispositivos
-3. En dispositivos, el usuario digita expediente y escanea/digita el codigo unico.
+3. En dispositivos, el usuario digita expediente, elige `Venta` o `Reposicion`, y escanea/digita el codigo unico.
 4. La aplicacion valida que la unidad exista y este disponible.
-5. Al confirmar, la unidad pasa a estado `sold`.
+5. Si elige `Reposicion`, debe indicar motivo.
+6. Al confirmar, la unidad pasa a estado `sold`.
+
+En una reposicion:
+
+- Se descuenta inventario igual que una venta.
+- El precio de venta queda en `0`.
+- El costo se conserva para trazabilidad y analisis operativo.
+- El historico muestra el tipo `Reposicion` y el motivo registrado.
 
 ## Flujo administrativo
 
@@ -75,7 +83,7 @@ Incluye:
 
 - Filtros por fecha, estado y texto libre.
 - Busqueda por venta, expediente, producto, codigo unico o usuario.
-- Resumen de registros, unidades, venta y utilidad.
+- Resumen de registros, unidades activas/anuladas, venta y utilidad.
 - Detalle por venta con cada codigo unico despachado.
 - Exportacion CSV y PDF independiente del reporte de farmacia.
 
@@ -85,6 +93,13 @@ La capa de datos esta en la migracion `065_device_sales_history.sql`:
 - `rpc_device_sale_detail`
 
 Estas funciones son solo de lectura y requieren usuario admin.
+
+La migracion `067_device_replacement_flow.sql` agrega:
+
+- `device_sales.sale_type`
+- `device_sales.replacement_reason`
+- `device_sale_items.sale_type`
+- Variante de `rpc_device_dispatch_submit` compatible con `p_sale_type` y `p_reason`.
 
 ## Separacion de datos
 
@@ -104,5 +119,4 @@ No modifica las tablas de farmacia ni sus movimientos.
 - Conciliacion entre compras esperadas y seriales realmente registrados.
 - Dashboard comercial separado de dispositivos.
 - Reporte de utilidad usando el archivo `Utilidad por Articulo`.
-- Manejo de anulacion de venta de dispositivos, si el proceso operativo lo requiere.
-- Anulacion de venta de dispositivos con devolucion controlada a disponible o retiro.
+- Importacion operativa de compras de productos no farmacos.

@@ -13,6 +13,8 @@
     .mono{ font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace; }
     .soft{ color:var(--muted); }
     .table td,.table th{ vertical-align:middle; }
+    .sale-mode{ border:1px solid var(--border); border-radius:12px; padding:12px; background:#f8fafc; }
+    .sale-mode .btn-check:checked + .btn{ box-shadow:0 0 0 .18rem rgba(25,135,84,.14); }
     @media (max-width: 767px){
       .navbar .container{ gap:.5rem; }
       .navbar .btn{ padding:.25rem .45rem; }
@@ -43,7 +45,7 @@
           <div class="d-flex justify-content-between align-items-start">
             <div>
               <h1 class="h5 mb-1">Despacho de dispositivos</h1>
-              <div class="soft small">Venta definitiva por codigo unico.</div>
+              <div class="soft small">Venta o reposicion por codigo unico.</div>
             </div>
             <span class="badge text-bg-success">Serial</span>
           </div>
@@ -54,6 +56,21 @@
           <div class="mt-3">
             <label class="form-label" for="expediente">Expediente</label>
             <input id="expediente" class="form-control mono" inputmode="numeric" autocomplete="off" placeholder="Ej: 4651" />
+          </div>
+
+          <div class="sale-mode mt-3">
+            <label class="form-label mb-2">Tipo de salida</label>
+            <div class="btn-group w-100" role="group" aria-label="Tipo de salida">
+              <input type="radio" class="btn-check" name="sale_type" id="sale_type_sale" value="sale" autocomplete="off" checked>
+              <label class="btn btn-outline-success" for="sale_type_sale">Venta</label>
+              <input type="radio" class="btn-check" name="sale_type" id="sale_type_replacement" value="replacement" autocomplete="off">
+              <label class="btn btn-outline-warning" for="sale_type_replacement">Reposicion</label>
+            </div>
+            <div id="replacement_reason_wrap" class="mt-3 d-none">
+              <label class="form-label" for="replacement_reason">Motivo de reposicion</label>
+              <input id="replacement_reason" class="form-control" autocomplete="off" placeholder="Ej: garantia, falla, reposicion a paciente" />
+              <div class="form-text">La reposicion descuenta inventario, pero no genera venta.</div>
+            </div>
           </div>
 
           <div class="mt-3">
@@ -143,7 +160,7 @@
     function renderCart(){
       const tb = el("tbody");
       el("items_count").textContent = String(cart.size);
-      el("btn_confirm").disabled = cart.size === 0;
+      updateConfirmButton();
       if(cart.size === 0){
         tb.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">Agrega un dispositivo para iniciar.</td></tr>`;
         return;
@@ -163,6 +180,28 @@
         cart.delete(serialKey(btn.getAttribute("data-serial")));
         renderCart();
       }));
+    }
+
+    function getSaleType(){
+      return document.querySelector('input[name="sale_type"]:checked')?.value || "sale";
+    }
+
+    function saleTypeLabel(type){
+      return type === "replacement" ? "reposicion" : "venta";
+    }
+
+    function updateConfirmButton(){
+      const type = getSaleType();
+      const text = type === "replacement" ? "Confirmar reposicion de dispositivos" : "Confirmar venta de dispositivos";
+      el("btn_confirm").disabled = cart.size === 0;
+      el("btn_confirm_text").textContent = text;
+      el("replacement_reason_wrap").classList.toggle("d-none", type !== "replacement");
+    }
+
+    function resetSaleType(){
+      el("sale_type_sale").checked = true;
+      el("replacement_reason").value = "";
+      updateConfirmButton();
     }
 
     function setLookup(row){
@@ -225,14 +264,29 @@
       const ok = await touch();
       if(!ok) return logout();
       try{
-        btnLoad("btn_confirm","btn_confirm_text","btn_confirm_spinner",true,"Confirmando...","Confirmar venta de dispositivos");
-        const result = await callRpc("rpc_device_dispatch_submit", { p_session_token:getSession().token, p_expediente:exp, p_serials:[...cart.values()].map(r=>r.serial_code) });
-        cart.clear(); renderCart(); setLookup(null); el("serial").value = ""; el("expediente").value = "";
-        showAlert("alert_ok", `Venta confirmada${result?.sale_no ? " | Dispositivos #"+result.sale_no : ""}.`);
+        const saleType = getSaleType();
+        const reason = String(el("replacement_reason").value||"").trim();
+        if(saleType === "replacement" && !reason){
+          showAlert("alert_main","Indica el motivo de la reposicion.");
+          el("replacement_reason").focus();
+          return;
+        }
+        const offText = saleType === "replacement" ? "Confirmar reposicion de dispositivos" : "Confirmar venta de dispositivos";
+        btnLoad("btn_confirm","btn_confirm_text","btn_confirm_spinner",true,"Confirmando...",offText);
+        const result = await callRpc("rpc_device_dispatch_submit", {
+          p_session_token:getSession().token,
+          p_expediente:exp,
+          p_serials:[...cart.values()].map(r=>r.serial_code),
+          p_sale_type:saleType,
+          p_reason:reason
+        });
+        cart.clear(); renderCart(); setLookup(null); el("serial").value = ""; el("expediente").value = ""; resetSaleType();
+        showAlert("alert_ok", `${saleType === "replacement" ? "Reposicion" : "Venta"} confirmada${result?.sale_no ? " | Dispositivos #"+result.sale_no : ""}.`);
       }catch(err){
-        showAlert("alert_main", err.message || "No se pudo confirmar la venta.");
+        showAlert("alert_main", err.message || `No se pudo confirmar la ${saleTypeLabel(getSaleType())}.`);
       }finally{
-        btnLoad("btn_confirm","btn_confirm_text","btn_confirm_spinner",false,"Confirmando...","Confirmar venta de dispositivos");
+        updateConfirmButton();
+        el("btn_confirm_spinner").classList.add("d-none");
       }
     }
 
@@ -258,6 +312,10 @@
       });
       el("btn_clear").addEventListener("click", () => { el("serial").value=""; setLookup(null); hideAlert("alert_main"); el("serial").focus(); });
       el("btn_confirm").addEventListener("click", confirmSale);
+      document.querySelectorAll('input[name="sale_type"]').forEach(input => input.addEventListener("change", () => {
+        updateConfirmButton();
+        if(getSaleType() === "replacement") setTimeout(() => el("replacement_reason").focus(), 50);
+      }));
       renderCart();
       el("expediente").focus();
     })();
