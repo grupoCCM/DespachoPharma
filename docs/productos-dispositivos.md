@@ -67,6 +67,25 @@ Reglas:
 - Una unidad vendida no se modifica desde CRUD; requiere un flujo separado de anulacion de venta.
 - Toda correccion o retiro requiere motivo.
 
+## Historico y reportes
+
+El historico de dispositivos vive dentro de `history.html`, separado por pestaña de farmacia.
+
+Incluye:
+
+- Filtros por fecha, estado y texto libre.
+- Busqueda por venta, expediente, producto, codigo unico o usuario.
+- Resumen de registros, unidades, venta y utilidad.
+- Detalle por venta con cada codigo unico despachado.
+- Exportacion CSV y PDF independiente del reporte de farmacia.
+
+La capa de datos esta en la migracion `065_device_sales_history.sql`:
+
+- `rpc_device_sales_history`
+- `rpc_device_sale_detail`
+
+Estas funciones son solo de lectura y requieren usuario admin.
+
 ## Separacion de datos
 
 La migracion `063_device_products_module.sql` crea tablas nuevas:
@@ -85,6 +104,5 @@ No modifica las tablas de farmacia ni sus movimientos.
 - Conciliacion entre compras esperadas y seriales realmente registrados.
 - Dashboard comercial separado de dispositivos.
 - Reporte de utilidad usando el archivo `Utilidad por Articulo`.
-- Historico descargable a Excel/PDF.
 - Manejo de anulacion de venta de dispositivos, si el proceso operativo lo requiere.
 - Anulacion de venta de dispositivos con devolucion controlada a disponible o retiro.

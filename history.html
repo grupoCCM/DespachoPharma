@@ -25,6 +25,23 @@
     .brand-dot{ width:10px;height:10px;border-radius:999px;background:#3b82f6;display:inline-block;margin-right:8px; }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
     .table td, .table th { vertical-align: middle; }
+    .history-tab.active{ font-weight:700; }
+    .summary-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:.25rem;
+      padding:.25rem .5rem;
+      border:1px solid var(--border);
+      border-radius:999px;
+      background:#f8fafc;
+      white-space:nowrap;
+    }
+    .device-products{
+      max-width: 360px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
   </style>
 </head>
 
@@ -57,7 +74,22 @@
   </nav>
 
   <main class="container py-4">
-    <div class="row g-3">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+      <div>
+        <h1 class="h4 mb-1">Histórico</h1>
+        <div class="text-muted small">Despachos de farmacia y ventas de dispositivos, sin mezclar reportes.</div>
+      </div>
+      <ul class="nav nav-pills" id="history_mode_tabs">
+        <li class="nav-item">
+          <button id="tab_pharmacy" class="nav-link history-tab active" type="button">Farmacia</button>
+        </li>
+        <li class="nav-item">
+          <button id="tab_devices" class="nav-link history-tab" type="button">Dispositivos</button>
+        </li>
+      </ul>
+    </div>
+
+    <div id="pharmacy_history_panel" class="row g-3">
       <div class="col-12 col-lg-4">
         <div class="app-card p-3">
           <div class="fw-semibold">Filtros</div>
@@ -179,6 +211,109 @@
         </div>
       </div>
     </div>
+
+    <section id="device_history_panel" class="d-none">
+      <div class="row g-3">
+        <div class="col-12 col-xl-4">
+          <div class="app-card p-3">
+            <div class="fw-semibold">Filtros de dispositivos</div>
+            <div class="text-muted small">Busca por fecha, estado, expediente, venta, producto o código único.</div>
+
+            <div id="alert_device_filters" class="alert alert-danger d-none mt-3 mb-0" role="alert"></div>
+
+            <div class="row g-2 mt-2">
+              <div class="col-6">
+                <label class="form-label" for="device_date_from">Desde</label>
+                <input id="device_date_from" type="date" class="form-control" />
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="device_date_to">Hasta</label>
+                <input id="device_date_to" type="date" class="form-control" />
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="device_status">Estado</label>
+                <select id="device_status" class="form-select">
+                  <option value="" selected>Todos</option>
+                  <option value="confirmed">Confirmadas</option>
+                  <option value="voided">Anuladas</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="device_query">Consulta</label>
+                <input id="device_query" class="form-control" placeholder="Ej: expediente / venta / serial / producto" />
+              </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <button id="btn_device_today" class="btn btn-outline-secondary btn-sm">Hoy</button>
+              <button id="btn_device_7d" class="btn btn-outline-secondary btn-sm">Últimos 7 días</button>
+            </div>
+
+            <div class="d-grid gap-2 mt-3">
+              <button id="btn_device_search" class="btn btn-primary">
+                <span id="btn_device_search_text">Buscar</span>
+                <span id="btn_device_search_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-8">
+          <div class="app-card p-3">
+            <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start">
+              <div>
+                <div class="fw-semibold">Ventas de dispositivos</div>
+                <div class="text-muted small">Cada código único vendido queda trazado por expediente y usuario.</div>
+              </div>
+              <div class="d-flex flex-wrap gap-2 justify-content-end small">
+                <span class="summary-chip"><span id="device_count_results" class="fw-semibold">0</span> regs</span>
+                <span class="summary-chip text-primary"><span id="device_sum_units" class="fw-semibold">0</span> unidades</span>
+                <span class="summary-chip text-success"><span id="device_sum_sale" class="fw-semibold">$0.00</span> venta</span>
+                <span class="summary-chip text-info"><span id="device_sum_profit" class="fw-semibold">$0.00</span> utilidad</span>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2 mt-2">
+              <button id="btn_device_export_csv" class="btn btn-outline-secondary btn-sm" disabled>
+                <span id="btn_device_csv_text">Exportar CSV</span>
+                <span id="btn_device_csv_spinner" class="spinner-border spinner-border-sm ms-1 d-none"></span>
+              </button>
+              <button id="btn_device_export_pdf" class="btn btn-outline-secondary btn-sm" disabled>
+                <span id="btn_device_pdf_text">Exportar PDF</span>
+                <span id="btn_device_pdf_spinner" class="spinner-border spinner-border-sm ms-1 d-none"></span>
+              </button>
+            </div>
+
+            <div id="alert_device_results" class="alert alert-danger d-none mt-3 mb-0" role="alert"></div>
+
+            <div class="table-responsive mt-3">
+              <table class="table table-sm align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width:10%">Venta</th>
+                    <th style="width:14%">Expediente</th>
+                    <th style="width:18%">Fecha</th>
+                    <th style="width:25%">Productos</th>
+                    <th style="width:8%" class="text-center">Unid.</th>
+                    <th style="width:11%" class="text-end">Total</th>
+                    <th style="width:11%" class="text-end">Utilidad</th>
+                    <th style="width:10%" class="text-end">Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="device_results_body">
+                  <tr><td colspan="8" class="text-center text-muted py-4">Busca para ver ventas de dispositivos.</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+              <button id="btn_device_prev" class="btn btn-outline-secondary btn-sm" disabled>Anterior</button>
+              <button id="btn_device_next" class="btn btn-outline-secondary btn-sm" disabled>Siguiente</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <div class="modal fade" id="modal_detail" tabindex="-1" aria-hidden="true">
@@ -303,6 +438,68 @@
     </div>
   </div>
 
+  <div class="modal fade" id="device_modal_detail" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title mb-0">Detalle de dispositivos</h5>
+            <div class="small text-muted">
+              <span class="me-2">Venta <span id="d_sale_no" class="fw-semibold">—</span></span>
+              <span class="me-2">Exp <span id="d_exp" class="fw-semibold">—</span></span>
+              <span id="d_status_badge" class="badge text-bg-secondary">—</span>
+            </div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+
+        <div class="modal-body">
+          <div id="alert_device_modal" class="alert alert-danger d-none" role="alert"></div>
+
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <span class="badge text-bg-light border">
+              Unidades: <span id="d_items" class="fw-semibold">0</span>
+            </span>
+            <span class="badge text-bg-light border">
+              Venta: <span id="d_total_sale" class="fw-semibold">$0.00</span>
+            </span>
+            <span class="badge text-bg-light border">
+              Costo: <span id="d_total_cost" class="fw-semibold">$0.00</span>
+            </span>
+            <span class="badge text-bg-light border">
+              Utilidad: <span id="d_profit" class="fw-semibold">$0.00</span>
+            </span>
+            <span class="badge text-bg-light border">
+              Usuario: <span id="d_user" class="fw-semibold">—</span>
+            </span>
+            <span class="badge text-bg-light border">
+              Fecha: <span id="d_confirmed_at" class="fw-semibold">—</span>
+            </span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead class="table-light">
+                <tr>
+                  <th>Producto</th>
+                  <th>Código único</th>
+                  <th class="text-end">Precio</th>
+                  <th class="text-end">Costo</th>
+                  <th class="text-end">Utilidad</th>
+                </tr>
+              </thead>
+              <tbody id="d_items_body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
@@ -417,6 +614,10 @@
       if (!ts) return "—";
       const d = new Date(ts);
       return d.toLocaleString(undefined, { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
+    }
+
+    function money(v){
+      return Number(v || 0).toLocaleString("en-US", { style:"currency", currency:"USD" });
     }
 
     function escapeHtml(str){
@@ -1023,6 +1224,300 @@
     }
 
     /***********************
+     * DEVICE HISTORY
+     ***********************/
+    const DEVICE_PAGE_LIMIT = 80;
+    let activeHistoryMode = "pharmacy";
+    let devicePageOffset = 0;
+    let deviceLastFetchedCount = 0;
+    let deviceRenderedRows = [];
+
+    function setHistoryMode(mode){
+      activeHistoryMode = mode;
+      const isDevices = mode === "devices";
+      el("pharmacy_history_panel").classList.toggle("d-none", isDevices);
+      el("device_history_panel").classList.toggle("d-none", !isDevices);
+      el("tab_pharmacy").classList.toggle("active", !isDevices);
+      el("tab_devices").classList.toggle("active", isDevices);
+      if (isDevices && deviceRenderedRows.length === 0) deviceSearch();
+    }
+
+    function setDeviceDefaultDatesLast7(){
+      const now = new Date();
+      const to = new Date(now);
+      const from = new Date(now);
+      from.setDate(from.getDate() - 6);
+      el("device_date_from").value = toYmd(from);
+      el("device_date_to").value = toYmd(to);
+    }
+
+    function setDeviceDefaultDatesToday(){
+      const now = new Date();
+      el("device_date_from").value = toYmd(now);
+      el("device_date_to").value = toYmd(now);
+    }
+
+    function deviceStatusBadgeHtml(status){
+      if (status === "confirmed") return `<span class="badge text-bg-success">Confirmada</span>`;
+      if (status === "voided") return `<span class="badge text-bg-danger">Anulada</span>`;
+      return `<span class="badge text-bg-light border">${escapeHtml(status || "—")}</span>`;
+    }
+
+    function setDeviceModalStatus(status){
+      const b = el("d_status_badge");
+      b.className = "badge";
+      if (status === "confirmed") { b.classList.add("text-bg-success"); b.textContent = "Confirmada"; }
+      else if (status === "voided") { b.classList.add("text-bg-danger"); b.textContent = "Anulada"; }
+      else { b.classList.add("text-bg-light","border"); b.textContent = status || "—"; }
+    }
+
+    async function deviceSearch(){
+      hideAlert("alert_device_filters");
+      hideAlert("alert_device_results");
+
+      const { token } = getSession();
+      const ok = await touchSession(true);
+      if (!ok) return logoutAndGoLogin();
+
+      try{
+        setBtnLoading("btn_device_search","btn_device_search_text","btn_device_search_spinner", true, "Buscando…", "Buscar");
+        const rows = await callRpc("rpc_device_sales_history", {
+          p_session_token: token,
+          p_date_from: isoFromDateInput(el("device_date_from").value, false),
+          p_date_to: isoFromDateInput(el("device_date_to").value, true),
+          p_query: (el("device_query").value || "").trim(),
+          p_status: el("device_status").value || "",
+          p_limit: DEVICE_PAGE_LIMIT,
+          p_offset: devicePageOffset
+        });
+
+        deviceLastFetchedCount = Array.isArray(rows) ? rows.length : 0;
+        renderDeviceResults(Array.isArray(rows) ? rows : []);
+        el("btn_device_prev").disabled = devicePageOffset <= 0;
+        el("btn_device_next").disabled = deviceLastFetchedCount < DEVICE_PAGE_LIMIT;
+      }catch(err){
+        showAlert("alert_device_results", err.message || "No se pudieron cargar ventas de dispositivos.");
+      }finally{
+        setBtnLoading("btn_device_search","btn_device_search_text","btn_device_search_spinner", false, "Buscando…", "Buscar");
+      }
+    }
+
+    function renderDeviceResults(rows){
+      deviceRenderedRows = rows;
+      el("device_count_results").textContent = String(rows.length);
+      el("device_sum_units").textContent = String(rows.reduce((acc,r) => acc + (Number(r.item_count) || 0), 0));
+      el("device_sum_sale").textContent = money(rows.reduce((acc,r) => acc + (Number(r.total_sale) || 0), 0));
+      el("device_sum_profit").textContent = money(rows.reduce((acc,r) => acc + (Number(r.gross_profit) || 0), 0));
+      el("btn_device_export_csv").disabled = rows.length === 0;
+      el("btn_device_export_pdf").disabled = rows.length === 0;
+
+      const body = el("device_results_body");
+      body.innerHTML = "";
+      if (!rows.length){
+        body.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Sin ventas de dispositivos con los filtros actuales.</td></tr>`;
+        return;
+      }
+
+      rows.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="mono fw-semibold">#${Number(r.sale_no || 0)}</td>
+          <td class="fw-semibold">${escapeHtml(r.expediente || "")}</td>
+          <td class="text-muted">${escapeHtml(fmtTime(r.confirmed_at || r.created_at))}</td>
+          <td>
+            <div class="fw-semibold device-products" title="${escapeHtml(r.product_names || "—")}">${escapeHtml(r.product_names || "—")}</div>
+            <div class="small text-muted mono device-products" title="${escapeHtml(r.serial_codes || "")}">${escapeHtml(r.serial_codes || "")}</div>
+          </td>
+          <td class="text-center fw-semibold">${Number(r.item_count || 0)}</td>
+          <td class="text-end fw-semibold">${money(r.total_sale)}</td>
+          <td class="text-end fw-semibold ${Number(r.gross_profit || 0) < 0 ? "text-danger" : "text-success"}">${money(r.gross_profit)}</td>
+          <td class="text-end">
+            <button class="btn btn-outline-secondary btn-sm" data-device-view="${Number(r.sale_no || 0)}">Ver</button>
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+
+      body.querySelectorAll("button[data-device-view]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const saleNo = Number(btn.getAttribute("data-device-view"));
+          if (saleNo) await openDeviceDetail(saleNo);
+        });
+      });
+    }
+
+    async function openDeviceDetail(saleNo){
+      hideAlert("alert_device_modal");
+      el("d_items_body").innerHTML = "";
+
+      const { token } = getSession();
+      const ok = await touchSession(true);
+      if (!ok) return logoutAndGoLogin();
+
+      try{
+        const detail = await callRpc("rpc_device_sale_detail", { p_session_token: token, p_sale_no: Number(saleNo) });
+        if (!detail){
+          showAlert("alert_device_results", "No se pudo abrir el detalle de dispositivos.");
+          return;
+        }
+
+        const items = Array.isArray(detail.items) ? detail.items : [];
+        const totalSale = items.reduce((acc,it) => acc + (Number(it.price) || 0), 0);
+        const totalCost = items.reduce((acc,it) => acc + (Number(it.cost) || 0), 0);
+        const profit = totalSale - totalCost;
+
+        el("d_sale_no").textContent = detail.sale_no ? `#${detail.sale_no}` : "—";
+        el("d_exp").textContent = detail.expediente || "—";
+        setDeviceModalStatus(detail.status);
+        el("d_items").textContent = String(items.length);
+        el("d_total_sale").textContent = money(totalSale);
+        el("d_total_cost").textContent = money(totalCost);
+        el("d_profit").textContent = money(profit);
+        el("d_profit").className = profit < 0 ? "fw-semibold text-danger" : "fw-semibold text-success";
+        el("d_user").textContent = detail.created_by_name || "—";
+        el("d_confirmed_at").textContent = fmtTime(detail.confirmed_at || detail.created_at);
+
+        const tb = el("d_items_body");
+        if (!items.length){
+          tb.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">Sin líneas registradas.</td></tr>`;
+        } else {
+          items.forEach(it => {
+            const itemProfit = Number(it.gross_profit || 0);
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td>
+                <div class="fw-semibold">${escapeHtml(it.product_name || "—")}</div>
+                <div class="small text-muted">Código ${escapeHtml(it.external_code || "—")} · ${escapeHtml(it.category || "—")}</div>
+              </td>
+              <td class="mono">${escapeHtml(it.serial_code || "—")}</td>
+              <td class="text-end">${money(it.price)}</td>
+              <td class="text-end">${money(it.cost)}</td>
+              <td class="text-end fw-semibold ${itemProfit < 0 ? "text-danger" : "text-success"}">${money(itemProfit)}</td>
+            `;
+            tb.appendChild(tr);
+          });
+        }
+
+        bootstrap.Modal.getOrCreateInstance(el("device_modal_detail")).show();
+      }catch(err){
+        showAlert("alert_device_results", err.message || "Error cargando detalle de dispositivos.");
+      }
+    }
+
+    async function fetchDeviceSaleDetail(saleNo){
+      const { token } = getSession();
+      try{
+        const detail = await callRpc("rpc_device_sale_detail", { p_session_token: token, p_sale_no: Number(saleNo) });
+        return Array.isArray(detail?.items) ? detail.items : [];
+      }catch(_){
+        return [];
+      }
+    }
+
+    async function exportDeviceCSV(){
+      if (deviceRenderedRows.length === 0) return;
+      try{
+        setBtnLoading("btn_device_export_csv", "btn_device_csv_text", "btn_device_csv_spinner", true, "Generando…", "Exportar CSV");
+        const csvLines = ["Venta,Expediente,Fecha,Estado,Usuario,Codigo producto,Producto,Categoria,Codigo unico,Precio,Costo,Utilidad"];
+        for (const r of deviceRenderedRows){
+          const items = await fetchDeviceSaleDetail(r.sale_no);
+          if (items.length === 0){
+            csvLines.push([r.sale_no || "", r.expediente || "", fmtTime(r.confirmed_at || r.created_at), r.status || "", r.created_by_name || "", "", "", "", "", r.total_sale || 0, r.total_cost || 0, r.gross_profit || 0].map(csvEscape).join(","));
+          } else {
+            items.forEach(it => {
+              csvLines.push([
+                r.sale_no || "", r.expediente || "", fmtTime(r.confirmed_at || r.created_at), r.status || "", r.created_by_name || "",
+                it.external_code || "", it.product_name || "", it.category || "", it.serial_code || "",
+                Number(it.price || 0).toFixed(2), Number(it.cost || 0).toFixed(2), Number(it.gross_profit || 0).toFixed(2)
+              ].map(csvEscape).join(","));
+            });
+          }
+        }
+        const blob = new Blob(["\uFEFF" + csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
+        downloadBlob(blob, `ventas_dispositivos_${toYmd(new Date())}.csv`);
+      }catch(err){
+        showAlert("alert_device_results", "Error generando CSV: " + (err.message || ""));
+      }finally{
+        setBtnLoading("btn_device_export_csv", "btn_device_csv_text", "btn_device_csv_spinner", false, "Generando…", "Exportar CSV");
+      }
+    }
+
+    async function exportDevicePDF(){
+      if (deviceRenderedRows.length === 0) return;
+      try{
+        setBtnLoading("btn_device_export_pdf", "btn_device_pdf_text", "btn_device_pdf_spinner", true, "Generando…", "Exportar PDF");
+        const sales = [];
+        for (const r of deviceRenderedRows){
+          sales.push({ ...r, items: await fetchDeviceSaleDetail(r.sale_no) });
+        }
+        const html = buildDevicePdfHtml(sales, {
+          dateFrom: el("device_date_from").value,
+          dateTo: el("device_date_to").value,
+          count: deviceRenderedRows.length,
+          units: deviceRenderedRows.reduce((a,r) => a + (Number(r.item_count) || 0), 0),
+          totalSale: deviceRenderedRows.reduce((a,r) => a + (Number(r.total_sale) || 0), 0),
+          profit: deviceRenderedRows.reduce((a,r) => a + (Number(r.gross_profit) || 0), 0)
+        });
+        const win = window.open("", "_blank");
+        win.document.write(html);
+        win.document.close();
+        win.focus();
+        setTimeout(() => win.print(), 600);
+      }catch(err){
+        showAlert("alert_device_results", "Error generando PDF: " + (err.message || ""));
+      }finally{
+        setBtnLoading("btn_device_export_pdf", "btn_device_pdf_text", "btn_device_pdf_spinner", false, "Generando…", "Exportar PDF");
+      }
+    }
+
+    function buildDevicePdfHtml(sales, summary){
+      let rows = "";
+      sales.forEach(s => {
+        const items = Array.isArray(s.items) ? s.items : [];
+        if (!items.length){
+          rows += `<tr><td>${s.sale_no || "—"}</td><td>${escapeHtml(s.expediente || "")}</td><td>${fmtTime(s.confirmed_at || s.created_at)}</td><td>${escapeHtml(s.created_by_name || "—")}</td><td>—</td><td>—</td><td style="text-align:right">${money(s.total_sale)}</td><td style="text-align:right">${money(s.gross_profit)}</td></tr>`;
+        } else {
+          items.forEach((it, idx) => {
+            rows += `<tr>`;
+            if (idx === 0){
+              rows += `<td rowspan="${items.length}">${s.sale_no || "—"}</td><td rowspan="${items.length}">${escapeHtml(s.expediente || "")}</td><td rowspan="${items.length}">${fmtTime(s.confirmed_at || s.created_at)}</td><td rowspan="${items.length}">${escapeHtml(s.created_by_name || "—")}</td>`;
+            }
+            rows += `<td>${escapeHtml(it.product_name || "—")}</td><td style="font-family:monospace">${escapeHtml(it.serial_code || "—")}</td><td style="text-align:right">${money(it.price)}</td><td style="text-align:right">${money(it.gross_profit)}</td></tr>`;
+          });
+        }
+      });
+
+      return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Reporte de dispositivos Botiquín CCM</title>
+<style>
+  @media print { @page { size: landscape; margin: 10mm; } }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #172033; margin: 20px; }
+  h1 { font-size: 18px; margin-bottom: 4px; }
+  .subtitle { color: #64748b; font-size: 12px; margin-bottom: 16px; }
+  .summary { display:flex; gap:18px; margin-bottom:16px; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; }
+  .summary span { font-weight:bold; }
+  table { width:100%; border-collapse:collapse; font-size:11px; }
+  th { background:#f1f5f9; text-align:left; padding:6px 8px; border-bottom:2px solid #cbd5e1; }
+  td { padding:5px 8px; border-bottom:1px solid #e2e8f0; vertical-align:top; }
+  .footer { margin-top:20px; font-size:10px; color:#94a3b8; text-align:center; }
+</style></head><body>
+<h1>Botiquín CCM - Reporte de Ventas de Dispositivos</h1>
+<div class="subtitle">Período: ${escapeHtml(summary.dateFrom || "—")} al ${escapeHtml(summary.dateTo || "—")} | Generado: ${fmtTime(new Date().toISOString())}</div>
+<div class="summary">
+  <div>Registros: <span>${summary.count}</span></div>
+  <div>Unidades: <span>${summary.units}</span></div>
+  <div>Venta: <span>${money(summary.totalSale)}</span></div>
+  <div>Utilidad: <span>${money(summary.profit)}</span></div>
+</div>
+<table>
+  <thead><tr><th>Venta</th><th>Expediente</th><th>Fecha</th><th>Usuario</th><th>Producto</th><th>Código único</th><th style="text-align:right">Precio</th><th style="text-align:right">Utilidad</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="footer">Botiquín CCM - Reporte generado automáticamente. Dispositivos se reporta separado de farmacia.</div>
+</body></html>`;
+    }
+
+    /***********************
      * IDLE LOGIC (30 min)
      ***********************/
     const IDLE_MINUTES = 30;
@@ -1066,9 +1561,20 @@
 
       // defaults
       setDefaultDatesLast7();
+      setDeviceDefaultDatesLast7();
 
       el("expediente").addEventListener("input", (e) => e.target.value = sanitizeDigits(e.target.value).slice(0, 30));
       el("delivery_no").addEventListener("input", (e) => e.target.value = sanitizeDigits(e.target.value).slice(0, 12));
+      el("device_query").addEventListener("keydown", async (e) => {
+        if (e.key === "Enter"){
+          e.preventDefault();
+          devicePageOffset = 0;
+          await deviceSearch();
+        }
+      });
+
+      el("tab_pharmacy").addEventListener("click", () => setHistoryMode("pharmacy"));
+      el("tab_devices").addEventListener("click", () => setHistoryMode("devices"));
       
       // Auto-search para botones
       el("btn_today").addEventListener("click", async () => { 
@@ -1087,6 +1593,23 @@
         await search();
       });
 
+      el("btn_device_today").addEventListener("click", async () => {
+        setDeviceDefaultDatesToday();
+        devicePageOffset = 0;
+        await deviceSearch();
+      });
+
+      el("btn_device_7d").addEventListener("click", async () => {
+        setDeviceDefaultDatesLast7();
+        devicePageOffset = 0;
+        await deviceSearch();
+      });
+
+      el("btn_device_search").addEventListener("click", async () => {
+        devicePageOffset = 0;
+        await deviceSearch();
+      });
+
       el("btn_prev").addEventListener("click", async () => {
         if (pageOffset <= 0) return;
         pageOffset = Math.max(0, pageOffset - PAGE_LIMIT);
@@ -1097,6 +1620,18 @@
         if (lastFetchedCount < PAGE_LIMIT) return;
         pageOffset += PAGE_LIMIT;
         await search();
+      });
+
+      el("btn_device_prev").addEventListener("click", async () => {
+        if (devicePageOffset <= 0) return;
+        devicePageOffset = Math.max(0, devicePageOffset - DEVICE_PAGE_LIMIT);
+        await deviceSearch();
+      });
+
+      el("btn_device_next").addEventListener("click", async () => {
+        if (deviceLastFetchedCount < DEVICE_PAGE_LIMIT) return;
+        devicePageOffset += DEVICE_PAGE_LIMIT;
+        await deviceSearch();
       });
 
       el("btn_logout").addEventListener("click", async () => {
@@ -1114,6 +1649,8 @@
       // Botones de exportación
       el("btn_export_csv").addEventListener("click", exportCSV);
       el("btn_export_pdf").addEventListener("click", exportPDF);
+      el("btn_device_export_csv").addEventListener("click", exportDeviceCSV);
+      el("btn_device_export_pdf").addEventListener("click", exportDevicePDF);
 
       // auto-search inicial
       try{
