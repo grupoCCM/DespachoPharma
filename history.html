@@ -267,9 +267,9 @@
               </div>
               <div class="d-flex flex-wrap gap-2 justify-content-end small">
                 <span class="summary-chip"><span id="device_count_results" class="fw-semibold">0</span> regs</span>
-                <span class="summary-chip text-primary"><span id="device_sum_units" class="fw-semibold">0</span> unidades</span>
-                <span class="summary-chip text-success"><span id="device_sum_sale" class="fw-semibold">$0.00</span> venta</span>
-                <span class="summary-chip text-info"><span id="device_sum_profit" class="fw-semibold">$0.00</span> utilidad</span>
+                <span class="summary-chip text-primary"><span id="device_sum_units" class="fw-semibold">0</span> Total</span>
+                <span class="summary-chip text-success"><span id="device_sum_active" class="fw-semibold">0</span> Activas</span>
+                <span class="summary-chip text-danger"><span id="device_sum_voided" class="fw-semibold">0</span> Anuladas</span>
               </div>
             </div>
 
@@ -1305,9 +1305,12 @@
     function renderDeviceResults(rows){
       deviceRenderedRows = rows;
       el("device_count_results").textContent = String(rows.length);
-      el("device_sum_units").textContent = String(rows.reduce((acc,r) => acc + (Number(r.item_count) || 0), 0));
-      el("device_sum_sale").textContent = money(rows.reduce((acc,r) => acc + (Number(r.total_sale) || 0), 0));
-      el("device_sum_profit").textContent = money(rows.reduce((acc,r) => acc + (Number(r.gross_profit) || 0), 0));
+      const totalUnits = rows.reduce((acc,r) => acc + (Number(r.item_count) || 0), 0);
+      const activeUnits = rows.filter(r => r.status !== "voided").reduce((acc,r) => acc + (Number(r.item_count) || 0), 0);
+      const voidedUnits = rows.filter(r => r.status === "voided").reduce((acc,r) => acc + (Number(r.item_count) || 0), 0);
+      el("device_sum_units").textContent = String(totalUnits);
+      el("device_sum_active").textContent = String(activeUnits);
+      el("device_sum_voided").textContent = String(voidedUnits);
       el("btn_device_export_csv").disabled = rows.length === 0;
       el("btn_device_export_pdf").disabled = rows.length === 0;
 
