@@ -18,6 +18,8 @@
     .table td,.table th{ vertical-align:middle; }
     .table-box{ max-height:390px; overflow:auto; border:1px solid var(--border); border-radius:12px; }
     .table-box thead th{ position:sticky; top:0; z-index:1; }
+    .action-col{ min-width:150px; }
+    .serial-preview{ min-height:180px; max-height:260px; overflow:auto; border:1px solid var(--border); border-radius:12px; background:#fff; }
     @media (max-width: 767px){
       .navbar .container{ gap:.5rem; }
       .navbar .btn{ padding:.25rem .45rem; }
@@ -62,7 +64,9 @@
 
     <ul class="nav nav-tabs mb-3" id="tabs" role="tablist">
       <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-register" type="button">Registrar unidad</button></li>
+      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-bulk" type="button">Carga masiva</button></li>
       <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-inventory" type="button">Inventario</button></li>
+      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-units" type="button">Unidades</button></li>
       <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-history" type="button">Historico</button></li>
     </ul>
 
@@ -110,6 +114,49 @@
         </div>
       </div>
 
+      <div class="tab-pane fade" id="pane-bulk">
+        <div class="app-card p-3">
+          <h2 class="h5 mb-1">Carga masiva de codigos</h2>
+          <div class="soft small mb-3">Pega los codigos escaneados, uno por linea. El sistema registra solo los nuevos.</div>
+          <div class="row g-3">
+            <div class="col-12 col-lg-4">
+              <label class="form-label" for="bulk_product">Producto</label>
+              <select id="bulk_product" class="form-select"></select>
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label" for="bulk_cost">Costo</label>
+              <input id="bulk_cost" class="form-control" inputmode="decimal" autocomplete="off" />
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label" for="bulk_exp">Vence</label>
+              <input id="bulk_exp" class="form-control" type="date" />
+            </div>
+            <div class="col-12 col-lg-2">
+              <label class="form-label" for="bulk_lot">Lote</label>
+              <input id="bulk_lot" class="form-control" autocomplete="off" placeholder="Opcional" />
+            </div>
+            <div class="col-12 col-lg-2">
+              <label class="form-label" for="bulk_doc">Documento</label>
+              <input id="bulk_doc" class="form-control" autocomplete="off" placeholder="Compra" />
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="bulk_serials">Codigos unicos</label>
+              <textarea id="bulk_serials" class="form-control mono" rows="9" placeholder="Pega aqui los codigos escaneados"></textarea>
+            </div>
+            <div class="col-12">
+              <div id="bulk_summary" class="serial-preview p-3 small soft">Pega codigos para prevalidar la carga.</div>
+            </div>
+          </div>
+          <div class="d-flex justify-content-end gap-2 mt-3">
+            <button id="btn_bulk_clear" class="btn btn-outline-secondary">Limpiar</button>
+            <button id="btn_bulk_register" class="btn btn-primary">
+              <span id="btn_bulk_text">Registrar carga masiva</span>
+              <span id="btn_bulk_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="tab-pane fade" id="pane-inventory">
         <div class="app-card p-3">
           <div class="d-flex justify-content-between align-items-end gap-3 flex-wrap mb-3">
@@ -151,6 +198,45 @@
         </div>
       </div>
 
+      <div class="tab-pane fade" id="pane-units">
+        <div class="app-card p-3">
+          <div class="d-flex justify-content-between align-items-end gap-3 flex-wrap mb-3">
+            <div>
+              <h2 class="h5 mb-1">Unidades administrables</h2>
+              <div class="soft small">Corrige producto, lote, costo o retira unidades disponibles con trazabilidad.</div>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+              <select id="unit_status" class="form-select" style="max-width:180px">
+                <option value="available">Disponibles</option>
+                <option value="sold">Vendidos</option>
+                <option value="retired">Retirados</option>
+                <option value="damaged">Danados</option>
+                <option value="lost">Perdidos</option>
+                <option value="inactive">Inactivos</option>
+                <option value="all">Todos</option>
+              </select>
+              <input id="q_units" class="form-control" style="max-width:320px" placeholder="Buscar serial, producto o documento" autocomplete="off" />
+            </div>
+          </div>
+          <div class="table-box">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Serial</th>
+                  <th>Producto</th>
+                  <th>Estado</th>
+                  <th>Lote / vence</th>
+                  <th class="text-end">Costo</th>
+                  <th>Documento</th>
+                  <th class="text-end action-col">Accion</th>
+                </tr>
+              </thead>
+              <tbody id="tbody_admin_units"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div class="tab-pane fade" id="pane-history">
         <div class="app-card p-3">
           <div class="d-flex justify-content-between align-items-end gap-3 flex-wrap mb-3">
@@ -180,12 +266,95 @@
     </div>
   </main>
 
+  <div class="modal fade" id="unitModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title">Corregir unidad</h5>
+            <div id="edit_serial_label" class="small soft mono">-</div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="edit_product">Producto correcto</label>
+              <select id="edit_product" class="form-select"></select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="edit_cost">Costo</label>
+              <input id="edit_cost" class="form-control" inputmode="decimal" autocomplete="off" />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label" for="edit_exp">Vence</label>
+              <input id="edit_exp" class="form-control" type="date" />
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label" for="edit_lot">Lote</label>
+              <input id="edit_lot" class="form-control" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label" for="edit_doc">Documento</label>
+              <input id="edit_doc" class="form-control" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label" for="edit_note">Comentario</label>
+              <input id="edit_note" class="form-control" autocomplete="off" />
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="edit_reason">Motivo de correccion</label>
+              <input id="edit_reason" class="form-control" autocomplete="off" placeholder="Ej: producto seleccionado por error" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button id="btn_save_edit" type="button" class="btn btn-primary">Guardar correccion</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="retireModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title">Retirar unidad</h5>
+            <div id="retire_serial_label" class="small soft mono">-</div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label" for="retire_status">Estado</label>
+          <select id="retire_status" class="form-select mb-3">
+            <option value="retired">Retirado</option>
+            <option value="damaged">Danado</option>
+            <option value="lost">Perdido</option>
+            <option value="inactive">Inactivo</option>
+          </select>
+          <label class="form-label" for="retire_reason">Motivo</label>
+          <textarea id="retire_reason" class="form-control" rows="3" placeholder="Explica por que sale de disponibilidad"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button id="btn_save_retire" type="button" class="btn btn-danger">Retirar unidad</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
     const el = id => document.getElementById(id);
     let products = [];
+    let adminUnits = [];
+    let selectedUnit = null;
+    let unitModal = null;
+    let retireModal = null;
 
     function esc(s){ return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m])); }
     function money(v){ return Number(v||0).toLocaleString("en-US",{style:"currency",currency:"USD"}); }
@@ -207,6 +376,10 @@
       const s = String(v||"").toLowerCase();
       if(s === "available") return `<span class="badge text-bg-success">Disponible</span>`;
       if(s === "sold") return `<span class="badge text-bg-primary">Vendido</span>`;
+      if(s === "retired") return `<span class="badge text-bg-dark">Retirado</span>`;
+      if(s === "damaged") return `<span class="badge text-bg-warning">Danado</span>`;
+      if(s === "lost") return `<span class="badge text-bg-danger">Perdido</span>`;
+      if(s === "inactive") return `<span class="badge text-bg-secondary">Inactivo</span>`;
       return `<span class="badge text-bg-secondary">${esc(v || "-")}</span>`;
     }
 
@@ -236,6 +409,30 @@
       `).join("") : `<tr><td colspan="5" class="text-center text-muted py-4">Sin unidades registradas.</td></tr>`;
     }
 
+    function renderAdminUnits(rows){
+      const tb = el("tbody_admin_units");
+      tb.innerHTML = rows.length ? rows.map(r => `
+        <tr>
+          <td class="mono">${esc(r.serial_code)}</td>
+          <td><div class="fw-semibold">${esc(r.product_name)}</div><div class="small soft">${esc(r.external_code)} - ${esc(r.category || "-")}</div></td>
+          <td>${statusBadge(r.status)}</td>
+          <td><div>${esc(r.lot_no || "-")}</div><div class="small soft">${r.expires_at ? esc(r.expires_at) : "Sin vence"}</div></td>
+          <td class="text-end">${money(r.cost)}</td>
+          <td>${esc(r.source_doc_no || "-")}</td>
+          <td class="text-end">
+            ${String(r.status).toLowerCase() === "available" ? `
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-primary" data-edit="${esc(r.device_unit_id)}">Editar</button>
+                <button class="btn btn-outline-danger" data-retire="${esc(r.device_unit_id)}">Retirar</button>
+              </div>
+            ` : `<span class="small soft">Sin accion</span>`}
+          </td>
+        </tr>
+      `).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin unidades.</td></tr>`;
+      tb.querySelectorAll("button[data-edit]").forEach(btn => btn.addEventListener("click", () => openEdit(btn.getAttribute("data-edit"))));
+      tb.querySelectorAll("button[data-retire]").forEach(btn => btn.addEventListener("click", () => openRetire(btn.getAttribute("data-retire"))));
+    }
+
     function renderHistory(rows){
       const tb = el("tbody_history");
       tb.innerHTML = rows.length ? rows.map(r => `
@@ -251,13 +448,56 @@
     }
 
     function loadProductSelect(){
-      el("reg_product").innerHTML = products.map(p => `<option value="${esc(p.external_code)}" data-cost="${esc(p.default_cost || "")}">${esc(p.external_code)} - ${esc(p.name)}</option>`).join("");
+      const options = products.map(p => `<option value="${esc(p.external_code)}" data-cost="${esc(p.default_cost || "")}">${esc(p.external_code)} - ${esc(p.name)}</option>`).join("");
+      el("reg_product").innerHTML = options;
+      el("bulk_product").innerHTML = options;
+      el("edit_product").innerHTML = options;
       syncDefaultCost();
+      syncBulkDefaultCost();
     }
 
     function syncDefaultCost(){
       const opt = el("reg_product").selectedOptions[0];
       if(opt && !el("reg_cost").value) el("reg_cost").value = opt.dataset.cost || "";
+    }
+
+    function syncBulkDefaultCost(){
+      const opt = el("bulk_product").selectedOptions[0];
+      if(opt && !el("bulk_cost").value) el("bulk_cost").value = opt.dataset.cost || "";
+    }
+
+    function parseBulkSerials(){
+      const lines = el("bulk_serials").value.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+      const normalized = lines.map(x => x.replace(/\s+/g,"").toUpperCase());
+      const seen = new Set();
+      const unique = [];
+      const duplicates = [];
+      const invalid = [];
+      normalized.forEach(code => {
+        if(!/^[A-Z0-9-]{6,40}$/.test(code)) invalid.push(code);
+        if(seen.has(code)) duplicates.push(code);
+        else { seen.add(code); unique.push(code); }
+      });
+      return { lines, unique, duplicates, invalid };
+    }
+
+    function renderBulkSummary(){
+      const parsed = parseBulkSerials();
+      const box = el("bulk_summary");
+      if(parsed.lines.length === 0){
+        box.innerHTML = "Pega codigos para prevalidar la carga.";
+        return parsed;
+      }
+      box.innerHTML = `
+        <div class="d-flex gap-2 flex-wrap mb-2">
+          <span class="badge text-bg-light border">Leidos: ${parsed.lines.length}</span>
+          <span class="badge text-bg-success">Unicos: ${parsed.unique.length}</span>
+          <span class="badge text-bg-warning">Duplicados: ${parsed.duplicates.length}</span>
+          <span class="badge text-bg-danger">Invalidos: ${parsed.invalid.length}</span>
+        </div>
+        <div class="mono">${parsed.unique.slice(0,80).map(esc).join("<br>")}${parsed.unique.length > 80 ? "<br>..." : ""}</div>
+      `;
+      return parsed;
     }
 
     async function refresh(){
@@ -290,6 +530,119 @@
       }
     }
 
+    async function loadAdminUnits(){
+      hideAlert("alert_main");
+      try{
+        adminUnits = await callRpc("rpc_device_unit_admin_list", {
+          p_session_token:getSession().token,
+          p_query:el("q_units").value || "",
+          p_status:el("unit_status").value || "available",
+          p_limit:200
+        });
+        renderAdminUnits(Array.isArray(adminUnits) ? adminUnits : []);
+      }catch(err){
+        showAlert("alert_main", err.message || "No se pudieron cargar las unidades.");
+      }
+    }
+
+    async function bulkRegister(){
+      hideAlert("alert_main"); hideAlert("alert_ok");
+      const parsed = renderBulkSummary();
+      if(parsed.unique.length === 0) return showAlert("alert_main","Pega al menos un codigo.");
+      if(parsed.invalid.length > 0) return showAlert("alert_main","Hay codigos con formato invalido. Corrige antes de registrar.");
+      try{
+        btnLoad("btn_bulk_register","btn_bulk_text","btn_bulk_spinner",true,"Registrando...","Registrar carga masiva");
+        const result = await callRpc("rpc_device_units_bulk_register", {
+          p_session_token:getSession().token,
+          p_external_code:Number(el("bulk_product").value),
+          p_serials:parsed.unique,
+          p_lot_no:el("bulk_lot").value || null,
+          p_expires_at:el("bulk_exp").value || null,
+          p_cost:el("bulk_cost").value ? Number(el("bulk_cost").value) : null,
+          p_source_doc_no:el("bulk_doc").value || null,
+          p_note:"Carga masiva desde modulo admin"
+        });
+        showAlert("alert_ok", `Carga procesada. Insertados: ${Number(result?.inserted || 0)}. Ya existentes: ${Number(result?.existing || 0)}. Duplicados en texto: ${Number(result?.duplicated_in_batch || 0)}.`);
+        el("bulk_serials").value = "";
+        renderBulkSummary();
+        await refresh(); await loadAdminUnits(); await loadHistory();
+      }catch(err){
+        showAlert("alert_main", err.message || "No se pudo procesar la carga masiva.");
+      }finally{
+        btnLoad("btn_bulk_register","btn_bulk_text","btn_bulk_spinner",false,"Registrando...","Registrar carga masiva");
+      }
+    }
+
+    function findUnit(id){ return adminUnits.find(u => String(u.device_unit_id) === String(id)); }
+
+    function openEdit(id){
+      selectedUnit = findUnit(id);
+      if(!selectedUnit) return;
+      el("edit_serial_label").textContent = selectedUnit.serial_code || "-";
+      el("edit_product").value = selectedUnit.external_code;
+      el("edit_cost").value = selectedUnit.cost ?? "";
+      el("edit_exp").value = selectedUnit.expires_at || "";
+      el("edit_lot").value = selectedUnit.lot_no || "";
+      el("edit_doc").value = selectedUnit.source_doc_no || "";
+      el("edit_note").value = selectedUnit.note || "";
+      el("edit_reason").value = "";
+      unitModal.show();
+    }
+
+    function openRetire(id){
+      selectedUnit = findUnit(id);
+      if(!selectedUnit) return;
+      el("retire_serial_label").textContent = `${selectedUnit.serial_code || "-"} · ${selectedUnit.product_name || "-"}`;
+      el("retire_status").value = "retired";
+      el("retire_reason").value = "";
+      retireModal.show();
+    }
+
+    async function saveEdit(){
+      if(!selectedUnit) return;
+      hideAlert("alert_main"); hideAlert("alert_ok");
+      const reason = el("edit_reason").value.trim();
+      if(!reason) return showAlert("alert_main","Motivo requerido para guardar la correccion.");
+      try{
+        await callRpc("rpc_device_unit_update", {
+          p_session_token:getSession().token,
+          p_device_unit_id:selectedUnit.device_unit_id,
+          p_external_code:Number(el("edit_product").value),
+          p_lot_no:el("edit_lot").value || null,
+          p_expires_at:el("edit_exp").value || null,
+          p_cost:el("edit_cost").value ? Number(el("edit_cost").value) : null,
+          p_source_doc_no:el("edit_doc").value || null,
+          p_note:el("edit_note").value || null,
+          p_reason:reason
+        });
+        unitModal.hide();
+        showAlert("alert_ok","Unidad corregida con trazabilidad.");
+        await refresh(); await loadAdminUnits(); await loadHistory();
+      }catch(err){
+        showAlert("alert_main", err.message || "No se pudo corregir la unidad.");
+      }
+    }
+
+    async function saveRetire(){
+      if(!selectedUnit) return;
+      hideAlert("alert_main"); hideAlert("alert_ok");
+      const reason = el("retire_reason").value.trim();
+      if(!reason) return showAlert("alert_main","Motivo requerido para retirar la unidad.");
+      try{
+        await callRpc("rpc_device_unit_retire", {
+          p_session_token:getSession().token,
+          p_device_unit_id:selectedUnit.device_unit_id,
+          p_new_status:el("retire_status").value,
+          p_reason:reason
+        });
+        retireModal.hide();
+        showAlert("alert_ok","Unidad retirada de disponibilidad.");
+        await refresh(); await loadAdminUnits(); await loadHistory();
+      }catch(err){
+        showAlert("alert_main", err.message || "No se pudo retirar la unidad.");
+      }
+    }
+
     async function registerUnit(){
       hideAlert("alert_main"); hideAlert("alert_ok");
       const serial = el("reg_serial").value.trim();
@@ -310,6 +663,7 @@
         el("reg_note").value = "";
         showAlert("alert_ok","Unidad registrada y disponible para despacho.");
         await refresh();
+        await loadAdminUnits();
         await loadHistory();
         el("reg_serial").focus();
       }catch(err){
@@ -329,12 +683,23 @@
       }
       el("nav_user").textContent = s.name || "-";
       el("btn_logout").addEventListener("click", logout);
-      el("btn_refresh").addEventListener("click", async () => { await refresh(); await loadHistory(); });
+      unitModal = new bootstrap.Modal(el("unitModal"));
+      retireModal = new bootstrap.Modal(el("retireModal"));
+      el("btn_refresh").addEventListener("click", async () => { await refresh(); await loadAdminUnits(); await loadHistory(); });
       el("btn_register").addEventListener("click", registerUnit);
+      el("btn_bulk_register").addEventListener("click", bulkRegister);
+      el("btn_bulk_clear").addEventListener("click", () => { el("bulk_serials").value=""; renderBulkSummary(); });
+      el("bulk_serials").addEventListener("input", renderBulkSummary);
       el("reg_product").addEventListener("change", syncDefaultCost);
+      el("bulk_product").addEventListener("change", syncBulkDefaultCost);
       el("q_inventory").addEventListener("input", () => { window.clearTimeout(window.__invQ); window.__invQ = window.setTimeout(refresh, 220); });
+      el("q_units").addEventListener("input", () => { window.clearTimeout(window.__unitQ); window.__unitQ = window.setTimeout(loadAdminUnits, 220); });
+      el("unit_status").addEventListener("change", loadAdminUnits);
       el("q_history").addEventListener("input", () => { window.clearTimeout(window.__histQ); window.__histQ = window.setTimeout(loadHistory, 220); });
+      el("btn_save_edit").addEventListener("click", saveEdit);
+      el("btn_save_retire").addEventListener("click", saveRetire);
       await refresh();
+      await loadAdminUnits();
       await loadHistory();
     })();
   </script>
