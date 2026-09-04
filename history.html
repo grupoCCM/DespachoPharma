@@ -82,7 +82,7 @@
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
       <div>
         <h1 class="h4 mb-1">Histórico</h1>
-        <div class="text-muted small">Despachos de farmacia y ventas de dispositivos, sin mezclar reportes.</div>
+        <div class="text-muted small">Despachos de farmacia y salidas de dispositivos, sin mezclar reportes.</div>
       </div>
       <ul class="nav nav-pills" id="history_mode_tabs">
         <li class="nav-item">
@@ -267,8 +267,8 @@
           <div class="app-card p-3">
             <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start">
               <div>
-                <div class="fw-semibold">Ventas de dispositivos</div>
-                <div class="text-muted small">Cada código único vendido queda trazado por expediente y usuario.</div>
+                <div class="fw-semibold">Salidas de dispositivos</div>
+                <div class="text-muted small">Cada código único entregado queda trazado por expediente, tipo y usuario.</div>
               </div>
               <div class="d-flex flex-wrap gap-2 justify-content-end small">
                 <span class="summary-chip"><span id="device_count_results" class="fw-semibold">0</span> regs</span>
@@ -295,10 +295,11 @@
               <table class="table table-sm align-middle">
                 <thead class="table-light">
                   <tr>
-                    <th style="width:10%">Venta</th>
-                    <th style="width:14%">Expediente</th>
-                    <th style="width:18%">Fecha</th>
-                    <th style="width:25%">Productos</th>
+                    <th style="width:10%">Salida</th>
+                    <th style="width:12%">Tipo</th>
+                    <th style="width:12%">Expediente</th>
+                    <th style="width:17%">Fecha</th>
+                    <th style="width:24%">Productos</th>
                     <th style="width:8%" class="text-center">Unid.</th>
                     <th style="width:11%" class="text-end">Total</th>
                     <th style="width:11%" class="text-end">Utilidad</th>
@@ -306,7 +307,7 @@
                   </tr>
                 </thead>
                 <tbody id="device_results_body">
-                  <tr><td colspan="8" class="text-center text-muted py-4">Busca para ver ventas de dispositivos.</td></tr>
+                  <tr><td colspan="9" class="text-center text-muted py-4">Busca para ver salidas de dispositivos.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -450,8 +451,9 @@
           <div>
             <h5 class="modal-title mb-0">Detalle de dispositivos</h5>
             <div class="small text-muted">
-              <span class="me-2">Venta <span id="d_sale_no" class="fw-semibold">—</span></span>
+              <span class="me-2">Salida <span id="d_sale_no" class="fw-semibold">—</span></span>
               <span class="me-2">Exp <span id="d_exp" class="fw-semibold">—</span></span>
+              <span id="d_sale_type_badge" class="badge text-bg-light border">—</span>
               <span id="d_status_badge" class="badge text-bg-secondary">—</span>
             </div>
           </div>
@@ -480,6 +482,10 @@
             <span class="badge text-bg-light border">
               Fecha: <span id="d_confirmed_at" class="fw-semibold">—</span>
             </span>
+          </div>
+          <div id="d_replacement_reason_wrap" class="alert alert-warning py-2 d-none">
+            <span class="fw-semibold">Motivo de reposición:</span>
+            <span id="d_replacement_reason">—</span>
           </div>
 
           <div class="table-responsive">
@@ -1294,6 +1300,27 @@
       return `<span class="badge text-bg-light border">${escapeHtml(status || "—")}</span>`;
     }
 
+    function deviceSaleTypeLabel(type){
+      return type === "replacement" ? "Reposición" : "Venta";
+    }
+
+    function deviceSaleTypeBadgeHtml(type){
+      if (type === "replacement") return `<span class="badge text-bg-warning">Reposición</span>`;
+      return `<span class="badge text-bg-primary">Venta</span>`;
+    }
+
+    function setDeviceSaleType(type){
+      const b = el("d_sale_type_badge");
+      b.className = "badge";
+      if (type === "replacement"){
+        b.classList.add("text-bg-warning");
+        b.textContent = "Reposición";
+      } else {
+        b.classList.add("text-bg-primary");
+        b.textContent = "Venta";
+      }
+    }
+
     function setDeviceModalStatus(status){
       const b = el("d_status_badge");
       b.className = "badge";
@@ -1327,7 +1354,7 @@
         el("btn_device_prev").disabled = devicePageOffset <= 0;
         el("btn_device_next").disabled = deviceLastFetchedCount < DEVICE_PAGE_LIMIT;
       }catch(err){
-        showAlert("alert_device_results", err.message || "No se pudieron cargar ventas de dispositivos.");
+        showAlert("alert_device_results", err.message || "No se pudieron cargar salidas de dispositivos.");
       }finally{
         setBtnLoading("btn_device_search","btn_device_search_text","btn_device_search_spinner", false, "Buscando…", "Buscar");
       }
@@ -1348,7 +1375,7 @@
       const body = el("device_results_body");
       body.innerHTML = "";
       if (!rows.length){
-        body.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Sin ventas de dispositivos con los filtros actuales.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">Sin salidas de dispositivos con los filtros actuales.</td></tr>`;
         return;
       }
 
@@ -1356,6 +1383,7 @@
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td class="mono fw-semibold">#${Number(r.sale_no || 0)}</td>
+          <td>${deviceSaleTypeBadgeHtml(r.sale_type)}</td>
           <td class="fw-semibold">${escapeHtml(r.expediente || "")}</td>
           <td class="text-muted">${escapeHtml(fmtTime(r.confirmed_at || r.created_at))}</td>
           <td>
@@ -1409,6 +1437,7 @@
 
         el("d_sale_no").textContent = detail.sale_no ? `#${detail.sale_no}` : "—";
         el("d_exp").textContent = detail.expediente || "—";
+        setDeviceSaleType(detail.sale_type);
         setDeviceModalStatus(detail.status);
         el("d_items").textContent = String(items.length);
         el("d_total_sale").textContent = money(totalSale);
@@ -1417,6 +1446,8 @@
         el("d_profit").className = profit < 0 ? "fw-semibold text-danger" : "fw-semibold text-success";
         el("d_user").textContent = detail.created_by_name || "—";
         el("d_confirmed_at").textContent = fmtTime(detail.confirmed_at || detail.created_at);
+        el("d_replacement_reason_wrap").classList.toggle("d-none", detail.sale_type !== "replacement");
+        el("d_replacement_reason").textContent = detail.replacement_reason || "Sin motivo registrado";
 
         if (detail.status === "voided"){
           el("device_void_info").classList.remove("d-none");
@@ -1521,15 +1552,15 @@
       if (deviceRenderedRows.length === 0) return;
       try{
         setBtnLoading("btn_device_export_csv", "btn_device_csv_text", "btn_device_csv_spinner", true, "Generando…", "Exportar CSV");
-        const csvLines = ["Venta,Expediente,Fecha,Estado,Usuario,Codigo producto,Producto,Categoria,Codigo unico,Precio,Costo,Utilidad"];
+        const csvLines = ["Salida,Tipo,Expediente,Fecha,Estado,Usuario,Codigo producto,Producto,Categoria,Codigo unico,Precio,Costo,Utilidad"];
         for (const r of deviceRenderedRows){
           const items = await fetchDeviceSaleDetail(r.sale_no);
           if (items.length === 0){
-            csvLines.push([r.sale_no || "", r.expediente || "", fmtTime(r.confirmed_at || r.created_at), r.status || "", r.created_by_name || "", "", "", "", "", r.total_sale || 0, r.total_cost || 0, r.gross_profit || 0].map(csvEscape).join(","));
+            csvLines.push([r.sale_no || "", deviceSaleTypeLabel(r.sale_type), r.expediente || "", fmtTime(r.confirmed_at || r.created_at), r.status || "", r.created_by_name || "", "", "", "", "", r.total_sale || 0, r.total_cost || 0, r.gross_profit || 0].map(csvEscape).join(","));
           } else {
             items.forEach(it => {
               csvLines.push([
-                r.sale_no || "", r.expediente || "", fmtTime(r.confirmed_at || r.created_at), r.status || "", r.created_by_name || "",
+                r.sale_no || "", deviceSaleTypeLabel(r.sale_type), r.expediente || "", fmtTime(r.confirmed_at || r.created_at), r.status || "", r.created_by_name || "",
                 it.external_code || "", it.product_name || "", it.category || "", it.serial_code || "",
                 Number(it.price || 0).toFixed(2), Number(it.cost || 0).toFixed(2), Number(it.gross_profit || 0).toFixed(2)
               ].map(csvEscape).join(","));
@@ -1578,12 +1609,12 @@
       sales.forEach(s => {
         const items = Array.isArray(s.items) ? s.items : [];
         if (!items.length){
-          rows += `<tr><td>${s.sale_no || "—"}</td><td>${escapeHtml(s.expediente || "")}</td><td>${fmtTime(s.confirmed_at || s.created_at)}</td><td>${escapeHtml(s.created_by_name || "—")}</td><td>—</td><td>—</td><td style="text-align:right">${money(s.total_sale)}</td><td style="text-align:right">${money(s.gross_profit)}</td></tr>`;
+          rows += `<tr><td>${s.sale_no || "—"}</td><td>${deviceSaleTypeLabel(s.sale_type)}</td><td>${escapeHtml(s.expediente || "")}</td><td>${fmtTime(s.confirmed_at || s.created_at)}</td><td>${escapeHtml(s.created_by_name || "—")}</td><td>—</td><td>—</td><td style="text-align:right">${money(s.total_sale)}</td><td style="text-align:right">${money(s.gross_profit)}</td></tr>`;
         } else {
           items.forEach((it, idx) => {
             rows += `<tr>`;
             if (idx === 0){
-              rows += `<td rowspan="${items.length}">${s.sale_no || "—"}</td><td rowspan="${items.length}">${escapeHtml(s.expediente || "")}</td><td rowspan="${items.length}">${fmtTime(s.confirmed_at || s.created_at)}</td><td rowspan="${items.length}">${escapeHtml(s.created_by_name || "—")}</td>`;
+              rows += `<td rowspan="${items.length}">${s.sale_no || "—"}</td><td rowspan="${items.length}">${deviceSaleTypeLabel(s.sale_type)}</td><td rowspan="${items.length}">${escapeHtml(s.expediente || "")}</td><td rowspan="${items.length}">${fmtTime(s.confirmed_at || s.created_at)}</td><td rowspan="${items.length}">${escapeHtml(s.created_by_name || "—")}</td>`;
             }
             rows += `<td>${escapeHtml(it.product_name || "—")}</td><td style="font-family:monospace">${escapeHtml(it.serial_code || "—")}</td><td style="text-align:right">${money(it.price)}</td><td style="text-align:right">${money(it.gross_profit)}</td></tr>`;
           });
@@ -1604,7 +1635,7 @@
   td { padding:5px 8px; border-bottom:1px solid #e2e8f0; vertical-align:top; }
   .footer { margin-top:20px; font-size:10px; color:#94a3b8; text-align:center; }
 </style></head><body>
-<h1>Botiquín CCM - Reporte de Ventas de Dispositivos</h1>
+<h1>Botiquín CCM - Reporte de Salidas de Dispositivos</h1>
 <div class="subtitle">Período: ${escapeHtml(summary.dateFrom || "—")} al ${escapeHtml(summary.dateTo || "—")} | Generado: ${fmtTime(new Date().toISOString())}</div>
 <div class="summary">
   <div>Registros: <span>${summary.count}</span></div>
@@ -1613,7 +1644,7 @@
   <div>Utilidad: <span>${money(summary.profit)}</span></div>
 </div>
 <table>
-  <thead><tr><th>Venta</th><th>Expediente</th><th>Fecha</th><th>Usuario</th><th>Producto</th><th>Código único</th><th style="text-align:right">Precio</th><th style="text-align:right">Utilidad</th></tr></thead>
+  <thead><tr><th>Salida</th><th>Tipo</th><th>Expediente</th><th>Fecha</th><th>Usuario</th><th>Producto</th><th>Código único</th><th style="text-align:right">Precio</th><th style="text-align:right">Utilidad</th></tr></thead>
   <tbody>${rows}</tbody>
 </table>
 <div class="footer">Botiquín CCM - Reporte generado automáticamente. Dispositivos se reporta separado de farmacia.</div>
