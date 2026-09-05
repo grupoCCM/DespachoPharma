@@ -45,7 +45,7 @@
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
       <div>
         <h1 class="h4 mb-1">Vencimientos por lote</h1>
-        <div id="snapshot_meta" class="text-muted">Alertas desde la ultima foto de inventario cargada.</div>
+        <div id="snapshot_meta" class="text-muted">Alertas desde la ultima foto completa de inventario y actualizaciones parciales posteriores.</div>
       </div>
       <button id="btn_refresh" class="btn btn-primary">Actualizar</button>
     </div>
@@ -212,7 +212,7 @@
         expires_90_days:"31-90 dias",
         expires_180_days:"91-180 dias",
         unknown:"Sin fecha",
-        ok:"OK"
+        ok:"Sin riesgo"
       }[status] || status || "-";
     }
 
@@ -220,9 +220,18 @@
       const summary = data?.summary || {};
       const snapshot = data?.snapshot || {};
       const rows = Array.isArray(data?.rows) ? data.rows : [];
-      el("snapshot_meta").textContent = snapshot.snapshot_date
-        ? `Ultima foto: ${fmtDate(snapshot.snapshot_date)} - ${snapshot.source_file || ""}`
-        : "Sin foto de inventario cargada.";
+      const metaParts = [];
+      if(snapshot.snapshot_date){
+        metaParts.push(`Foto completa: ${fmtDate(snapshot.snapshot_date)} - ${snapshot.source_file || ""}`);
+      }
+      if(snapshot.latest_update_date && snapshot.latest_update_source_file && snapshot.latest_update_source_file !== snapshot.source_file){
+        const scope = snapshot.latest_update_scope === "actualizacion_parcial" ? "actualizacion parcial" : "foto completa";
+        metaParts.push(`Ultima ${scope}: ${fmtDate(snapshot.latest_update_date)} - ${snapshot.latest_update_source_file}`);
+      }
+      if(snapshot.products_considered !== undefined && snapshot.products_considered !== null){
+        metaParts.push(`${num(snapshot.products_considered)} productos considerados`);
+      }
+      el("snapshot_meta").textContent = metaParts.length ? metaParts.join(" | ") : "Sin foto de inventario cargada.";
       el("metric_expired").textContent = num(summary.expired_lots);
       el("metric_30").textContent = num(summary.expires_30_days);
       el("metric_90").textContent = num(summary.expires_90_days);
@@ -230,6 +239,7 @@
       el("metric_unknown").textContent = num(summary.unknown_lots);
       el("metric_value").textContent = money(summary.risk_stock_value);
       el("row_count").textContent = `${num(rows.length)} filas`;
+      const query = el("q").value.trim();
       el("tbody_rows").innerHTML = rows.length ? rows.map(row => `
         <tr>
           <td><div class="fw-semibold truncate">${esc(row.medicine_name || "-")}</div><div class="small text-muted">${esc(row.external_code || "")} - ${esc(row.model || "")} - ${esc(row.secondary_name || "")}</div></td>
@@ -240,7 +250,7 @@
           <td class="text-center">${num(row.stock_qty)}</td>
           <td class="text-center">${num(row.lot_qty)}</td>
           <td><span class="badge ${badge(row.expiration_status)}">${statusText(row.expiration_status)}</span></td>
-        </tr>`).join("") : `<tr><td colspan="8" class="text-center text-muted py-4">Sin productos en el horizonte seleccionado.</td></tr>`;
+        </tr>`).join("") : `<tr><td colspan="8" class="text-center text-muted py-4">${query ? "No se encontro el producto en el inventario vigente." : "Sin productos en el horizonte seleccionado."}</td></tr>`;
     }
 
     async function loadDashboard(){
