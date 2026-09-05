@@ -615,6 +615,10 @@
       if(unresolved) details.push(`${unresolved} en revision/omitidas`);
       if(skipped) details.push(`${skipped} invalidas omitidas`);
       if(result.total_units !== undefined) details.push(`${Number(result.total_units || 0)} unidades`);
+      if(result.products_with_lots !== undefined) details.push(`${Number(result.products_with_lots || 0)} productos con lote`);
+      if(result.historical_lot_rows) details.push(`${Number(result.historical_lot_rows || 0)} con historial FIFO`);
+      if(result.live_expired_lots) details.push(`${Number(result.live_expired_lots || 0)} lotes vigentes vencidos`);
+      if(result.live_unknown_lots) details.push(`${Number(result.live_unknown_lots || 0)} lotes sin fecha valida`);
       return `${label}: ${details.join(", ")}`;
     }
 
