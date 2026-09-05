@@ -161,6 +161,7 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
     const ROUTES = { login:"index.html", dispatch:"dispatch-menu.html", cashier:"cashier.html" };
     const el = id => document.getElementById(id);
+    let loadingDashboard = false;
 
     function getSession(){ return { token:localStorage.getItem("dp_session_token")||"", role:(localStorage.getItem("dp_role")||"").toLowerCase(), name:localStorage.getItem("dp_display_name")||"" }; }
     function esc(v){ return String(v ?? "").replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
@@ -171,16 +172,23 @@
     function hideAlert(){ el("alert_page").textContent = ""; el("alert_page").classList.add("d-none"); }
 
     async function callRpc(fnName, body){
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${SUPABASE_ANON_KEY}` },
-        body:JSON.stringify(body || {})
-      });
-      const text = await res.text();
-      let data = null;
-      try{ data = text ? JSON.parse(text) : null; }catch{ data = null; }
-      if(!res.ok) throw new Error(data?.message || data?.error || data?.details || "Error de conexion con Supabase.");
-      return data;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try{
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+          method:"POST",
+          headers:{ "Content-Type":"application/json", "apikey":SUPABASE_ANON_KEY, "Authorization":`Bearer ${SUPABASE_ANON_KEY}` },
+          body:JSON.stringify(body || {}),
+          signal:controller.signal
+        });
+        const text = await res.text();
+        let data = null;
+        try{ data = text ? JSON.parse(text) : null; }catch{ data = null; }
+        if(!res.ok) throw new Error(data?.message || data?.error || data?.details || "Error de conexion con Supabase.");
+        return data;
+      }finally{
+        clearTimeout(timeout);
+      }
     }
 
     async function touchSession(){
@@ -254,8 +262,12 @@
     }
 
     async function loadDashboard(){
+      if(loadingDashboard) return;
+      loadingDashboard = true;
       hideAlert();
       el("btn_refresh").disabled = true;
+      el("btn_search").disabled = true;
+      el("tbody_rows").innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">Buscando...</td></tr>`;
       try{
         const s = getSession();
         const data = await callRpc("rpc_inventory_expiration_dashboard", {
@@ -266,9 +278,14 @@
         });
         render(data || {});
       }catch(err){
-        showAlert(err.message || "No se pudo cargar vencimientos.");
+        const msg = err.name === "AbortError"
+          ? "La busqueda tardo demasiado. Revisa tu conexion o vuelve a intentarlo."
+          : (err.message || "No se pudo cargar vencimientos.");
+        showAlert(msg);
       }finally{
         el("btn_refresh").disabled = false;
+        el("btn_search").disabled = false;
+        loadingDashboard = false;
       }
     }
 
