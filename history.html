@@ -240,6 +240,8 @@
                 <select id="device_status" class="form-select">
                   <option value="" selected>Todos</option>
                   <option value="confirmed">Confirmadas</option>
+                  <option value="validated">Validadas</option>
+                  <option value="observed">Observadas</option>
                   <option value="voided">Anuladas</option>
                 </select>
               </div>
@@ -297,9 +299,10 @@
                   <tr>
                     <th style="width:10%">Salida</th>
                     <th style="width:12%">Tipo</th>
-                    <th style="width:12%">Expediente</th>
-                    <th style="width:17%">Fecha</th>
-                    <th style="width:24%">Productos</th>
+                    <th style="width:11%">Estado</th>
+                    <th style="width:11%">Expediente</th>
+                    <th style="width:16%">Fecha</th>
+                    <th style="width:23%">Productos</th>
                     <th style="width:8%" class="text-center">Unid.</th>
                     <th style="width:11%" class="text-end">Total</th>
                     <th style="width:11%" class="text-end">Utilidad</th>
@@ -307,7 +310,7 @@
                   </tr>
                 </thead>
                 <tbody id="device_results_body">
-                  <tr><td colspan="9" class="text-center text-muted py-4">Busca para ver salidas de dispositivos.</td></tr>
+                  <tr><td colspan="10" class="text-center text-muted py-4">Busca para ver salidas de dispositivos.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -482,10 +485,20 @@
             <span class="badge text-bg-light border">
               Fecha: <span id="d_confirmed_at" class="fw-semibold">—</span>
             </span>
+            <span id="d_validated_chip" class="badge text-bg-light border d-none">
+              Validado: <span id="d_validated_meta" class="fw-semibold">—</span>
+            </span>
+            <span id="d_observed_chip" class="badge text-bg-light border d-none">
+              Observado: <span id="d_observed_meta" class="fw-semibold">—</span>
+            </span>
           </div>
           <div id="d_replacement_reason_wrap" class="alert alert-warning py-2 d-none">
             <span class="fw-semibold">Motivo de reposición:</span>
             <span id="d_replacement_reason">—</span>
+          </div>
+          <div id="d_observation_note_wrap" class="alert alert-warning py-2 d-none">
+            <span class="fw-semibold">Observación de caja:</span>
+            <span id="d_observation_note">—</span>
           </div>
 
           <div class="table-responsive">
@@ -1296,6 +1309,8 @@
 
     function deviceStatusBadgeHtml(status){
       if (status === "confirmed") return `<span class="badge text-bg-success">Confirmada</span>`;
+      if (status === "validated") return `<span class="badge text-bg-success">Validada</span>`;
+      if (status === "observed") return `<span class="badge text-bg-warning text-dark">Observada</span>`;
       if (status === "voided") return `<span class="badge text-bg-danger">Anulada</span>`;
       return `<span class="badge text-bg-light border">${escapeHtml(status || "—")}</span>`;
     }
@@ -1325,6 +1340,8 @@
       const b = el("d_status_badge");
       b.className = "badge";
       if (status === "confirmed") { b.classList.add("text-bg-success"); b.textContent = "Confirmada"; }
+      else if (status === "validated") { b.classList.add("text-bg-success"); b.textContent = "Validada"; }
+      else if (status === "observed") { b.classList.add("text-bg-warning","text-dark"); b.textContent = "Observada"; }
       else if (status === "voided") { b.classList.add("text-bg-danger"); b.textContent = "Anulada"; }
       else { b.classList.add("text-bg-light","border"); b.textContent = status || "—"; }
     }
@@ -1375,15 +1392,17 @@
       const body = el("device_results_body");
       body.innerHTML = "";
       if (!rows.length){
-        body.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">Sin salidas de dispositivos con los filtros actuales.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4">Sin salidas de dispositivos con los filtros actuales.</td></tr>`;
         return;
       }
 
       rows.forEach(r => {
         const tr = document.createElement("tr");
+        if (r.status === "voided") tr.classList.add("table-light");
         tr.innerHTML = `
           <td class="mono fw-semibold">#${Number(r.sale_no || 0)}</td>
           <td>${deviceSaleTypeBadgeHtml(r.sale_type)}</td>
+          <td>${deviceStatusBadgeHtml(r.status)}</td>
           <td class="fw-semibold">${escapeHtml(r.expediente || "")}</td>
           <td class="text-muted">${escapeHtml(fmtTime(r.confirmed_at || r.created_at))}</td>
           <td>
@@ -1415,6 +1434,9 @@
       el("device_void_section").classList.add("d-none");
       el("device_void_info").classList.add("d-none");
       el("btn_device_void_show").classList.add("d-none");
+      el("d_validated_chip").classList.add("d-none");
+      el("d_observed_chip").classList.add("d-none");
+      el("d_observation_note_wrap").classList.add("d-none");
       el("device_void_reason").value = "";
       currentDeviceSaleNo = null;
 
@@ -1448,6 +1470,18 @@
         el("d_confirmed_at").textContent = fmtTime(detail.confirmed_at || detail.created_at);
         el("d_replacement_reason_wrap").classList.toggle("d-none", detail.sale_type !== "replacement");
         el("d_replacement_reason").textContent = detail.replacement_reason || "Sin motivo registrado";
+        if (detail.validated_at){
+          el("d_validated_chip").classList.remove("d-none");
+          el("d_validated_meta").textContent = `${detail.validated_by_name || "—"} · ${fmtTime(detail.validated_at)}`;
+        }
+        if (detail.observed_at){
+          el("d_observed_chip").classList.remove("d-none");
+          el("d_observed_meta").textContent = `${detail.observed_by_name || "—"} · ${fmtTime(detail.observed_at)}`;
+        }
+        if (detail.observation_note){
+          el("d_observation_note_wrap").classList.remove("d-none");
+          el("d_observation_note").textContent = detail.observation_note;
+        }
 
         if (detail.status === "voided"){
           el("device_void_info").classList.remove("d-none");
