@@ -27,6 +27,7 @@
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
     .table td, .table th { vertical-align: middle; }
     .kbd-hint{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
+    .mode-toggle .btn-check:checked + .btn{ box-shadow:0 0 0 .18rem rgba(13,110,253,.14); }
   </style>
 </head>
 
@@ -59,12 +60,22 @@
       <div class="col-12 col-lg-4">
         <div class="app-card p-3">
           <div class="fw-semibold">Búsqueda rápida</div>
-          <div class="text-muted small">Busca por <span class="fw-semibold">Entrega #</span>.</div>
+          <div id="search_hint" class="text-muted small">Busca por <span class="fw-semibold">Entrega #</span>.</div>
+
+          <div class="mode-toggle mt-3">
+            <label class="form-label mb-2">Flujo</label>
+            <div class="btn-group w-100" role="group" aria-label="Flujo de caja">
+              <input type="radio" class="btn-check" name="cashier_mode" id="mode_pharmacy" value="pharmacy" autocomplete="off" checked>
+              <label class="btn btn-outline-primary" for="mode_pharmacy">Farmacia</label>
+              <input type="radio" class="btn-check" name="cashier_mode" id="mode_devices" value="devices" autocomplete="off">
+              <label class="btn btn-outline-success" for="mode_devices">Dispositivos</label>
+            </div>
+          </div>
 
           <div id="alert_search" class="alert alert-danger d-none mt-3 mb-0" role="alert"></div>
 
           <div class="mt-3">
-            <label for="delivery_input" class="form-label">Entrega #</label>
+            <label id="delivery_label" for="delivery_input" class="form-label">Entrega #</label>
             <input id="delivery_input" class="form-control" inputmode="numeric" placeholder="Ej: 3" />
             <div class="form-text">Tip: escribe el número y presiona <span class="kbd-hint">Enter</span>.</div>
           </div>
@@ -110,8 +121,8 @@
         <div class="app-card p-3">
           <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start">
             <div>
-              <div class="fw-semibold">Caja</div>
-              <div class="text-muted small">Pendientes y revisados del rango seleccionado.</div>
+              <div id="cashier_title" class="fw-semibold">Caja farmacia</div>
+              <div id="cashier_subtitle" class="text-muted small">Pendientes y revisados del rango seleccionado.</div>
             </div>
 
             <div class="d-flex gap-2 align-items-center">
@@ -146,7 +157,7 @@
                 <table class="table table-sm align-middle">
                   <thead class="table-light">
                     <tr>
-                      <th style="width:12%">Entrega</th>
+                      <th id="pending_no_header" style="width:12%">Entrega</th>
                       <th style="width:20%">Expediente</th>
                       <th style="width:18%">Hora</th>
                       <th style="width:15%" class="text-center">Unidades</th>
@@ -167,7 +178,7 @@
                 <table class="table table-sm align-middle">
                   <thead class="table-light">
                     <tr>
-                      <th style="width:12%">Entrega</th>
+                      <th id="reviewed_no_header" style="width:12%">Entrega</th>
                       <th style="width:20%">Expediente</th>
                       <th style="width:18%">Hora</th>
                       <th style="width:15%" class="text-center">Unidades</th>
@@ -197,9 +208,9 @@
       <div class="modal-content">
         <div class="modal-header">
           <div>
-            <h5 class="modal-title mb-0">Detalle de entrega</h5>
+            <h5 id="modal_title" class="modal-title mb-0">Detalle de entrega</h5>
             <div class="small text-muted">
-              <span class="me-2">Entrega <span id="m_delivery" class="fw-semibold">—</span></span>
+              <span class="me-2"><span id="m_number_label">Entrega</span> <span id="m_delivery" class="fw-semibold">—</span></span>
               <span class="me-2">Exp <span id="m_exp" class="fw-semibold">—</span></span>
               <span id="m_status_badge" class="badge text-bg-secondary">—</span>
             </div>
@@ -392,6 +403,32 @@
     /***********************
      * DATA LOADERS
      ***********************/
+    let cashierMode = "pharmacy";
+    let currentModalKind = "pharmacy";
+    let currentDeviceSaleId = null;
+    let currentDeviceSaleNo = null;
+
+    function currentNumberLabel(){
+      return cashierMode === "devices" ? "Salida #" : "Entrega #";
+    }
+
+    function setCashierMode(mode){
+      cashierMode = mode === "devices" ? "devices" : "pharmacy";
+      const isDevices = cashierMode === "devices";
+      el("search_hint").innerHTML = `Busca por <span class="fw-semibold">${isDevices ? "Salida #" : "Entrega #"}</span>.`;
+      el("delivery_label").textContent = isDevices ? "Salida #" : "Entrega #";
+      el("delivery_input").placeholder = isDevices ? "Ej: 4" : "Ej: 3";
+      el("cashier_title").textContent = isDevices ? "Caja dispositivos" : "Caja farmacia";
+      el("cashier_subtitle").textContent = isDevices
+        ? "Salidas pendientes y revisadas del rango seleccionado."
+        : "Pendientes y revisados del rango seleccionado.";
+      el("pending_no_header").textContent = isDevices ? "Salida" : "Entrega";
+      el("reviewed_no_header").textContent = isDevices ? "Salida" : "Entrega";
+      el("delivery_input").value = "";
+      hideAlert("alert_search");
+      hideAlert("alert_lists");
+    }
+
     async function loadLists(){
       hideAlert("alert_lists");
 
@@ -401,6 +438,11 @@
 
       const fromIso = isoFromDateInput(el("date_from").value, false);
       const toIso   = isoFromDateInput(el("date_to").value, true);
+
+      if (cashierMode === "devices"){
+        await loadDeviceLists(token, fromIso, toIso);
+        return;
+      }
 
       // Pendientes (confirmed)
       const pending = await callRpc("rpc_dispatch_search", {
@@ -437,6 +479,36 @@
       renderReviewed(reviewed);
     }
 
+    async function loadDeviceLists(token, fromIso, toIso){
+      const pending = await callRpc("rpc_device_cashier_search", {
+        p_session_token: token,
+        p_date_from: fromIso,
+        p_date_to: toIso,
+        p_status: "confirmed",
+        p_sale_no: null,
+        p_limit: 200,
+        p_offset: 0
+      });
+
+      const reviewedRaw = await callRpc("rpc_device_cashier_search", {
+        p_session_token: token,
+        p_date_from: fromIso,
+        p_date_to: toIso,
+        p_status: null,
+        p_sale_no: null,
+        p_limit: 200,
+        p_offset: 0
+      });
+
+      const reviewedFilter = el("reviewed_filter").value;
+      let reviewed = Array.isArray(reviewedRaw) ? reviewedRaw.filter(r => (r.status === "validated" || r.status === "observed")) : [];
+      if (reviewedFilter === "validated") reviewed = reviewed.filter(r => r.status === "validated");
+      if (reviewedFilter === "observed") reviewed = reviewed.filter(r => r.status === "observed");
+
+      renderPending(Array.isArray(pending) ? pending : []);
+      renderReviewed(reviewed);
+    }
+
     function renderPending(rows){
       const body = el("pending_body");
       body.innerHTML = "";
@@ -450,14 +522,18 @@
 
       rows.forEach(r => {
         const tr = document.createElement("tr");
+        const isDevices = cashierMode === "devices";
+        const number = isDevices ? Number(r.sale_no || 0) : Number(r.delivery_no || 0);
+        const units = isDevices ? Number(r.item_count || 0) : Number(r.total_units || 0);
+        const source = r.created_by_name || "—";
         tr.innerHTML = `
-          <td class="mono fw-semibold">#${Number(r.delivery_no || 0)}</td>
+          <td class="mono fw-semibold">#${number}</td>
           <td class="fw-semibold">${escapeHtml(r.expediente || "")}</td>
           <td class="text-muted">${escapeHtml(fmtTime(r.confirmed_at || r.created_at))}</td>
-          <td class="text-center fw-semibold">${Number(r.total_units || 0)}</td>
-          <td>${escapeHtml(r.created_by_name || "—")}</td>
+          <td class="text-center fw-semibold">${units}</td>
+          <td>${escapeHtml(source)}</td>
           <td class="text-end">
-            <button class="btn btn-primary btn-sm" data-action="open" data-dispatch="${escapeHtml(r.dispatch_id)}">Revisar</button>
+            <button class="btn btn-primary btn-sm" data-action="open" data-number="${number}">Revisar</button>
           </td>
         `;
         body.appendChild(tr);
@@ -465,8 +541,8 @@
 
       body.querySelectorAll('button[data-action="open"]').forEach(btn => {
         btn.addEventListener("click", async () => {
-          const id = btn.getAttribute("data-dispatch");
-          await openDetailByDispatchId(id);
+          const number = Number(btn.getAttribute("data-number"));
+          await openDetailByNumber(number);
         });
       });
     }
@@ -475,6 +551,7 @@
       if (status === "validated") return `<span class="badge text-bg-success">Validado</span>`;
       if (status === "observed") return `<span class="badge text-bg-warning text-dark">Observado</span>`;
       if (status === "confirmed") return `<span class="badge text-bg-primary">Pendiente</span>`;
+      if (status === "voided") return `<span class="badge text-bg-danger">Anulado</span>`;
       return `<span class="badge text-bg-secondary">${escapeHtml(status || "—")}</span>`;
     }
 
@@ -491,14 +568,17 @@
 
       rows.forEach(r => {
         const tr = document.createElement("tr");
+        const isDevices = cashierMode === "devices";
+        const number = isDevices ? Number(r.sale_no || 0) : Number(r.delivery_no || 0);
+        const units = isDevices ? Number(r.item_count || 0) : Number(r.total_units || 0);
         tr.innerHTML = `
-          <td class="mono fw-semibold">#${Number(r.delivery_no || 0)}</td>
+          <td class="mono fw-semibold">#${number}</td>
           <td class="fw-semibold">${escapeHtml(r.expediente || "")}</td>
           <td class="text-muted">${escapeHtml(fmtTime((r.validated_at || r.observed_at || r.confirmed_at || r.created_at)))}</td>
-          <td class="text-center fw-semibold">${Number(r.total_units || 0)}</td>
+          <td class="text-center fw-semibold">${units}</td>
           <td>${statusBadgeHtml(r.status)}</td>
           <td class="text-end">
-            <button class="btn btn-outline-secondary btn-sm" data-action="open" data-dispatch="${escapeHtml(r.dispatch_id)}">Ver</button>
+            <button class="btn btn-outline-secondary btn-sm" data-action="open" data-number="${number}">Ver</button>
           </td>
         `;
         body.appendChild(tr);
@@ -506,8 +586,8 @@
 
       body.querySelectorAll('button[data-action="open"]').forEach(btn => {
         btn.addEventListener("click", async () => {
-          const id = btn.getAttribute("data-dispatch");
-          await openDetailByDispatchId(id);
+          const number = Number(btn.getAttribute("data-number"));
+          await openDetailByNumber(number);
         });
       });
     }
@@ -523,7 +603,13 @@
       if (status === "confirmed") { b.classList.add("text-bg-primary"); b.textContent = "Pendiente"; }
       else if (status === "validated") { b.classList.add("text-bg-success"); b.textContent = "Validado"; }
       else if (status === "observed") { b.classList.add("text-bg-warning","text-dark"); b.textContent = "Observado"; }
+      else if (status === "voided") { b.classList.add("text-bg-danger"); b.textContent = "Anulado"; }
       else { b.classList.add("text-bg-secondary"); b.textContent = status || "—"; }
+    }
+
+    async function openDetailByNumber(number){
+      if (cashierMode === "devices") return openDeviceDetailBySaleNo(number);
+      return openDetailByDeliveryNo(number);
     }
 
     async function openDetailByDispatchId(dispatchId){
@@ -548,7 +634,12 @@
       const items = Array.isArray(rows[0].items) ? rows[0].items : [];
 
       currentModalDispatchId = header.dispatch_id || dispatchId;
+      currentModalKind = "pharmacy";
+      currentDeviceSaleId = null;
+      currentDeviceSaleNo = null;
 
+      el("modal_title").textContent = "Detalle de entrega";
+      el("m_number_label").textContent = "Entrega";
       el("m_delivery").textContent = header.delivery_no ? `#${header.delivery_no}` : "—";
       el("m_exp").textContent = header.expediente || "—";
       setModalStatus(header.status);
@@ -586,6 +677,69 @@
       modal.show();
     }
 
+    async function openDeviceDetailBySaleNo(saleNo){
+      hideAlert("alert_search");
+      hideAlert("alert_modal");
+      el("m_items_body").innerHTML = "";
+      el("m_existing_note").classList.add("d-none");
+      el("m_existing_note").textContent = "";
+      el("observed_block").classList.add("d-none");
+      el("m_note").value = "";
+
+      const { token } = getSession();
+      const ok = await touchSession(true);
+      if (!ok) return logoutAndGoLogin();
+
+      const detail = await callRpc("rpc_device_cashier_get_by_sale_no", { p_session_token: token, p_sale_no: Number(saleNo) });
+      if (!detail){
+        showAlert("alert_search", "Salida de dispositivo no encontrada.");
+        return;
+      }
+
+      const items = Array.isArray(detail.items) ? detail.items : [];
+      currentModalKind = "devices";
+      currentModalDispatchId = null;
+      currentDeviceSaleId = detail.sale_id || null;
+      currentDeviceSaleNo = Number(detail.sale_no || saleNo);
+
+      el("modal_title").textContent = "Detalle de salida de dispositivos";
+      el("m_number_label").textContent = "Salida";
+      el("m_delivery").textContent = detail.sale_no ? `#${detail.sale_no}` : "—";
+      el("m_exp").textContent = detail.expediente || "—";
+      setModalStatus(detail.status);
+      el("m_units").textContent = String(items.length);
+      el("m_items").textContent = String(items.length);
+      el("m_dispatcher").textContent = detail.created_by_name || "—";
+      el("m_confirmed_at").textContent = detail.confirmed_at ? fmtTime(detail.confirmed_at) : "—";
+
+      const tb = el("m_items_body");
+      tb.innerHTML = "";
+      items.forEach(it => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>
+            <div class="fw-semibold">${escapeHtml(it.product_name || "—")}</div>
+            <div class="small text-muted">Código ${escapeHtml(it.external_code || "—")} · ${escapeHtml(it.category || "—")}</div>
+            <div class="small text-muted mono">${escapeHtml(it.serial_code || "")}</div>
+          </td>
+          <td class="text-center fw-semibold">1</td>
+        `;
+        tb.appendChild(tr);
+      });
+
+      const isConfirmed = (detail.status === "confirmed");
+      el("btn_modal_validate").disabled = !isConfirmed;
+      el("btn_modal_observe").disabled = !isConfirmed;
+
+      if (detail.status === "observed" && detail.observation_note){
+        el("m_existing_note").textContent = `Observación: ${detail.observation_note}`;
+        el("m_existing_note").classList.remove("d-none");
+      }
+
+      const modal = bootstrap.Modal.getOrCreateInstance(el("modal_detail"));
+      modal.show();
+    }
+
     async function openDetailByDeliveryNo(deliveryNo){
       hideAlert("alert_search");
       const { token } = getSession();
@@ -603,7 +757,8 @@
 
     async function doValidate(){
       hideAlert("alert_modal");
-      if (!currentModalDispatchId) return;
+      if (currentModalKind === "pharmacy" && !currentModalDispatchId) return;
+      if (currentModalKind === "devices" && !currentDeviceSaleId) return;
 
       const { token } = getSession();
       try{
@@ -613,13 +768,18 @@
         const ok = await touchSession(true);
         if (!ok) return logoutAndGoLogin();
 
-        await callRpc("rpc_cashier_validate", { p_session_token: token, p_dispatch_id: currentModalDispatchId });
+        if (currentModalKind === "devices"){
+          await callRpc("rpc_device_cashier_validate", { p_session_token: token, p_sale_id: currentDeviceSaleId });
+        } else {
+          await callRpc("rpc_cashier_validate", { p_session_token: token, p_dispatch_id: currentModalDispatchId });
+        }
 
         // refrescar listados
         await loadLists();
 
         // reabrir detalle actualizado
-        await openDetailByDispatchId(currentModalDispatchId);
+        if (currentModalKind === "devices") await openDeviceDetailBySaleNo(currentDeviceSaleNo);
+        else await openDetailByDispatchId(currentModalDispatchId);
 
       } catch(err){
         showAlert("alert_modal", err.message || "No se pudo validar.");
@@ -630,7 +790,8 @@
 
     async function doObserve(){
       hideAlert("alert_modal");
-      if (!currentModalDispatchId) return;
+      if (currentModalKind === "pharmacy" && !currentModalDispatchId) return;
+      if (currentModalKind === "devices" && !currentDeviceSaleId) return;
 
       // 1er click: mostrar textarea
       if (el("observed_block").classList.contains("d-none")){
@@ -654,10 +815,15 @@
         const ok = await touchSession(true);
         if (!ok) return logoutAndGoLogin();
 
-        await callRpc("rpc_cashier_observe", { p_session_token: token, p_dispatch_id: currentModalDispatchId, p_note: note });
+        if (currentModalKind === "devices"){
+          await callRpc("rpc_device_cashier_observe", { p_session_token: token, p_sale_id: currentDeviceSaleId, p_note: note });
+        } else {
+          await callRpc("rpc_cashier_observe", { p_session_token: token, p_dispatch_id: currentModalDispatchId, p_note: note });
+        }
 
         await loadLists();
-        await openDetailByDispatchId(currentModalDispatchId);
+        if (currentModalKind === "devices") await openDeviceDetailBySaleNo(currentDeviceSaleNo);
+        else await openDetailByDispatchId(currentModalDispatchId);
 
       } catch(err){
         showAlert("alert_modal", err.message || "No se pudo observar.");
@@ -710,6 +876,20 @@
       setDefaultDatesToday();
 
       // inputs
+      document.querySelectorAll('input[name="cashier_mode"]').forEach(input => {
+        input.addEventListener("change", async () => {
+          setCashierMode(input.value);
+          try{
+            setBtnLoading("btn_reload","btn_reload_text","btn_reload_spinner", true, "Actualizando…", "Actualizar listados");
+            await loadLists();
+          }catch(err){
+            showAlert("alert_lists", err.message || "No se pudieron cargar listados.");
+          }finally{
+            setBtnLoading("btn_reload","btn_reload_text","btn_reload_spinner", false, "Actualizando…", "Actualizar listados");
+          }
+        });
+      });
+
       el("delivery_input").addEventListener("input", (e) => e.target.value = sanitizeDigits(e.target.value).slice(0, 12));
       el("delivery_input").addEventListener("keydown", (e) => {
         if (e.key === "Enter"){
@@ -726,7 +906,7 @@
         hideAlert("alert_search");
         const deliveryNo = Number(sanitizeDigits(el("delivery_input").value));
         if (!deliveryNo || deliveryNo <= 0){
-          showAlert("alert_search", "Ingresa un número de entrega válido.");
+          showAlert("alert_search", `Ingresa un número de ${cashierMode === "devices" ? "salida" : "entrega"} válido.`);
           el("delivery_input").focus();
           return;
         }
@@ -734,7 +914,7 @@
         try{
           setLastActivity();
           setBtnLoading("btn_delivery_search","btn_search_text","btn_search_spinner", true, "Buscando…", "Buscar");
-          await openDetailByDeliveryNo(deliveryNo);
+          await openDetailByNumber(deliveryNo);
         } catch(err){
           showAlert("alert_search", err.message || "No se pudo buscar la entrega.");
         } finally {

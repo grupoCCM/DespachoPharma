@@ -86,6 +86,7 @@ Incluye:
 - Resumen de registros, unidades activas/anuladas, venta y utilidad.
 - Detalle por venta con cada codigo unico despachado.
 - Exportacion CSV y PDF independiente del reporte de farmacia.
+- Estado visible: pendiente, validado, observado o anulado.
 
 La capa de datos esta en la migracion `065_device_sales_history.sql`:
 
@@ -100,6 +101,22 @@ La migracion `067_device_replacement_flow.sql` agrega:
 - `device_sales.replacement_reason`
 - `device_sale_items.sale_type`
 - Variante de `rpc_device_dispatch_submit` compatible con `p_sale_type` y `p_reason`.
+
+La migracion `068_device_cashier_validation.sql` agrega el control de caja:
+
+- `device_sales.validated_by`
+- `device_sales.validated_at`
+- `device_sales.observed_by`
+- `device_sales.observed_at`
+- `device_sales.observation_note`
+- Estados `validated` y `observed` para dispositivos.
+- RPCs de caja para buscar, validar y observar salidas de dispositivos.
+
+Regla operativa:
+
+- La salida de dispositivo descuenta inventario al momento del despacho.
+- Caja valida u observa la salida, pero no vuelve a mover inventario.
+- Si hubo error real, admin usa anulacion para devolver la unidad a disponible.
 
 ## Separacion de datos
 
