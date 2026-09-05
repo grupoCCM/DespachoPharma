@@ -665,6 +665,14 @@
       return d.toLocaleString(undefined, { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
     }
 
+    function fmtDateOnly(value){
+      if (!value) return "";
+      const text = String(value).slice(0, 10);
+      const parts = text.split("-");
+      if (parts.length !== 3) return text;
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+
     function money(v){
       return Number(v || 0).toLocaleString("en-US", { style:"currency", currency:"USD" });
     }
@@ -675,7 +683,12 @@
       }[m]));
     }
 
-    function statusBadgeHtml(status){
+    function isExternalReconciled(row){
+      return row?.source_kind === "external_sale" || row?.inventory_effect === "already_reconciled";
+    }
+
+    function statusBadgeHtml(status, row=null){
+      if (isExternalReconciled(row)) return `<span class="badge text-bg-info text-dark">Conciliado externo</span>`;
       if (status === "validated") return `<span class="badge text-bg-success">Validated</span>`;
       if (status === "observed") return `<span class="badge text-bg-warning text-dark">Observed</span>`;
       if (status === "confirmed") return `<span class="badge text-bg-primary">Confirmed</span>`;
@@ -780,8 +793,11 @@
           <td class="fw-semibold">${escapeHtml(r.expediente || "")}</td>
           <td class="text-muted">${escapeHtml(fmtTime(r.confirmed_at || r.created_at))}</td>
           <td class="text-center fw-semibold">${Number(r.total_units || 0)}</td>
-          <td>${statusBadgeHtml(r.status)}</td>
-          <td>${escapeHtml(r.created_by_name || "—")}</td>
+          <td>${statusBadgeHtml(r.status, r)}</td>
+          <td>
+            <div>${escapeHtml(r.created_by_name || "—")}</div>
+            ${isExternalReconciled(r) ? `<div class="small text-muted">Venta ${escapeHtml(r.external_voucher_no || r.external_sale_no || "")}</div>` : ""}
+          </td>
           <td class="text-end">
             <button class="btn btn-outline-secondary btn-sm" data-action="view" data-delivery="${Number(r.delivery_no || 0)}">Ver</button>
           </td>
@@ -797,10 +813,11 @@
       });
     }
 
-    function setModalStatus(status){
+    function setModalStatus(status, header=null){
       const b = el("m_status_badge");
       b.className = "badge";
-      if (status === "confirmed") { b.classList.add("text-bg-primary"); b.textContent = "Confirmed"; }
+      if (isExternalReconciled(header)) { b.classList.add("text-bg-info","text-dark"); b.textContent = "Conciliado externo"; }
+      else if (status === "confirmed") { b.classList.add("text-bg-primary"); b.textContent = "Confirmed"; }
       else if (status === "validated") { b.classList.add("text-bg-success"); b.textContent = "Validated"; }
       else if (status === "observed") { b.classList.add("text-bg-warning","text-dark"); b.textContent = "Observed"; }
       else if (status === "draft") { b.classList.add("text-bg-secondary"); b.textContent = "Draft"; }
@@ -846,7 +863,7 @@
 
         el("m_delivery").textContent = header.delivery_no ? `#${header.delivery_no}` : "—";
         el("m_exp").textContent = header.expediente || "—";
-        setModalStatus(header.status);
+        setModalStatus(header.status, header);
 
         el("m_units").textContent = String(header.total_units ?? 0);
         el("m_items").textContent = String(header.items_count ?? items.length ?? 0);
@@ -858,7 +875,8 @@
         const tb = el("m_items_body");
         tb.innerHTML = "";
         const isAdmin = getSession().role === 'admin';
-        const canEdit = isAdmin && header.status !== 'voided';
+        const externalReconciled = isExternalReconciled(header);
+        const canEdit = isAdmin && header.status !== 'voided' && !externalReconciled;
 
         // Mostrar/ocultar columna de acción
         el("m_col_action").classList.toggle("d-none", !canEdit);
@@ -895,7 +913,11 @@
           });
         }
 
-        if (header.observation_note){
+        if (externalReconciled){
+            const externalRef = [header.external_voucher_no, header.external_sale_no ? `venta ${header.external_sale_no}` : "", fmtDateOnly(header.external_sale_date)].filter(Boolean).join(" · ");
+            el("m_note_block").textContent = `Venta externa conciliada${externalRef ? `: ${externalRef}` : ""}. Se muestra en histórico, pero no requiere validación de Caja ni vuelve a descontar inventario.`;
+            el("m_note_block").classList.remove("d-none");
+        } else if (header.observation_note){
             el("m_note_block").textContent = `Observación: ${header.observation_note}`;
             el("m_note_block").classList.remove("d-none");
         }
@@ -915,7 +937,7 @@
           // Mostrar botón de anular (solo admin)
           el("m_void_info").classList.add("d-none");
           const { role } = getSession();
-          if (role === 'admin') {
+          if (role === 'admin' && !externalReconciled) {
             el("m_void_section").classList.remove("d-none");
           }
         }
