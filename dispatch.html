@@ -58,10 +58,10 @@
           <div class="d-flex justify-content-between align-items-start">
             <div>
               <div class="fw-semibold">Nuevo despacho</div>
-              <div class="text-muted small">Escanea barcode + cantidad + expediente, luego confirma.</div>
+              <div class="text-muted small">Expediente, cantidad y escaneo. El carrito confirma.</div>
             </div>
             <div class="text-end small soft">
-              <div><span class="kbd-hint mono">Enter</span> buscar/agregar</div>
+              <div><span class="kbd-hint mono">Enter</span> avanzar/agregar</div>
             </div>
           </div>
 
@@ -70,18 +70,18 @@
 
           <div class="mt-3">
             <label class="form-label" for="expediente">Expediente (codigo paciente)</label>
-            <input id="expediente" class="form-control mono" inputmode="numeric" autocomplete="off" placeholder="Ej: 123456" />
+            <input id="expediente" class="form-control mono" inputmode="numeric" autocomplete="off" placeholder="Ej: 123456" tabindex="1" />
             <div class="form-text">Debe ser numerico. (No bloquea si no existe, MVP).</div>
           </div>
 
           <div class="row g-2 mt-2">
-            <div class="col-8">
-              <label class="form-label" for="barcode">Barcode</label>
-              <input id="barcode" class="form-control mono" autocomplete="off" placeholder="Escanea aqui..." />
-            </div>
             <div class="col-4">
               <label class="form-label" for="qty">Cant.</label>
-              <input id="qty" class="form-control mono" inputmode="numeric" autocomplete="off" value="1" />
+              <input id="qty" class="form-control mono" inputmode="numeric" autocomplete="off" value="1" tabindex="2" />
+            </div>
+            <div class="col-8">
+              <label class="form-label" for="barcode">Barcode</label>
+              <input id="barcode" class="form-control mono" autocomplete="off" placeholder="Escanea aqui..." tabindex="3" />
             </div>
           </div>
 
@@ -92,11 +92,11 @@
               <span id="lookup_state" class="ms-2"></span>
             </div>
             <div class="d-flex gap-2">
-              <button id="btn_add" class="btn btn-primary btn-sm" disabled>
+              <button id="btn_add" class="btn btn-primary btn-sm" disabled tabindex="5">
                 <span id="btn_add_text">Agregar</span>
                 <span id="btn_add_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
               </button>
-              <button id="btn_clear" class="btn btn-outline-secondary btn-sm">Limpiar</button>
+              <button id="btn_clear" class="btn btn-outline-secondary btn-sm" tabindex="6">Limpiar</button>
             </div>
           </div>
 
@@ -116,13 +116,6 @@
           <div class="d-flex justify-content-between">
             <div class="small text-muted">Items: <span id="items_count" class="fw-semibold text-dark">0</span></div>
             <div class="small text-muted">Unidades: <span id="units_total" class="fw-semibold text-dark">0</span></div>
-          </div>
-
-          <div class="d-grid mt-3">
-            <button id="btn_confirm" class="btn btn-success" disabled>
-              <span id="btn_confirm_text">Confirmar despacho</span>
-              <span id="btn_confirm_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
-            </button>
           </div>
 
           <div class="small text-muted mt-3">Sesion: se cierra tras 30 min sin uso.</div>
@@ -151,6 +144,13 @@
                 <tr><td colspan="4" class="text-center text-muted py-4">Escanea un barcode para iniciar.</td></tr>
               </tbody>
             </table>
+          </div>
+
+          <div class="d-grid mt-3">
+            <button id="btn_confirm" class="btn btn-success" disabled tabindex="4">
+              <span id="btn_confirm_text">Confirmar despacho</span>
+              <span id="btn_confirm_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+            </button>
           </div>
 
         </div>
@@ -261,13 +261,20 @@
      ***********************/
     const cart = new Map(); // barcode -> { barcode, name, qty }
     const lookupCache = new Map(); // barcode -> {name, active}
+    let addInFlight = false;
+    let lastAddSignature = "";
+    let lastAddAt = 0;
+
+    function hasExpediente(){
+      return normalizeDigits(el("expediente").value).length > 0;
+    }
 
     function cartTotals(){
       let items = 0, units = 0;
       cart.forEach(v=>{ items += 1; units += Number(v.qty||0); });
       el("items_count").textContent = String(items);
       el("units_total").textContent = String(units);
-      el("btn_confirm").disabled = (items === 0);
+      el("btn_confirm").disabled = (items === 0 || !hasExpediente());
     }
 
     function renderCart(){
@@ -519,6 +526,7 @@
     }
 
     async function addToCart(){
+      if(addInFlight) return;
       hideAlert("alert_main");
       hideAlert("alert_cart");
       hideAlert("alert_ok");
@@ -538,48 +546,59 @@
       }
 
       const qty = enforceQtyLimit();
+      const signature = `${exp}|${bc}|${qty}`;
+      const now = Date.now();
+      if(signature === lastAddSignature && now - lastAddAt < 900) return;
+
+      addInFlight = true;
+      lastAddSignature = signature;
+      lastAddAt = now;
       window.clearTimeout(window.__lk);
-      const cached = lookupCache.get(bc) || await lookupBarcode(bc);
+      try {
+        const cached = lookupCache.get(bc) || await lookupBarcode(bc);
 
-      if(!cached || !cached.active){
-        showAlert("alert_main", "Este barcode no esta activo/en catalogo. Solicita al administrador.");
-        return;
-      }
+        if(!cached || !cached.active){
+          showAlert("alert_main", "Este barcode no esta activo/en catalogo. Solicita al administrador.");
+          return;
+        }
 
-      const cartBarcode = normalizeDigits(cached.barcode || bc);
-      const currentQty = cart.has(cartBarcode) ? Number(cart.get(cartBarcode).qty || 0) : 0;
-      const requestedQty = currentQty + qty;
-      const availableCached = Math.max(0, Math.trunc(Number(cached.available_qty || 0)));
-      if(availableCached > 0 && requestedQty > availableCached){
-        const remaining = Math.max(0, availableCached - currentQty);
-        el("qty").value = String(Math.max(1, remaining || 1));
-        el("qty").classList.add("is-invalid");
-        const extra = remaining > 0
-          ? `Puedes agregar ${remaining}.`
-          : "Ya tienes en el carrito todo lo disponible.";
-        showAlert("alert_main", `No se puede agregar ${qty} de ${cached.name}. En carrito: ${currentQty}. disponible: ${availableCached}. ${extra}`);
-        return;
-      }
-      const stock = await checkStock(cartBarcode, requestedQty);
-      if(!stock || stock.ok !== true){
-        const available = Math.max(0, Math.trunc(Number(stock?.available_qty || 0)));
-        showAlert("alert_main", `No se puede despachar ${cached.name}. disponible: ${available}.`);
-        cacheLookup(bc, { ...cached, external_code: stock?.external_code || cached.external_code, available_qty: available, stock_qty: stock?.stock_qty || 0 });
-        setQtyLimit(available);
-        setLookupUI({ ok:false, name:cached.name, msg:stockBadge(stock) });
-        return;
-      }
+        const cartBarcode = normalizeDigits(cached.barcode || bc);
+        const currentQty = cart.has(cartBarcode) ? Number(cart.get(cartBarcode).qty || 0) : 0;
+        const requestedQty = currentQty + qty;
+        const availableCached = Math.max(0, Math.trunc(Number(cached.available_qty || 0)));
+        if(availableCached > 0 && requestedQty > availableCached){
+          const remaining = Math.max(0, availableCached - currentQty);
+          el("qty").value = String(Math.max(1, remaining || 1));
+          el("qty").classList.add("is-invalid");
+          const extra = remaining > 0
+            ? `Puedes agregar ${remaining}.`
+            : "Ya tienes en el carrito todo lo disponible.";
+          showAlert("alert_main", `No se puede agregar ${qty} de ${cached.name}. En carrito: ${currentQty}. disponible: ${availableCached}. ${extra}`);
+          return;
+        }
+        const stock = await checkStock(cartBarcode, requestedQty);
+        if(!stock || stock.ok !== true){
+          const available = Math.max(0, Math.trunc(Number(stock?.available_qty || 0)));
+          showAlert("alert_main", `No se puede despachar ${cached.name}. disponible: ${available}.`);
+          cacheLookup(bc, { ...cached, external_code: stock?.external_code || cached.external_code, available_qty: available, stock_qty: stock?.stock_qty || 0 });
+          setQtyLimit(available);
+          setLookupUI({ ok:false, name:cached.name, msg:stockBadge(stock) });
+          return;
+        }
 
-      if(cart.has(cartBarcode)){
-        const row = cart.get(cartBarcode);
-        row.qty = Number(row.qty) + qty;
-        cart.set(cartBarcode, row);
-      } else {
-        cart.set(cartBarcode, { barcode: cartBarcode, name: cached.name, qty });
-      }
+        if(cart.has(cartBarcode)){
+          const row = cart.get(cartBarcode);
+          row.qty = Number(row.qty) + qty;
+          cart.set(cartBarcode, row);
+        } else {
+          cart.set(cartBarcode, { barcode: cartBarcode, name: cached.name, qty });
+        }
 
-      renderCart();
-      clearInputs(true);
+        renderCart();
+        clearInputs(true);
+      } finally {
+        window.setTimeout(()=>{ addInFlight = false; }, 250);
+      }
     }
 
     async function confirmDispatch(){
@@ -650,7 +669,14 @@
       });
 
       // Inputs normalize
-      el("expediente").addEventListener("input",(e)=>{ e.target.value = normalizeDigits(e.target.value); });
+      el("expediente").addEventListener("input",(e)=>{ e.target.value = normalizeDigits(e.target.value); cartTotals(); });
+      el("expediente").addEventListener("keydown", (e)=>{
+        if(e.key==="Enter"){
+          e.preventDefault();
+          el("qty").focus();
+          el("qty").select();
+        }
+      });
       el("qty").addEventListener("input",(e)=>{
         e.target.value = normalizeDigits(e.target.value);
         enforceQtyLimit();
@@ -674,7 +700,8 @@
       el("qty").addEventListener("keydown", async (e)=>{
         if(e.key==="Enter"){
           e.preventDefault();
-          await addToCart();
+          el("barcode").focus();
+          el("barcode").select();
         }
       });
 
