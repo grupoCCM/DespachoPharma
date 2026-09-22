@@ -297,20 +297,19 @@
               <table class="table table-sm align-middle">
                 <thead class="table-light">
                   <tr>
-                    <th style="width:10%">Salida</th>
-                    <th style="width:12%">Tipo</th>
-                    <th style="width:11%">Estado</th>
-                    <th style="width:11%">Expediente</th>
-                    <th style="width:16%">Fecha</th>
-                    <th style="width:23%">Productos</th>
-                    <th style="width:8%" class="text-center">Unid.</th>
-                    <th style="width:11%" class="text-end">Total</th>
-                    <th style="width:11%" class="text-end">Utilidad</th>
-                    <th style="width:10%" class="text-end">Acción</th>
+                    <th style="width:8%">Salida</th>
+                    <th style="width:10%">Tipo</th>
+                    <th style="width:10%">Estado</th>
+                    <th style="width:10%">Expediente</th>
+                    <th style="width:15%">Fecha</th>
+                    <th style="width:13%">Usuario</th>
+                    <th style="width:22%">Productos</th>
+                    <th style="width:6%" class="text-center">Unid.</th>
+                    <th style="width:6%" class="text-end">Acción</th>
                   </tr>
                 </thead>
                 <tbody id="device_results_body">
-                  <tr><td colspan="10" class="text-center text-muted py-4">Busca para ver salidas de dispositivos.</td></tr>
+                  <tr><td colspan="9" class="text-center text-muted py-4">Busca para ver salidas de dispositivos.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -1414,7 +1413,7 @@
       const body = el("device_results_body");
       body.innerHTML = "";
       if (!rows.length){
-        body.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4">Sin salidas de dispositivos con los filtros actuales.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">Sin salidas de dispositivos con los filtros actuales.</td></tr>`;
         return;
       }
 
@@ -1427,13 +1426,12 @@
           <td>${deviceStatusBadgeHtml(r.status)}</td>
           <td class="fw-semibold">${escapeHtml(r.expediente || "")}</td>
           <td class="text-muted">${escapeHtml(fmtTime(r.confirmed_at || r.created_at))}</td>
+          <td>${escapeHtml(r.created_by_name || "—")}</td>
           <td>
             <div class="fw-semibold device-products" title="${escapeHtml(r.product_names || "—")}">${escapeHtml(r.product_names || "—")}</div>
             <div class="small text-muted mono device-products" title="${escapeHtml(r.serial_codes || "")}">${escapeHtml(r.serial_codes || "")}</div>
           </td>
           <td class="text-center fw-semibold">${Number(r.item_count || 0)}</td>
-          <td class="text-end fw-semibold">${money(r.total_sale)}</td>
-          <td class="text-end fw-semibold ${Number(r.gross_profit || 0) < 0 ? "text-danger" : "text-success"}">${money(r.gross_profit)}</td>
           <td class="text-end">
             <button class="btn btn-outline-secondary btn-sm" data-device-view="${Number(r.sale_no || 0)}">Ver</button>
           </td>
