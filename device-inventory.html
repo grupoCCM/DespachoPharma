@@ -400,6 +400,15 @@
       return `<span class="badge text-bg-secondary">${esc(v || "-")}</span>`;
     }
 
+    function unitStatusBadge(row){
+      const status = String(row?.status || "").toLowerCase();
+      const saleType = String(row?.sale_type || "").toLowerCase();
+      if(status === "sold" && saleType === "replacement"){
+        return `<span class="badge text-bg-warning">Reposición</span>`;
+      }
+      return statusBadge(row?.status);
+    }
+
     function renderProducts(rows){
       const tb = el("tbody_products");
       tb.innerHTML = rows.length ? rows.map(r => `
@@ -445,7 +454,7 @@
       el("units_visible_count").textContent = rows.length;
       tb.innerHTML = rows.length ? rows.map(r => `
         <tr class="${String(r.status || "").toLowerCase() === "available" ? "" : "unit-row-muted"}">
-          <td>${statusBadge(r.status)}</td>
+          <td>${unitStatusBadge(r)}</td>
           <td><div class="fw-semibold">${esc(r.product_name)}</div><div class="small soft">${esc(r.external_code)}</div></td>
           <td class="mono">${esc(r.serial_code)}</td>
           <td>${esc(r.category || "-")}</td>
@@ -462,7 +471,7 @@
         <tr>
           <td class="mono">${esc(r.serial_code)}</td>
           <td><div class="fw-semibold">${esc(r.product_name)}</div><div class="small soft">${esc(r.external_code)} - ${esc(r.category || "-")}</div></td>
-          <td>${statusBadge(r.status)}</td>
+          <td>${unitStatusBadge(r)}</td>
           <td><div>${esc(r.lot_no || "-")}</div><div class="small soft">${r.expires_at ? esc(r.expires_at) : "Sin vence"}</div></td>
           <td class="text-end">${money(r.cost)}</td>
           <td>${esc(r.source_doc_no || "-")}</td>
