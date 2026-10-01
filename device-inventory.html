@@ -18,6 +18,8 @@
     .table td,.table th{ vertical-align:middle; }
     .table-box{ max-height:390px; overflow:auto; border:1px solid var(--border); border-radius:12px; }
     .table-box thead th{ position:sticky; top:0; z-index:1; }
+    .unit-row-muted{ color:var(--muted); background:#f8fafc; }
+    .unit-filter[aria-pressed="true"]{ color:#fff; background:#0d6efd; border-color:#0d6efd; }
     .action-col{ min-width:150px; }
     .serial-preview{ min-height:180px; max-height:260px; overflow:auto; border:1px solid var(--border); border-radius:12px; background:#fff; }
     @media (max-width: 767px){
@@ -180,16 +182,29 @@
               <tbody id="tbody_products"></tbody>
             </table>
           </div>
-          <h3 class="h6 mt-4 mb-2">Unidades recientes</h3>
+          <div class="d-flex justify-content-between align-items-end gap-3 flex-wrap mt-4 mb-2">
+            <div>
+              <h3 class="h6 mb-1">Unidades recientes</h3>
+              <div class="soft small"><span id="units_visible_count">0</span> unidades en la vista</div>
+            </div>
+            <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Filtrar unidades recientes">
+              <button type="button" class="btn btn-outline-primary unit-filter" data-unit-filter="available" aria-pressed="true">Disponibles</button>
+              <button type="button" class="btn btn-outline-primary unit-filter" data-unit-filter="sold" aria-pressed="false">Salidas</button>
+              <button type="button" class="btn btn-outline-primary unit-filter" data-unit-filter="unavailable" aria-pressed="false">No disponibles</button>
+              <button type="button" class="btn btn-outline-primary unit-filter" data-unit-filter="all" aria-pressed="false">Todos</button>
+            </div>
+          </div>
           <div class="table-box">
             <table class="table table-sm mb-0">
               <thead class="table-light">
                 <tr>
-                  <th>Serial</th>
-                  <th>Producto</th>
                   <th>Estado</th>
-                  <th>Ingreso</th>
-                  <th>Venta</th>
+                  <th>Producto</th>
+                  <th>Código único</th>
+                  <th>Tipo</th>
+                  <th>Último movimiento</th>
+                  <th>Expediente</th>
+                  <th>Usuario</th>
                 </tr>
               </thead>
               <tbody id="tbody_units"></tbody>
@@ -351,6 +366,8 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
     const el = id => document.getElementById(id);
     let products = [];
+    let recentUnits = [];
+    let recentUnitsFilter = "available";
     let adminUnits = [];
     let selectedUnit = null;
     let unitModal = null;
@@ -396,17 +413,47 @@
       `).join("") : `<tr><td colspan="5" class="text-center text-muted py-4">Sin productos.</td></tr>`;
     }
 
-    function renderUnits(rows){
+    function unitMatchesFilter(row){
+      const status = String(row.status || "").toLowerCase();
+      if(recentUnitsFilter === "all") return true;
+      if(recentUnitsFilter === "unavailable") return ["inactive","damaged","lost","retired"].includes(status);
+      return status === recentUnitsFilter;
+    }
+
+    function unitMovementTime(row){
+      return row.sold_at || row.registered_at || null;
+    }
+
+    function unitMovementUser(row){
+      return row.sold_at ? row.sold_by_name : row.registered_by_name;
+    }
+
+    function sortedRecentUnits(rows){
+      return [...rows].sort((a,b) => {
+        const aAvailable = String(a.status || "").toLowerCase() === "available";
+        const bAvailable = String(b.status || "").toLowerCase() === "available";
+        if(aAvailable !== bAvailable) return aAvailable ? -1 : 1;
+        const aTime = new Date(unitMovementTime(a) || 0).getTime();
+        const bTime = new Date(unitMovementTime(b) || 0).getTime();
+        return aAvailable ? aTime - bTime : bTime - aTime;
+      });
+    }
+
+    function renderUnits(){
       const tb = el("tbody_units");
+      const rows = sortedRecentUnits(recentUnits).filter(unitMatchesFilter);
+      el("units_visible_count").textContent = rows.length;
       tb.innerHTML = rows.length ? rows.map(r => `
-        <tr>
-          <td class="mono">${esc(r.serial_code)}</td>
-          <td><div class="fw-semibold">${esc(r.product_name)}</div><div class="small soft">${esc(r.external_code)}</div></td>
+        <tr class="${String(r.status || "").toLowerCase() === "available" ? "" : "unit-row-muted"}">
           <td>${statusBadge(r.status)}</td>
-          <td>${dateTime(r.registered_at)}</td>
-          <td>${dateTime(r.sold_at)}</td>
+          <td><div class="fw-semibold">${esc(r.product_name)}</div><div class="small soft">${esc(r.external_code)}</div></td>
+          <td class="mono">${esc(r.serial_code)}</td>
+          <td>${esc(r.category || "-")}</td>
+          <td>${dateTime(unitMovementTime(r))}</td>
+          <td>${esc(r.expediente || "-")}</td>
+          <td>${esc(unitMovementUser(r) || "-")}</td>
         </tr>
-      `).join("") : `<tr><td colspan="5" class="text-center text-muted py-4">Sin unidades registradas.</td></tr>`;
+      `).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin unidades para este filtro.</td></tr>`;
     }
 
     function renderAdminUnits(rows){
@@ -524,7 +571,8 @@
         el("m_sold").textContent = Number(summary.sold_qty || 0);
         el("m_registered").textContent = Number(summary.physical_units || 0);
         renderProducts(products);
-        renderUnits(payload?.recent_units || []);
+        recentUnits = Array.isArray(payload?.recent_units) ? payload.recent_units : [];
+        renderUnits();
         loadProductSelect();
       }catch(err){
         showAlert("alert_main", err.message || "No se pudo cargar inventario de dispositivos.");
@@ -704,6 +752,11 @@
       el("reg_product").addEventListener("change", syncDefaultCost);
       el("bulk_product").addEventListener("change", syncBulkDefaultCost);
       el("q_inventory").addEventListener("input", () => { window.clearTimeout(window.__invQ); window.__invQ = window.setTimeout(refresh, 220); });
+      document.querySelectorAll(".unit-filter").forEach(btn => btn.addEventListener("click", () => {
+        recentUnitsFilter = btn.dataset.unitFilter || "available";
+        document.querySelectorAll(".unit-filter").forEach(item => item.setAttribute("aria-pressed", String(item === btn)));
+        renderUnits();
+      }));
       el("q_units").addEventListener("input", () => { window.clearTimeout(window.__unitQ); window.__unitQ = window.setTimeout(loadAdminUnits, 220); });
       el("unit_status").addEventListener("change", loadAdminUnits);
       el("q_history").addEventListener("input", () => { window.clearTimeout(window.__histQ); window.__histQ = window.setTimeout(loadHistory, 220); });
