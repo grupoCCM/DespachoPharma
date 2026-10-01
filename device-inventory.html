@@ -433,12 +433,23 @@
       tb.querySelectorAll("button[data-retire]").forEach(btn => btn.addEventListener("click", () => openRetire(btn.getAttribute("data-retire"))));
     }
 
+    function movementBadge(type){
+      const badges = {
+        receive:'<span class="badge text-bg-success">Ingreso</span>',
+        sale:'<span class="badge text-bg-primary">Venta</span>',
+        replacement:'<span class="badge text-bg-warning">Reposición</span>',
+        sale_void:'<span class="badge text-bg-secondary">Anulación</span>',
+        admin_adjustment:'<span class="badge text-bg-info">Ajuste</span>'
+      };
+      return badges[String(type || "").toLowerCase()] || `<span class="badge text-bg-light border">${esc(type || "Sin tipo")}</span>`;
+    }
+
     function renderHistory(rows){
       const tb = el("tbody_history");
       tb.innerHTML = rows.length ? rows.map(r => `
         <tr>
           <td>${dateTime(r.created_at)}</td>
-          <td>${r.movement_type === "sale" ? '<span class="badge text-bg-primary">Venta</span>' : '<span class="badge text-bg-success">Ingreso</span>'}</td>
+          <td>${movementBadge(r.movement_type)}</td>
           <td><div class="fw-semibold">${esc(r.product_name)}</div><div class="small soft">${esc(r.external_code)} - ${esc(r.category || "-")}</div></td>
           <td class="mono">${esc(r.serial_code)}</td>
           <td>${esc(r.expediente || "-")}</td>
