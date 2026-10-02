@@ -60,6 +60,25 @@ En una reposicion:
 
 La administracion de dispositivos debe ser trazable. La accion normal no es borrar datos historicos, sino corregir o retirar unidades con motivo.
 
+La pestaña `Catalogo` de `device-inventory.html` administra la ficha maestra del producto y esta separada del registro de unidades fisicas. La migracion `081_device_product_catalog_crud.sql` agrega:
+
+- Consulta administrativa por codigo, nombre, categoria, marca, modelo o codigo de barras general.
+- Creacion y edicion de productos de dispositivos.
+- Activacion y desactivacion con motivo obligatorio.
+- Eliminacion fisica solo cuando la ficha nunca tuvo unidades, ventas ni movimientos.
+- Auditoria de cada cambio en `device_product_admin_audit`.
+- Campos opcionales `generic_barcode` e `internal_notes` en `device_products`.
+
+Reglas del catalogo:
+
+- Solo admin puede crear, editar, activar, desactivar o eliminar fichas.
+- Codigo interno, nombre y categoria son obligatorios.
+- Codigo interno y codigo de barras general no pueden repetirse.
+- Si el producto ya tiene historial, no se puede cambiar su codigo interno ni el tipo de control por codigo unico.
+- Un producto con historial nunca se elimina: se desactiva para conservar la trazabilidad.
+- Un producto inactivo no admite nuevas unidades ni nuevos despachos, pero permanece visible en historicos y Kardex.
+- Las unidades fisicas de un producto inactivo se conservan, pero los indicadores las clasifican como no disponibles mientras la ficha permanezca inactiva.
+
 Funciones incluidas en la migracion `064_device_admin_crud.sql`:
 
 - Carga masiva de codigos unicos desde pantalla admin.

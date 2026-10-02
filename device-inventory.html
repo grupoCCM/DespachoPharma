@@ -61,6 +61,11 @@
     .recent-units-table .unit-user{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .action-col{ min-width:150px; }
     .serial-preview{ min-height:180px; max-height:260px; overflow:auto; border:1px solid var(--border); border-radius:12px; background:#fff; }
+    .catalog-table{ width:100%; min-width:1040px; table-layout:fixed; font-size:.87rem; }
+    .catalog-table th{ color:#475569; font-size:.77rem; font-weight:750; white-space:nowrap; }
+    .catalog-table td,.catalog-table th{ padding:.7rem .65rem; }
+    .catalog-name{ font-weight:700; line-height:1.25; }
+    .catalog-meta{ margin-top:.2rem; color:var(--muted); font-size:.75rem; }
     @media (max-width: 767px){
       .navbar .container{ gap:.5rem; }
       .navbar .btn{ padding:.25rem .45rem; }
@@ -100,6 +105,7 @@
       <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-inventory" type="button">Inventario</button></li>
       <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-units" type="button">Unidades</button></li>
       <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-history" type="button">Kardex</button></li>
+      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-catalog" type="button">Catálogo</button></li>
     </ul>
 
     <div class="tab-content">
@@ -408,8 +414,98 @@
           </div>
         </div>
       </div>
+
+      <div class="tab-pane fade" id="pane-catalog">
+        <div class="app-card p-3">
+          <div class="d-flex justify-content-between align-items-end gap-3 flex-wrap mb-3">
+            <div>
+              <h2 class="h5 mb-1">Catálogo de dispositivos</h2>
+              <div class="soft small">Define los productos. Las unidades físicas y sus códigos únicos se registran por separado.</div>
+            </div>
+            <button id="btn_new_product" type="button" class="btn btn-primary">Nuevo producto</button>
+          </div>
+          <div class="row g-2 align-items-end mb-3">
+            <div class="col-12 col-md-7">
+              <label class="form-label small" for="q_catalog">Buscar</label>
+              <input id="q_catalog" class="form-control" placeholder="Código, producto, categoría, marca, modelo o barcode" autocomplete="off" />
+            </div>
+            <div class="col-8 col-md-3">
+              <label class="form-label small" for="catalog_status">Estado</label>
+              <select id="catalog_status" class="form-select">
+                <option value="all">Todos</option>
+                <option value="active">Activos</option>
+                <option value="inactive">Inactivos</option>
+              </select>
+            </div>
+            <div class="col-4 col-md-2 d-grid">
+              <button id="btn_catalog_search" type="button" class="btn btn-outline-primary">Buscar</button>
+            </div>
+          </div>
+          <div class="table-box">
+            <table class="table table-sm mb-0 catalog-table">
+              <colgroup>
+                <col style="width:80px" /><col style="width:260px" /><col style="width:135px" />
+                <col style="width:155px" /><col style="width:105px" /><col style="width:110px" />
+                <col style="width:90px" /><col style="width:190px" />
+              </colgroup>
+              <thead class="table-light"><tr>
+                <th>Código</th><th>Producto</th><th>Categoría</th><th>Marca / modelo</th>
+                <th class="text-end">Precio</th><th class="text-center">Unidades</th>
+                <th>Estado</th><th class="text-end">Acciones</th>
+              </tr></thead>
+              <tbody id="tbody_catalog"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   </main>
+
+  <div class="modal fade" id="productModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div><h5 id="product_modal_title" class="modal-title">Nuevo producto</h5><div class="small soft">Ficha maestra del catálogo de dispositivos.</div></div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12"><h6 class="mb-0">Identificación</h6></div>
+            <div class="col-12 col-md-3"><label class="form-label" for="product_code">Código interno *</label><input id="product_code" class="form-control" inputmode="numeric" /></div>
+            <div class="col-12 col-md-6"><label class="form-label" for="product_name">Nombre comercial *</label><input id="product_name" class="form-control" maxlength="180" /></div>
+            <div class="col-12 col-md-3"><label class="form-label" for="product_category">Categoría *</label><input id="product_category" class="form-control" maxlength="100" list="device_categories" /></div>
+            <datalist id="device_categories"></datalist>
+            <div class="col-12 col-md-6"><label class="form-label" for="product_secondary">Nombre secundario</label><input id="product_secondary" class="form-control" maxlength="180" /></div>
+            <div class="col-12 col-md-3"><label class="form-label" for="product_brand">Marca</label><input id="product_brand" class="form-control" maxlength="100" /></div>
+            <div class="col-12 col-md-3"><label class="form-label" for="product_model">Modelo</label><input id="product_model" class="form-control" maxlength="100" /></div>
+            <div class="col-12 col-md-3"><label class="form-label" for="product_brand_code">Código de marca</label><input id="product_brand_code" class="form-control" inputmode="numeric" /></div>
+            <div class="col-12 col-md-3"><label class="form-label" for="product_presentation">Presentación</label><input id="product_presentation" class="form-control" maxlength="100" /></div>
+            <div class="col-12 col-md-6"><label class="form-label" for="product_barcode">Código de barras general</label><input id="product_barcode" class="form-control mono" maxlength="80" /></div>
+
+            <div class="col-12"><hr class="my-1"><h6 class="mb-0">Control y valores</h6></div>
+            <div class="col-6 col-md-3"><label class="form-label" for="product_cost">Costo predeterminado</label><input id="product_cost" class="form-control" inputmode="decimal" /></div>
+            <div class="col-6 col-md-3"><label class="form-label" for="product_price">Precio de venta</label><input id="product_price" class="form-control" inputmode="decimal" /></div>
+            <div class="col-12 col-md-3 d-flex align-items-end"><div class="form-check mb-2"><input id="product_serial" class="form-check-input" type="checkbox" checked><label class="form-check-label" for="product_serial">Requiere código único</label></div></div>
+            <div class="col-12 col-md-3 d-flex align-items-end"><div class="form-check mb-2"><input id="product_expiration" class="form-check-input" type="checkbox"><label class="form-check-label" for="product_expiration">Requiere vencimiento</label></div></div>
+            <div class="col-12"><label class="form-label" for="product_notes">Comentarios internos</label><textarea id="product_notes" class="form-control" rows="2" maxlength="500"></textarea></div>
+            <div id="product_reason_wrap" class="col-12 d-none"><label class="form-label" for="product_reason">Motivo de edición *</label><input id="product_reason" class="form-control" maxlength="250" placeholder="Describe brevemente el cambio" /></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button id="btn_save_product" type="button" class="btn btn-primary">Guardar producto</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="productActionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+      <div class="modal-header"><h5 id="product_action_title" class="modal-title">Cambiar estado</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body"><div id="product_action_message" class="mb-3"></div><label class="form-label" for="product_action_reason">Motivo *</label><textarea id="product_action_reason" class="form-control" rows="3"></textarea></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button id="btn_confirm_product_action" type="button" class="btn btn-danger">Confirmar</button></div>
+    </div></div>
+  </div>
 
   <div class="modal fade" id="unitModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -505,6 +601,12 @@
     let selectedUnit = null;
     let unitModal = null;
     let retireModal = null;
+    let catalogProducts = [];
+    let catalogAllProducts = [];
+    let selectedProduct = null;
+    let pendingProductAction = null;
+    let productModal = null;
+    let productActionModal = null;
 
     function esc(s){ return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m])); }
     function money(v){ return Number(v||0).toLocaleString("en-US",{style:"currency",currency:"USD"}); }
@@ -538,6 +640,9 @@
     function unitStatusBadge(row){
       const status = String(row?.status || "").toLowerCase();
       const saleType = String(row?.sale_type || "").toLowerCase();
+      if(status === "available" && row?.product_active === false){
+        return `<span class="badge text-bg-secondary">Producto inactivo</span>`;
+      }
       if(status === "sold" && saleType === "replacement"){
         return `<span class="badge text-bg-warning">Reposición</span>`;
       }
@@ -623,6 +728,167 @@
       tb.querySelectorAll("button[data-retire]").forEach(btn => btn.addEventListener("click", () => openRetire(btn.getAttribute("data-retire"))));
     }
 
+    function productStateBadge(active){
+      return active ? '<span class="badge text-bg-success">Activo</span>' : '<span class="badge text-bg-secondary">Inactivo</span>';
+    }
+
+    function renderCatalog(rows){
+      const tb = el("tbody_catalog");
+      tb.innerHTML = rows.length ? rows.map(r => `
+        <tr>
+          <td class="fw-semibold">${esc(r.external_code)}</td>
+          <td><div class="catalog-name">${esc(r.name)}</div><div class="catalog-meta">${esc(r.presentation_name || r.secondary_name || "Sin presentación")}</div></td>
+          <td>${esc(r.category || "-")}</td>
+          <td><div>${esc(r.brand_name || "-")}</div><div class="catalog-meta">${esc(r.model || "Sin modelo")}</div></td>
+          <td class="text-end"><div>${money(r.sale_price)}</div><div class="catalog-meta">Costo ${money(r.default_cost)}</div></td>
+          <td class="text-center"><div class="fw-semibold">${Number(r.available_qty || 0)} disp.</div><div class="catalog-meta">${Number(r.unit_count || 0)} registradas</div></td>
+          <td>${productStateBadge(Boolean(r.active))}</td>
+          <td class="text-end"><div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-primary" data-product-edit="${esc(r.id)}">Editar</button>
+            <button class="btn btn-outline-${r.active ? "warning" : "success"}" data-product-state="${esc(r.id)}">${r.active ? "Desactivar" : "Activar"}</button>
+            ${r.can_delete ? `<button class="btn btn-outline-danger" data-product-delete="${esc(r.id)}">Eliminar</button>` : ""}
+          </div></td>
+        </tr>
+      `).join("") : '<tr><td colspan="8" class="text-center text-muted py-4">Sin productos para este filtro.</td></tr>';
+      tb.querySelectorAll("[data-product-edit]").forEach(btn => btn.addEventListener("click", () => openProduct(btn.dataset.productEdit)));
+      tb.querySelectorAll("[data-product-state]").forEach(btn => btn.addEventListener("click", () => openProductAction(btn.dataset.productState, "state")));
+      tb.querySelectorAll("[data-product-delete]").forEach(btn => btn.addEventListener("click", () => openProductAction(btn.dataset.productDelete, "delete")));
+    }
+
+    async function loadCatalog(){
+      try{
+        catalogProducts = await callRpc("rpc_device_product_admin_list", {
+          p_session_token:getSession().token,
+          p_query:el("q_catalog").value || "",
+          p_status:el("catalog_status").value || "all",
+          p_limit:300
+        });
+        renderCatalog(Array.isArray(catalogProducts) ? catalogProducts : []);
+      }catch(err){
+        showAlert("alert_main", err.message || "No se pudo cargar el catálogo.");
+      }
+    }
+
+    async function loadCatalogOptions(){
+      catalogAllProducts = await callRpc("rpc_device_product_admin_list", {
+        p_session_token:getSession().token,
+        p_query:"",
+        p_status:"all",
+        p_limit:500
+      });
+      if(!Array.isArray(catalogAllProducts)) catalogAllProducts = [];
+      el("m_products").textContent = catalogAllProducts.filter(product => product.active).length;
+      const categories = [...new Set(catalogAllProducts.map(p => String(p.category || "").trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b,"es"));
+      el("device_categories").innerHTML = categories.map(value => `<option value="${esc(value)}"></option>`).join("");
+      loadProductSelect();
+    }
+
+    function productById(id){ return catalogProducts.find(p => String(p.id) === String(id)); }
+    function setProductForm(row){
+      el("product_code").value = row?.external_code ?? "";
+      el("product_name").value = row?.name ?? "";
+      el("product_category").value = row?.category ?? "";
+      el("product_secondary").value = row?.secondary_name ?? "";
+      el("product_brand").value = row?.brand_name ?? "";
+      el("product_model").value = row?.model ?? "";
+      el("product_brand_code").value = row?.brand_code ?? "";
+      el("product_presentation").value = row?.presentation_name ?? "";
+      el("product_barcode").value = row?.generic_barcode ?? "";
+      el("product_cost").value = row?.default_cost ?? "";
+      el("product_price").value = row?.sale_price ?? "";
+      el("product_serial").checked = row ? Boolean(row.requires_serial) : true;
+      el("product_expiration").checked = row ? Boolean(row.requires_expiration) : false;
+      el("product_notes").value = row?.internal_notes ?? "";
+      el("product_reason").value = "";
+      const hasHistory = Number(row?.unit_count || 0) + Number(row?.sale_item_count || 0) + Number(row?.movement_count || 0) > 0;
+      el("product_code").disabled = hasHistory;
+      el("product_serial").disabled = hasHistory;
+      el("product_reason_wrap").classList.toggle("d-none", !row);
+    }
+
+    function openProduct(id=null){
+      selectedProduct = id ? productById(id) : null;
+      el("product_modal_title").textContent = selectedProduct ? "Editar producto" : "Nuevo producto";
+      setProductForm(selectedProduct);
+      productModal.show();
+      setTimeout(() => el(selectedProduct ? "product_name" : "product_code").focus(), 180);
+    }
+
+    function nullableNumber(id){ const value=el(id).value.trim(); return value === "" ? null : Number(value); }
+    function productPayload(){
+      return {
+        p_session_token:getSession().token,
+        p_external_code:Number(el("product_code").value),
+        p_name:el("product_name").value.trim(),
+        p_secondary_name:el("product_secondary").value.trim() || null,
+        p_category:el("product_category").value.trim() || null,
+        p_brand_code:nullableNumber("product_brand_code"),
+        p_brand_name:el("product_brand").value.trim() || null,
+        p_model:el("product_model").value.trim() || null,
+        p_presentation_name:el("product_presentation").value.trim() || null,
+        p_generic_barcode:el("product_barcode").value.trim() || null,
+        p_sale_price:nullableNumber("product_price"),
+        p_default_cost:nullableNumber("product_cost"),
+        p_requires_serial:el("product_serial").checked,
+        p_requires_expiration:el("product_expiration").checked,
+        p_internal_notes:el("product_notes").value.trim() || null
+      };
+    }
+
+    async function saveProduct(){
+      hideAlert("alert_main"); hideAlert("alert_ok");
+      const payload = productPayload();
+      if(!Number.isInteger(payload.p_external_code) || payload.p_external_code <= 0) return showAlert("alert_main","Ingresa un código interno válido.");
+      if(!payload.p_name) return showAlert("alert_main","El nombre comercial es obligatorio.");
+      if(!payload.p_category) return showAlert("alert_main","La categoría es obligatoria.");
+      if([payload.p_sale_price,payload.p_default_cost].some(v => v !== null && (!Number.isFinite(v) || v < 0))) return showAlert("alert_main","Costo y precio deben ser valores válidos mayores o iguales a cero.");
+      try{
+        el("btn_save_product").disabled = true;
+        if(selectedProduct){
+          const reason = el("product_reason").value.trim();
+          if(!reason) throw new Error("Indica el motivo de la edición.");
+          await callRpc("rpc_device_product_update", {...payload,p_device_product_id:selectedProduct.id,p_reason:reason});
+        }else{
+          await callRpc("rpc_device_product_create", payload);
+        }
+        productModal.hide();
+        showAlert("alert_ok", selectedProduct ? "Producto actualizado con trazabilidad." : "Producto creado y disponible para registrar unidades.");
+        await loadCatalogOptions(); await loadCatalog(); await refresh();
+      }catch(err){ showAlert("alert_main",err.message || "No se pudo guardar el producto."); }
+      finally{ el("btn_save_product").disabled = false; }
+    }
+
+    function openProductAction(id, action){
+      selectedProduct = productById(id);
+      if(!selectedProduct) return;
+      pendingProductAction = action;
+      const deleting = action === "delete";
+      el("product_action_title").textContent = deleting ? "Eliminar producto" : (selectedProduct.active ? "Desactivar producto" : "Activar producto");
+      el("product_action_message").textContent = deleting
+        ? `${selectedProduct.name} no tiene historial y se eliminará del catálogo.`
+        : `${selectedProduct.name} quedará ${selectedProduct.active ? "fuera de nuevos ingresos y despachos" : "disponible para la operación"}. Su historial se conserva.`;
+      el("product_action_reason").value = "";
+      el("btn_confirm_product_action").className = deleting || selectedProduct.active ? "btn btn-danger" : "btn btn-success";
+      productActionModal.show();
+    }
+
+    async function confirmProductAction(){
+      const reason = el("product_action_reason").value.trim();
+      if(!selectedProduct || !reason) return showAlert("alert_main","Indica el motivo de la acción.");
+      try{
+        el("btn_confirm_product_action").disabled = true;
+        if(pendingProductAction === "delete"){
+          await callRpc("rpc_device_product_delete",{p_session_token:getSession().token,p_device_product_id:selectedProduct.id,p_reason:reason});
+        }else{
+          await callRpc("rpc_device_product_set_active",{p_session_token:getSession().token,p_device_product_id:selectedProduct.id,p_active:!selectedProduct.active,p_reason:reason});
+        }
+        productActionModal.hide();
+        showAlert("alert_ok", pendingProductAction === "delete" ? "Producto eliminado." : "Estado del producto actualizado.");
+        await loadCatalogOptions(); await loadCatalog(); await refresh();
+      }catch(err){ showAlert("alert_main",err.message || "No se pudo completar la acción."); }
+      finally{ el("btn_confirm_product_action").disabled = false; }
+    }
+
     function movementBadge(type){
       const badges = {
         receive:'<span class="badge text-bg-success">Ingreso</span>',
@@ -703,13 +969,15 @@
     }
 
     function loadProductSelect(){
-      const options = products.map(p => `<option value="${esc(p.external_code)}" data-cost="${esc(p.default_cost || "")}">${esc(p.external_code)} - ${esc(p.name)}</option>`).join("");
+      const selectorProducts = catalogAllProducts.length ? catalogAllProducts : products;
+      const activeProducts = selectorProducts.filter(p => p.active !== false);
+      const options = activeProducts.map(p => `<option value="${esc(p.external_code)}" data-cost="${esc(p.default_cost || "")}">${esc(p.external_code)} - ${esc(p.name)}</option>`).join("");
       el("reg_product").innerHTML = options;
       el("bulk_product").innerHTML = options;
       el("edit_product").innerHTML = options;
-      if(el("k_product").options.length <= 1){
-        el("k_product").innerHTML = `<option value="">Todos</option>${options}`;
-      }
+      const selectedKardexProduct = el("k_product").value;
+      el("k_product").innerHTML = `<option value="">Todos</option>${selectorProducts.map(p => `<option value="${esc(p.external_code)}">${esc(p.external_code)} - ${esc(p.name)}</option>`).join("")}`;
+      if([...el("k_product").options].some(option => option.value === selectedKardexProduct)) el("k_product").value = selectedKardexProduct;
       syncDefaultCost();
       syncBulkDefaultCost();
     }
@@ -1049,6 +1317,8 @@
       el("btn_logout").addEventListener("click", logout);
       unitModal = new bootstrap.Modal(el("unitModal"));
       retireModal = new bootstrap.Modal(el("retireModal"));
+      productModal = new bootstrap.Modal(el("productModal"));
+      productActionModal = new bootstrap.Modal(el("productActionModal"));
       el("btn_refresh").addEventListener("click", async () => { await refresh(); await loadAdminUnits(); await loadKardex(); });
       el("btn_register").addEventListener("click", registerUnit);
       el("btn_bulk_register").addEventListener("click", bulkRegister);
@@ -1083,9 +1353,18 @@
       el("btn_k_next").addEventListener("click", () => { if(kardexPage < kardexTotalPages){ kardexPage += 1; loadKardex(); } });
       el("btn_save_edit").addEventListener("click", saveEdit);
       el("btn_save_retire").addEventListener("click", saveRetire);
+      el("btn_new_product").addEventListener("click", () => openProduct());
+      el("btn_save_product").addEventListener("click", saveProduct);
+      el("btn_confirm_product_action").addEventListener("click", confirmProductAction);
+      el("btn_catalog_search").addEventListener("click", loadCatalog);
+      el("catalog_status").addEventListener("change", loadCatalog);
+      el("q_catalog").addEventListener("keydown", event => { if(event.key === "Enter") loadCatalog(); });
+      el("q_catalog").addEventListener("input", () => { window.clearTimeout(window.__catalogQ); window.__catalogQ = window.setTimeout(loadCatalog, 250); });
       await refresh();
       await loadAdminUnits();
       await loadKardex(true);
+      await loadCatalogOptions();
+      await loadCatalog();
     })();
   </script>
 </body>
