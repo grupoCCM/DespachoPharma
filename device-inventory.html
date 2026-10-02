@@ -18,6 +18,12 @@
     .table td,.table th{ vertical-align:middle; }
     .table-box{ max-height:390px; overflow:auto; border:1px solid var(--border); border-radius:12px; }
     .table-box thead th{ position:sticky; top:0; z-index:1; }
+    .kardex-table{ min-width:1280px; }
+    .kardex-summary{ display:grid; grid-template-columns:repeat(7,minmax(110px,1fr)); border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff; }
+    .kardex-summary > div{ padding:11px 12px; border-right:1px solid var(--border); }
+    .kardex-summary > div:last-child{ border-right:0; }
+    .kardex-summary .label{ color:var(--muted); font-size:.75rem; }
+    .kardex-summary .value{ font-weight:750; font-size:1.05rem; }
     .unit-row-muted{ color:var(--muted); background:#f8fafc; }
     .unit-filter[aria-pressed="true"]{ color:#fff; background:#0d6efd; border-color:#0d6efd; }
     .action-col{ min-width:150px; }
@@ -26,6 +32,8 @@
       .navbar .container{ gap:.5rem; }
       .navbar .btn{ padding:.25rem .45rem; }
       .admin-grid{ grid-template-columns:1fr !important; }
+      .kardex-summary{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .kardex-summary > div{ border-bottom:1px solid var(--border); }
     }
   </style>
 </head>
@@ -60,7 +68,7 @@
     <div class="row g-3 mb-3">
       <div class="col-6 col-lg-3"><div class="metric"><div class="label">Tipos activos</div><div id="m_products" class="value">-</div></div></div>
       <div class="col-6 col-lg-3"><div class="metric"><div class="label">Disponibles</div><div id="m_available" class="value text-success">-</div></div></div>
-      <div class="col-6 col-lg-3"><div class="metric"><div class="label">Salidas</div><div id="m_sold" class="value text-primary">-</div></div></div>
+      <div class="col-6 col-lg-3"><div class="metric"><div class="label">Entregados</div><div id="m_sold" class="value text-primary">-</div></div></div>
       <div class="col-6 col-lg-3"><div class="metric"><div class="label">Registradas</div><div id="m_registered" class="value">-</div></div></div>
     </div>
 
@@ -69,7 +77,7 @@
       <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-bulk" type="button">Carga masiva</button></li>
       <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-inventory" type="button">Inventario</button></li>
       <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-units" type="button">Unidades</button></li>
-      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-history" type="button">Historico</button></li>
+      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-history" type="button">Kardex</button></li>
     </ul>
 
     <div class="tab-content">
@@ -174,7 +182,7 @@
                 <tr>
                   <th>Producto</th>
                   <th class="text-center">Disponibles</th>
-                  <th class="text-center">Salidas</th>
+                  <th class="text-center">Entregados</th>
                   <th class="text-center">No disponibles</th>
                   <th class="text-end">Valor disp.</th>
                 </tr>
@@ -189,7 +197,7 @@
             </div>
             <div class="btn-group btn-group-sm flex-wrap" role="group" aria-label="Filtrar unidades recientes">
               <button type="button" class="btn btn-outline-primary unit-filter" data-unit-filter="available" aria-pressed="true">Disponibles</button>
-              <button type="button" class="btn btn-outline-primary unit-filter" data-unit-filter="sold" aria-pressed="false">Salidas</button>
+              <button type="button" class="btn btn-outline-primary unit-filter" data-unit-filter="sold" aria-pressed="false">Entregados</button>
               <button type="button" class="btn btn-outline-primary unit-filter" data-unit-filter="unavailable" aria-pressed="false">No disponibles</button>
               <button type="button" class="btn btn-outline-primary unit-filter" data-unit-filter="all" aria-pressed="false">Todos</button>
             </div>
@@ -254,27 +262,81 @@
 
       <div class="tab-pane fade" id="pane-history">
         <div class="app-card p-3">
-          <div class="d-flex justify-content-between align-items-end gap-3 flex-wrap mb-3">
-            <div>
-              <h2 class="h5 mb-1">Historico de dispositivos</h2>
-              <div class="soft small">Entradas y ventas definitivas por codigo unico.</div>
-            </div>
-            <input id="q_history" class="form-control" style="max-width:320px" placeholder="Buscar producto, serial o expediente" autocomplete="off" />
+          <div class="mb-3">
+            <h2 class="h5 mb-1">Kardex de dispositivos</h2>
+            <div class="soft small">Entradas, entregas, reposiciones, reintegros y ajustes por código único.</div>
           </div>
+
+          <div class="row g-2 align-items-end mb-3">
+            <div class="col-12 col-lg-4">
+              <label class="form-label small" for="q_kardex">Buscar</label>
+              <input id="q_kardex" class="form-control" placeholder="Producto, código, serie, expediente o usuario" autocomplete="off" />
+            </div>
+            <div class="col-12 col-sm-6 col-lg-2">
+              <label class="form-label small" for="k_product">Producto</label>
+              <select id="k_product" class="form-select"><option value="">Todos</option></select>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-2">
+              <label class="form-label small" for="k_movement">Movimiento</label>
+              <select id="k_movement" class="form-select">
+                <option value="all">Todos</option>
+                <option value="receive">Ingreso</option>
+                <option value="sale">Venta</option>
+                <option value="replacement">Reposición</option>
+                <option value="sale_void">Anulación</option>
+                <option value="admin_adjustment">Ajuste</option>
+              </select>
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label small" for="k_from">Desde</label>
+              <input id="k_from" class="form-control" type="date" />
+            </div>
+            <div class="col-6 col-lg-2">
+              <label class="form-label small" for="k_to">Hasta</label>
+              <input id="k_to" class="form-control" type="date" />
+            </div>
+            <div class="col-12 d-flex justify-content-end gap-2">
+              <button id="btn_k_clear" type="button" class="btn btn-outline-secondary">Limpiar</button>
+              <button id="btn_k_search" type="button" class="btn btn-primary">Buscar</button>
+            </div>
+          </div>
+
+          <div class="kardex-summary mb-3" aria-label="Resumen del Kardex">
+            <div><div class="label">Saldo inicial</div><div id="k_opening" class="value">-</div></div>
+            <div><div class="label">Ingresos</div><div id="k_receipts" class="value text-success">-</div></div>
+            <div><div class="label">Ventas</div><div id="k_sales" class="value text-danger">-</div></div>
+            <div><div class="label">Reposiciones</div><div id="k_replacements" class="value text-warning-emphasis">-</div></div>
+            <div><div class="label">Reintegros</div><div id="k_reinstatements" class="value text-primary">-</div></div>
+            <div><div class="label">Ajustes netos</div><div id="k_adjustments" class="value">-</div></div>
+            <div><div class="label">Saldo final</div><div id="k_closing" class="value fw-bold">-</div></div>
+          </div>
+
           <div class="table-box">
-            <table class="table table-sm mb-0">
+            <table class="table table-sm mb-0 kardex-table">
               <thead class="table-light">
                 <tr>
                   <th>Fecha</th>
+                  <th>Hora</th>
                   <th>Movimiento</th>
+                  <th class="text-center">Entrada</th>
+                  <th class="text-center">Salida</th>
+                  <th class="text-center">Saldo producto</th>
                   <th>Producto</th>
-                  <th>Serial</th>
+                  <th>Código único</th>
+                  <th>Referencia</th>
                   <th>Expediente</th>
                   <th>Usuario</th>
                 </tr>
               </thead>
               <tbody id="tbody_history"></tbody>
             </table>
+          </div>
+          <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mt-3">
+            <div id="k_page_info" class="small soft">Página 1</div>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Paginación del Kardex">
+              <button id="btn_k_prev" type="button" class="btn btn-outline-secondary">Anterior</button>
+              <button id="btn_k_next" type="button" class="btn btn-outline-secondary">Siguiente</button>
+            </div>
           </div>
         </div>
       </div>
@@ -369,6 +431,8 @@
     let recentUnits = [];
     let recentUnitsFilter = "available";
     let adminUnits = [];
+    let kardexPage = 1;
+    let kardexTotalPages = 1;
     let selectedUnit = null;
     let unitModal = null;
     let retireModal = null;
@@ -376,6 +440,8 @@
     function esc(s){ return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m])); }
     function money(v){ return Number(v||0).toLocaleString("en-US",{style:"currency",currency:"USD"}); }
     function dateTime(v){ if(!v) return "-"; const d=new Date(v); return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleString("es-SV"); }
+    function dateOnly(v){ if(!v) return "-"; const d=new Date(v); return Number.isNaN(d.getTime()) ? String(v) : new Intl.DateTimeFormat("es-SV",{timeZone:"America/El_Salvador",day:"2-digit",month:"2-digit",year:"numeric"}).format(d); }
+    function timeOnly(v){ if(!v) return "-"; const d=new Date(v); return Number.isNaN(d.getTime()) ? "-" : new Intl.DateTimeFormat("es-SV",{timeZone:"America/El_Salvador",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:true}).format(d); }
     function getSession(){ return { token:localStorage.getItem("dp_session_token")||"", role:(localStorage.getItem("dp_role")||"").toLowerCase(), name:localStorage.getItem("dp_display_name")||"" }; }
     function showAlert(id,msg){ const a=el(id); a.textContent=msg; a.classList.remove("d-none"); }
     function hideAlert(id){ const a=el(id); a.textContent=""; a.classList.add("d-none"); }
@@ -500,18 +566,39 @@
       return badges[String(type || "").toLowerCase()] || `<span class="badge text-bg-light border">${esc(type || "Sin tipo")}</span>`;
     }
 
-    function renderHistory(rows){
+    function renderKardex(payload){
+      const summary = payload?.summary || {};
+      const pagination = payload?.pagination || {};
+      const rows = Array.isArray(payload?.rows) ? payload.rows : [];
       const tb = el("tbody_history");
+      el("k_opening").textContent = Number(summary.opening_balance || 0);
+      el("k_receipts").textContent = `+${Number(summary.receipts || 0)}`;
+      el("k_sales").textContent = `-${Number(summary.sales || 0)}`;
+      el("k_replacements").textContent = `-${Number(summary.replacements || 0)}`;
+      el("k_reinstatements").textContent = `+${Number(summary.reinstatements || 0)}`;
+      const adjustment = Number(summary.adjustments_net || 0);
+      el("k_adjustments").textContent = adjustment > 0 ? `+${adjustment}` : String(adjustment);
+      el("k_closing").textContent = Number(summary.closing_balance || 0);
+      kardexPage = Number(pagination.page || 1);
+      kardexTotalPages = Number(pagination.total_pages || 1);
+      el("k_page_info").textContent = `Página ${kardexPage} de ${kardexTotalPages} · ${Number(pagination.total_rows || 0)} movimientos`;
+      el("btn_k_prev").disabled = kardexPage <= 1;
+      el("btn_k_next").disabled = kardexPage >= kardexTotalPages;
       tb.innerHTML = rows.length ? rows.map(r => `
         <tr>
-          <td>${dateTime(r.created_at)}</td>
+          <td>${dateOnly(r.created_at)}</td>
+          <td>${timeOnly(r.created_at)}</td>
           <td>${movementBadge(r.movement_type)}</td>
+          <td class="text-center fw-semibold text-success">${Number(r.entry_qty || 0) || "-"}</td>
+          <td class="text-center fw-semibold text-danger">${Number(r.exit_qty || 0) || "-"}</td>
+          <td class="text-center fw-semibold">${Number(r.product_balance_after || 0)}</td>
           <td><div class="fw-semibold">${esc(r.product_name)}</div><div class="small soft">${esc(r.external_code)} - ${esc(r.category || "-")}</div></td>
           <td class="mono">${esc(r.serial_code)}</td>
+          <td>${esc(r.reference || "-")}</td>
           <td>${esc(r.expediente || "-")}</td>
           <td>${esc(r.user_name || "-")}</td>
         </tr>
-      `).join("") : `<tr><td colspan="6" class="text-center text-muted py-4">Sin movimientos.</td></tr>`;
+      `).join("") : `<tr><td colspan="11" class="text-center text-muted py-4">Sin movimientos para los filtros seleccionados.</td></tr>`;
     }
 
     function loadProductSelect(){
@@ -519,6 +606,9 @@
       el("reg_product").innerHTML = options;
       el("bulk_product").innerHTML = options;
       el("edit_product").innerHTML = options;
+      if(el("k_product").options.length <= 1){
+        el("k_product").innerHTML = `<option value="">Todos</option>${options}`;
+      }
       syncDefaultCost();
       syncBulkDefaultCost();
     }
@@ -588,13 +678,24 @@
       }
     }
 
-    async function loadHistory(){
+    async function loadKardex(resetPage=false){
       hideAlert("alert_main");
+      if(resetPage) kardexPage = 1;
       try{
-        const rows = await callRpc("rpc_device_history", { p_session_token:getSession().token, p_query:el("q_history").value || "", p_limit:80 });
-        renderHistory(Array.isArray(rows) ? rows : []);
+        const productCode = el("k_product").value;
+        const payload = await callRpc("rpc_device_kardex", {
+          p_session_token:getSession().token,
+          p_query:el("q_kardex").value || "",
+          p_product_code:productCode ? Number(productCode) : null,
+          p_movement_type:el("k_movement").value || "all",
+          p_date_from:el("k_from").value || null,
+          p_date_to:el("k_to").value || null,
+          p_page:kardexPage,
+          p_page_size:25
+        });
+        renderKardex(payload || {});
       }catch(err){
-        showAlert("alert_main", err.message || "No se pudo cargar historico.");
+        showAlert("alert_main", err.message || "No se pudo cargar el Kardex.");
       }
     }
 
@@ -633,7 +734,7 @@
         showAlert("alert_ok", `Carga procesada. Insertados: ${Number(result?.inserted || 0)}. Ya existentes: ${Number(result?.existing || 0)}. Duplicados en texto: ${Number(result?.duplicated_in_batch || 0)}.`);
         el("bulk_serials").value = "";
         renderBulkSummary();
-        await refresh(); await loadAdminUnits(); await loadHistory();
+        await refresh(); await loadAdminUnits(); await loadKardex(true);
       }catch(err){
         showAlert("alert_main", err.message || "No se pudo procesar la carga masiva.");
       }finally{
@@ -685,7 +786,7 @@
         });
         unitModal.hide();
         showAlert("alert_ok","Unidad corregida con trazabilidad.");
-        await refresh(); await loadAdminUnits(); await loadHistory();
+        await refresh(); await loadAdminUnits(); await loadKardex(true);
       }catch(err){
         showAlert("alert_main", err.message || "No se pudo corregir la unidad.");
       }
@@ -705,7 +806,7 @@
         });
         retireModal.hide();
         showAlert("alert_ok","Unidad retirada de disponibilidad.");
-        await refresh(); await loadAdminUnits(); await loadHistory();
+        await refresh(); await loadAdminUnits(); await loadKardex(true);
       }catch(err){
         showAlert("alert_main", err.message || "No se pudo retirar la unidad.");
       }
@@ -732,7 +833,7 @@
         showAlert("alert_ok","Unidad registrada y disponible para despacho.");
         await refresh();
         await loadAdminUnits();
-        await loadHistory();
+        await loadKardex(true);
         el("reg_serial").focus();
       }catch(err){
         showAlert("alert_main", err.message || "No se pudo registrar la unidad.");
@@ -753,7 +854,7 @@
       el("btn_logout").addEventListener("click", logout);
       unitModal = new bootstrap.Modal(el("unitModal"));
       retireModal = new bootstrap.Modal(el("retireModal"));
-      el("btn_refresh").addEventListener("click", async () => { await refresh(); await loadAdminUnits(); await loadHistory(); });
+      el("btn_refresh").addEventListener("click", async () => { await refresh(); await loadAdminUnits(); await loadKardex(); });
       el("btn_register").addEventListener("click", registerUnit);
       el("btn_bulk_register").addEventListener("click", bulkRegister);
       el("btn_bulk_clear").addEventListener("click", () => { el("bulk_serials").value=""; renderBulkSummary(); });
@@ -768,12 +869,25 @@
       }));
       el("q_units").addEventListener("input", () => { window.clearTimeout(window.__unitQ); window.__unitQ = window.setTimeout(loadAdminUnits, 220); });
       el("unit_status").addEventListener("change", loadAdminUnits);
-      el("q_history").addEventListener("input", () => { window.clearTimeout(window.__histQ); window.__histQ = window.setTimeout(loadHistory, 220); });
+      el("btn_k_search").addEventListener("click", () => loadKardex(true));
+      el("btn_k_clear").addEventListener("click", () => {
+        el("q_kardex").value = "";
+        el("k_product").value = "";
+        el("k_movement").value = "all";
+        el("k_from").value = "";
+        el("k_to").value = "";
+        loadKardex(true);
+      });
+      el("q_kardex").addEventListener("keydown", event => {
+        if(event.key === "Enter") loadKardex(true);
+      });
+      el("btn_k_prev").addEventListener("click", () => { if(kardexPage > 1){ kardexPage -= 1; loadKardex(); } });
+      el("btn_k_next").addEventListener("click", () => { if(kardexPage < kardexTotalPages){ kardexPage += 1; loadKardex(); } });
       el("btn_save_edit").addEventListener("click", saveEdit);
       el("btn_save_retire").addEventListener("click", saveRetire);
       await refresh();
       await loadAdminUnits();
-      await loadHistory();
+      await loadKardex(true);
     })();
   </script>
 </body>
