@@ -268,7 +268,7 @@
           </div>
 
           <div class="row g-2 align-items-end mb-3">
-            <div class="col-12 col-lg-4">
+            <div class="col-12 col-lg-3">
               <label class="form-label small" for="q_kardex">Buscar</label>
               <input id="q_kardex" class="form-control" placeholder="Producto, código, serie, expediente o usuario" autocomplete="off" />
             </div>
@@ -287,7 +287,18 @@
                 <option value="admin_adjustment">Ajuste</option>
               </select>
             </div>
-            <div class="col-6 col-lg-2">
+            <div class="col-12 col-sm-6 col-lg-2">
+              <label class="form-label small" for="k_status">Estado</label>
+              <select id="k_status" class="form-select">
+                <option value="all">Todos</option>
+                <option value="confirmed">Pendiente</option>
+                <option value="validated">Validada</option>
+                <option value="observed">Observada</option>
+                <option value="voided">Anulada</option>
+                <option value="not_applicable">No aplica</option>
+              </select>
+            </div>
+            <div class="col-6 col-lg-1">
               <label class="form-label small" for="k_from">Desde</label>
               <input id="k_from" class="form-control" type="date" />
             </div>
@@ -324,6 +335,7 @@
                   <th>Fecha</th>
                   <th>Hora</th>
                   <th>Movimiento</th>
+                   <th>Estado</th>
                   <th class="text-center">Entrada</th>
                   <th class="text-center">Salida</th>
                   <th class="text-center">Saldo producto</th>
@@ -578,6 +590,22 @@
       return labels[String(type || "").toLowerCase()] || String(type || "Sin tipo");
     }
 
+    function transactionStatusBadge(status){
+      const badges = {
+        confirmed:'<span class="badge text-bg-primary">Pendiente</span>',
+        validated:'<span class="badge text-bg-success">Validada</span>',
+        observed:'<span class="badge text-bg-warning">Observada</span>',
+        voided:'<span class="badge text-bg-danger">Anulada</span>',
+        not_applicable:'<span class="badge text-bg-light border text-secondary">No aplica</span>'
+      };
+      return badges[String(status || "not_applicable").toLowerCase()] || `<span class="badge text-bg-light border">${esc(status || "No aplica")}</span>`;
+    }
+
+    function transactionStatusLabel(status){
+      const labels = { confirmed:"Pendiente", validated:"Validada", observed:"Observada", voided:"Anulada", not_applicable:"No aplica" };
+      return labels[String(status || "not_applicable").toLowerCase()] || String(status || "No aplica");
+    }
+
     function renderKardex(payload){
       const summary = payload?.summary || {};
       const pagination = payload?.pagination || {};
@@ -601,6 +629,7 @@
           <td>${dateOnly(r.created_at)}</td>
           <td>${timeOnly(r.created_at)}</td>
           <td>${movementBadge(r.movement_type)}</td>
+           <td>${transactionStatusBadge(r.transaction_status)}</td>
           <td class="text-center fw-semibold text-success">${Number(r.entry_qty || 0) || "-"}</td>
           <td class="text-center fw-semibold text-danger">${Number(r.exit_qty || 0) || "-"}</td>
           <td class="text-center fw-semibold">${Number(r.product_balance_after || 0)}</td>
@@ -610,7 +639,7 @@
           <td>${esc(r.expediente || "-")}</td>
           <td>${esc(r.user_name || "-")}</td>
         </tr>
-      `).join("") : `<tr><td colspan="11" class="text-center text-muted py-4">Sin movimientos para los filtros seleccionados.</td></tr>`;
+       `).join("") : `<tr><td colspan="12" class="text-center text-muted py-4">Sin movimientos para los filtros seleccionados.</td></tr>`;
     }
 
     function loadProductSelect(){
@@ -697,6 +726,7 @@
           p_query:el("q_kardex").value || "",
           p_product_code:productCode ? Number(productCode) : null,
           p_movement_type:el("k_movement").value || "all",
+           p_transaction_status:el("k_status").value || "all",
           p_date_from:el("k_from").value || null,
           p_date_to:el("k_to").value || null,
           p_page:page,
@@ -731,6 +761,7 @@
         Fecha:dateOnly(r.created_at),
         Hora:timeOnly(r.created_at),
         Movimiento:movementLabel(r.movement_type),
+         Estado:transactionStatusLabel(r.transaction_status),
         Entrada:Number(r.entry_qty || 0),
         Salida:Number(r.exit_qty || 0),
         "Saldo producto":Number(r.product_balance_after || 0),
@@ -980,6 +1011,7 @@
         el("q_kardex").value = "";
         el("k_product").value = "";
         el("k_movement").value = "all";
+         el("k_status").value = "all";
         el("k_from").value = "";
         el("k_to").value = "";
         loadKardex(true);
