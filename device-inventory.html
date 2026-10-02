@@ -295,9 +295,15 @@
               <label class="form-label small" for="k_to">Hasta</label>
               <input id="k_to" class="form-control" type="date" />
             </div>
-            <div class="col-12 d-flex justify-content-end gap-2">
-              <button id="btn_k_clear" type="button" class="btn btn-outline-secondary">Limpiar</button>
-              <button id="btn_k_search" type="button" class="btn btn-primary">Buscar</button>
+            <div class="col-12 d-flex justify-content-between align-items-center gap-2 flex-wrap">
+              <div class="btn-group" role="group" aria-label="Descargar Kardex">
+                <button id="btn_k_csv" type="button" class="btn btn-outline-success">Descargar CSV</button>
+                <button id="btn_k_xlsx" type="button" class="btn btn-outline-success">Descargar XLSX</button>
+              </div>
+              <div class="d-flex gap-2">
+                <button id="btn_k_clear" type="button" class="btn btn-outline-secondary">Limpiar</button>
+                <button id="btn_k_search" type="button" class="btn btn-primary">Buscar</button>
+              </div>
             </div>
           </div>
 
@@ -422,6 +428,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co";
@@ -566,6 +573,11 @@
       return badges[String(type || "").toLowerCase()] || `<span class="badge text-bg-light border">${esc(type || "Sin tipo")}</span>`;
     }
 
+    function movementLabel(type){
+      const labels = { receive:"Ingreso", sale:"Venta", replacement:"Reposición", sale_void:"Anulación", admin_adjustment:"Ajuste" };
+      return labels[String(type || "").toLowerCase()] || String(type || "Sin tipo");
+    }
+
     function renderKardex(payload){
       const summary = payload?.summary || {};
       const pagination = payload?.pagination || {};
@@ -678,24 +690,116 @@
       }
     }
 
-    async function loadKardex(resetPage=false){
-      hideAlert("alert_main");
-      if(resetPage) kardexPage = 1;
-      try{
-        const productCode = el("k_product").value;
-        const payload = await callRpc("rpc_device_kardex", {
+    function kardexRequest(page, pageSize){
+      const productCode = el("k_product").value;
+      return callRpc("rpc_device_kardex", {
           p_session_token:getSession().token,
           p_query:el("q_kardex").value || "",
           p_product_code:productCode ? Number(productCode) : null,
           p_movement_type:el("k_movement").value || "all",
           p_date_from:el("k_from").value || null,
           p_date_to:el("k_to").value || null,
-          p_page:kardexPage,
-          p_page_size:25
-        });
+          p_page:page,
+          p_page_size:pageSize
+      });
+    }
+
+    async function loadKardex(resetPage=false){
+      hideAlert("alert_main");
+      if(resetPage) kardexPage = 1;
+      try{
+        const payload = await kardexRequest(kardexPage, 25);
         renderKardex(payload || {});
       }catch(err){
         showAlert("alert_main", err.message || "No se pudo cargar el Kardex.");
+      }
+    }
+
+    async function getAllKardexRows(){
+      const first = await kardexRequest(1, 100);
+      const rows = Array.isArray(first?.rows) ? [...first.rows] : [];
+      const totalPages = Number(first?.pagination?.total_pages || 1);
+      for(let page=2; page<=totalPages; page+=1){
+        const payload = await kardexRequest(page, 100);
+        if(Array.isArray(payload?.rows)) rows.push(...payload.rows);
+      }
+      return rows;
+    }
+
+    function exportRows(rows){
+      return rows.map(r => ({
+        Fecha:dateOnly(r.created_at),
+        Hora:timeOnly(r.created_at),
+        Movimiento:movementLabel(r.movement_type),
+        Entrada:Number(r.entry_qty || 0),
+        Salida:Number(r.exit_qty || 0),
+        "Saldo producto":Number(r.product_balance_after || 0),
+        "Código producto":Number(r.external_code || 0),
+        Producto:String(r.product_name || ""),
+        Tipo:String(r.category || ""),
+        "Código único":String(r.serial_code || ""),
+        Referencia:String(r.reference || ""),
+        Expediente:String(r.expediente || ""),
+        Usuario:String(r.user_name || ""),
+        Nota:String(r.note || "")
+      }));
+    }
+
+    function localYmd(){
+      const parts = new Intl.DateTimeFormat("en-CA",{timeZone:"America/El_Salvador",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+      const map = Object.fromEntries(parts.map(part => [part.type, part.value]));
+      return `${map.year}-${map.month}-${map.day}`;
+    }
+
+    function downloadBlob(blob, filename){
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function csvEscape(value){
+      let text = String(value ?? "");
+      if(typeof value === "string" && /^[=+\-@]/.test(text)) text = `'${text}`;
+      return `"${text.replace(/"/g,'""')}"`;
+    }
+
+    function setKardexExporting(active){
+      el("btn_k_csv").disabled = active;
+      el("btn_k_xlsx").disabled = active;
+      el("btn_k_csv").textContent = active ? "Generando..." : "Descargar CSV";
+      el("btn_k_xlsx").textContent = active ? "Generando..." : "Descargar XLSX";
+    }
+
+    async function exportKardex(format){
+      hideAlert("alert_main");
+      hideAlert("alert_ok");
+      setKardexExporting(true);
+      try{
+        const rows = exportRows(await getAllKardexRows());
+        if(rows.length === 0) throw new Error("No hay movimientos para exportar con los filtros actuales.");
+        const filename = `kardex_dispositivos_${localYmd()}`;
+        if(format === "csv"){
+          const headers = Object.keys(rows[0]);
+          const lines = [headers.map(csvEscape).join(","), ...rows.map(row => headers.map(header => csvEscape(row[header])).join(","))];
+          downloadBlob(new Blob(["\uFEFF" + lines.join("\r\n")], {type:"text/csv;charset=utf-8;"}), `${filename}.csv`);
+        }else{
+          if(!window.XLSX) throw new Error("No se pudo cargar el generador de Excel. Revisa la conexión e intenta de nuevo.");
+          const sheet = XLSX.utils.json_to_sheet(rows);
+          sheet["!cols"] = [12,14,14,10,10,15,15,34,18,24,15,14,18,38].map(width => ({wch:width}));
+          const workbook = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(workbook, sheet, "Kardex");
+          XLSX.writeFile(workbook, `${filename}.xlsx`);
+        }
+        showAlert("alert_ok", `Kardex exportado: ${rows.length} movimientos.`);
+      }catch(err){
+        showAlert("alert_main", err.message || "No se pudo exportar el Kardex.");
+      }finally{
+        setKardexExporting(false);
       }
     }
 
@@ -870,6 +974,8 @@
       el("q_units").addEventListener("input", () => { window.clearTimeout(window.__unitQ); window.__unitQ = window.setTimeout(loadAdminUnits, 220); });
       el("unit_status").addEventListener("change", loadAdminUnits);
       el("btn_k_search").addEventListener("click", () => loadKardex(true));
+      el("btn_k_csv").addEventListener("click", () => exportKardex("csv"));
+      el("btn_k_xlsx").addEventListener("click", () => exportKardex("xlsx"));
       el("btn_k_clear").addEventListener("click", () => {
         el("q_kardex").value = "";
         el("k_product").value = "";
