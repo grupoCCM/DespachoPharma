@@ -1329,7 +1329,7 @@
     }
 
     function deviceStatusBadgeHtml(status){
-      if (status === "confirmed") return `<span class="badge text-bg-success">Confirmada</span>`;
+      if (status === "confirmed") return `<span class="badge text-bg-warning text-dark">Confirmada</span>`;
       if (status === "validated") return `<span class="badge text-bg-success">Validada</span>`;
       if (status === "observed") return `<span class="badge text-bg-warning text-dark">Observada</span>`;
       if (status === "voided") return `<span class="badge text-bg-danger">Anulada</span>`;
@@ -1360,7 +1360,7 @@
     function setDeviceModalStatus(status){
       const b = el("d_status_badge");
       b.className = "badge";
-      if (status === "confirmed") { b.classList.add("text-bg-success"); b.textContent = "Confirmada"; }
+      if (status === "confirmed") { b.classList.add("text-bg-warning", "text-dark"); b.textContent = "Confirmada"; }
       else if (status === "validated") { b.classList.add("text-bg-success"); b.textContent = "Validada"; }
       else if (status === "observed") { b.classList.add("text-bg-warning","text-dark"); b.textContent = "Observada"; }
       else if (status === "voided") { b.classList.add("text-bg-danger"); b.textContent = "Anulada"; }
