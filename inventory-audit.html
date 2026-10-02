@@ -114,28 +114,11 @@
       .navbar .container > .ms-auto{ margin-left:0 !important; width:100%; overflow-x:auto; padding-bottom:4px; }
     }
   </style>
+  <link href="app-nav.css" rel="stylesheet">
 </head>
 <body>
-  <nav class="navbar bg-white border-bottom">
-    <div class="container">
-      <a id="brand_home" class="navbar-brand d-flex align-items-center" href="dashboard.html">
-        <span class="brand-dot"></span><span class="fw-semibold">Botiquín CCM</span>
-      </a>
-      <div class="ms-auto d-flex align-items-center gap-2">
-        <a class="btn btn-outline-secondary btn-sm nav-admin-only" href="dashboard.html">Dashboard</a>
-        <a class="btn btn-outline-secondary btn-sm nav-admin-only" href="purchasing.html">Compras</a>
-        <a class="btn btn-outline-secondary btn-sm nav-admin-only" href="imports.html">Importaciones</a>
-        <a class="btn btn-outline-secondary btn-sm nav-admin-only" href="catalog.html">Catalogo</a>
-        <a class="btn btn-outline-secondary btn-sm nav-admin-only" href="expiration-dashboard.html">Vencimientos</a>
-        <a class="btn btn-outline-secondary btn-sm nav-ops-only d-none" href="dispatch-menu.html">Despacho</a>
-        <a class="btn btn-outline-secondary btn-sm" href="availability.html">Disponibilidad</a>
-        <span class="nav-module-separator nav-admin-only" aria-hidden="true"></span>
-        <a class="btn btn-device-module btn-sm nav-admin-only" href="device-inventory.html">Dispositivos</a>
-        <span class="badge text-bg-light border"><span class="text-muted">Usuario:</span> <span id="nav_user" class="ms-1 fw-semibold">-</span></span>
-        <button id="btn_logout" class="btn btn-outline-secondary btn-sm">Salir</button>
-      </div>
-    </div>
-  </nav>
+  <div data-app-nav data-active="inventory" data-mode="auto"></div>
+  <script src="app-nav.js"></script>
 
   <main class="container py-4">
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">

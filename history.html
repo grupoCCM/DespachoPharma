@@ -47,36 +47,12 @@
     .btn-device-module:hover,.btn-device-module:focus{ background:#0f766e; color:#fff; border-color:#0f766e; }
     @media (max-width: 768px){ .nav-module-separator{ display:none; } }
   </style>
+  <link href="app-nav.css" rel="stylesheet">
 </head>
 
 <body>
-  <nav class="navbar navbar-expand-lg bg-white border-bottom">
-    <div class="container">
-      <a class="navbar-brand d-flex align-items-center" href="#">
-        <span class="brand-dot"></span>
-        <span class="fw-semibold">Botiquín CCM</span>
-      </a>
-
-      <div class="ms-auto d-flex align-items-center gap-2">
-        <a class="btn btn-outline-secondary btn-sm" href="dashboard.html">Dashboard</a>
-        <a class="btn btn-outline-secondary btn-sm" href="purchasing.html">Compras</a>
-        <a class="btn btn-outline-secondary btn-sm" href="imports.html">Importaciones</a>
-        <a class="btn btn-outline-secondary btn-sm" href="expiration-dashboard.html">Vencimientos</a>
-        <span class="nav-module-separator" aria-hidden="true"></span>
-        <a class="btn btn-device-module btn-sm" href="device-inventory.html">Dispositivos</a>
-        <a class="btn btn-outline-secondary btn-sm" href="catalog.html">Catalogo</a>
-        <span class="badge text-bg-light border">
-          <span class="text-muted">Usuario:</span>
-          <span id="nav_user" class="ms-1 fw-semibold">—</span>
-        </span>
-        <span class="badge text-bg-light border">
-          <span class="text-muted">Rol:</span>
-          <span class="ms-1 fw-semibold">Admin/Consulta</span>
-        </span>
-        <button id="btn_logout" class="btn btn-outline-secondary btn-sm">Salir</button>
-      </div>
-    </div>
-  </nav>
+  <div data-app-nav data-active="history"></div>
+  <script src="app-nav.js"></script>
 
   <main class="container py-4">
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
