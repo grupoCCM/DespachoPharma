@@ -1628,6 +1628,11 @@
       }
     }
 
+    async function deviceItemsForExport(row){
+      if (Array.isArray(row?.items)) return row.items;
+      return fetchDeviceSaleDetail(row?.sale_no);
+    }
+
     async function exportDeviceCSV(){
       if (deviceRenderedRows.length === 0) return;
       try{
@@ -1635,7 +1640,7 @@
         const csvLines = ["Salida,Tipo,Expediente,Fecha,Hora,Estado,Usuario,Codigo producto,Producto,Categoria,Codigo unico,Precio,Costo,Utilidad"];
         for (const r of deviceRenderedRows){
           const movementAt = r.confirmed_at || r.created_at;
-          const items = await fetchDeviceSaleDetail(r.sale_no);
+          const items = await deviceItemsForExport(r);
           if (items.length === 0){
             csvLines.push([r.sale_no || "", deviceSaleTypeLabel(r.sale_type), r.expediente || "", exportDateDmy(movementAt), exportTimeOnly(movementAt), r.status || "", r.created_by_name || "", "", "", "", "", r.total_sale || 0, r.total_cost || 0, r.gross_profit || 0].map(csvEscape).join(","));
           } else {
@@ -1663,7 +1668,7 @@
         setBtnLoading("btn_device_export_pdf", "btn_device_pdf_text", "btn_device_pdf_spinner", true, "Generando…", "Exportar PDF");
         const sales = [];
         for (const r of deviceRenderedRows){
-          sales.push({ ...r, items: await fetchDeviceSaleDetail(r.sale_no) });
+          sales.push({ ...r, items: await deviceItemsForExport(r) });
         }
         const html = buildDevicePdfHtml(sales, {
           dateFrom: el("device_date_from").value,
