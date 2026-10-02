@@ -664,6 +664,32 @@
       return d.toLocaleString(undefined, { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
     }
 
+    function exportDateMdy(ts){
+      if (!ts) return "";
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return "";
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone:"America/El_Salvador",
+        month:"2-digit",
+        day:"2-digit",
+        year:"numeric"
+      }).formatToParts(d);
+      const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+      return `${values.month}-${values.day}-${values.year}`;
+    }
+
+    function exportTimeOnly(ts){
+      if (!ts) return "";
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return "";
+      return new Intl.DateTimeFormat("es-SV", {
+        timeZone:"America/El_Salvador",
+        hour:"2-digit",
+        minute:"2-digit",
+        hour12:true
+      }).format(d);
+    }
+
     function fmtDateOnly(value){
       if (!value) return "";
       const text = String(value).slice(0, 10);
@@ -1606,15 +1632,16 @@
       if (deviceRenderedRows.length === 0) return;
       try{
         setBtnLoading("btn_device_export_csv", "btn_device_csv_text", "btn_device_csv_spinner", true, "Generando…", "Exportar CSV");
-        const csvLines = ["Salida,Tipo,Expediente,Fecha,Estado,Usuario,Codigo producto,Producto,Categoria,Codigo unico,Precio,Costo,Utilidad"];
+        const csvLines = ["Salida,Tipo,Expediente,Fecha,Hora,Estado,Usuario,Codigo producto,Producto,Categoria,Codigo unico,Precio,Costo,Utilidad"];
         for (const r of deviceRenderedRows){
+          const movementAt = r.confirmed_at || r.created_at;
           const items = await fetchDeviceSaleDetail(r.sale_no);
           if (items.length === 0){
-            csvLines.push([r.sale_no || "", deviceSaleTypeLabel(r.sale_type), r.expediente || "", fmtTime(r.confirmed_at || r.created_at), r.status || "", r.created_by_name || "", "", "", "", "", r.total_sale || 0, r.total_cost || 0, r.gross_profit || 0].map(csvEscape).join(","));
+            csvLines.push([r.sale_no || "", deviceSaleTypeLabel(r.sale_type), r.expediente || "", exportDateMdy(movementAt), exportTimeOnly(movementAt), r.status || "", r.created_by_name || "", "", "", "", "", r.total_sale || 0, r.total_cost || 0, r.gross_profit || 0].map(csvEscape).join(","));
           } else {
             items.forEach(it => {
               csvLines.push([
-                r.sale_no || "", deviceSaleTypeLabel(r.sale_type), r.expediente || "", fmtTime(r.confirmed_at || r.created_at), r.status || "", r.created_by_name || "",
+                r.sale_no || "", deviceSaleTypeLabel(r.sale_type), r.expediente || "", exportDateMdy(movementAt), exportTimeOnly(movementAt), r.status || "", r.created_by_name || "",
                 it.external_code || "", it.product_name || "", it.category || "", it.serial_code || "",
                 Number(it.price || 0).toFixed(2), Number(it.cost || 0).toFixed(2), Number(it.gross_profit || 0).toFixed(2)
               ].map(csvEscape).join(","));
