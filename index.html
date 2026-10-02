@@ -104,8 +104,9 @@
     const ROUTES = {
       dispatch: "dispatch-menu.html",
       cashier: "cashier.html",
-      admin: "history.html" // o admin.html cuando exista
+      admin: "dashboard.html"
     };
+    const SESSION_KEYS = ["dp_session_token","dp_role","dp_display_name","dp_user_id","dp_expires_at","dp_last_activity"];
 
     /***********************
      * UTILIDADES
@@ -152,12 +153,30 @@
       localStorage.setItem("dp_last_activity", new Date().toISOString());
     }
 
+    function clearStoredSession(){
+      SESSION_KEYS.forEach(key => localStorage.removeItem(key));
+    }
+
+    function getStoredSession(){
+      return {
+        token:localStorage.getItem("dp_session_token") || "",
+        role:String(localStorage.getItem("dp_role") || "").toLowerCase(),
+        expiresAt:localStorage.getItem("dp_expires_at") || ""
+      };
+    }
+
+    function sessionIsLocallyUsable(session){
+      if(!session.token || !ROUTES[session.role]) return false;
+      const expiresAt = Date.parse(session.expiresAt || "");
+      return Number.isFinite(expiresAt) && expiresAt > Date.now();
+    }
+
     function redirectByRole(role){
       const r = (role || "").toLowerCase();
-      if (r === "dispatch") window.location.href = ROUTES.dispatch;
-      else if (r === "cashier") window.location.href = ROUTES.cashier;
-      else if (r === "admin") window.location.href = ROUTES.admin;
-      else window.location.href = ROUTES.admin;
+      const target = ROUTES[r];
+      if(!target) return false;
+      window.location.href = target;
+      return true;
     }
 
     async function callRpc(fnName, body){
@@ -187,12 +206,32 @@
     /***********************
      * INIT
      ***********************/
-    // En login, si habia sesion vieja, la limpiamos para evitar confusion.
-    // (Luego, si quieres "auto-redirect", lo hacemos en un paso aparte.)
-    ["dp_session_token","dp_role","dp_display_name","dp_user_id","dp_expires_at","dp_last_activity"].forEach(k => localStorage.removeItem(k));
-
     const pinInput = el("pin_input");
-    pinInput.focus();
+
+    async function restoreStoredSession(){
+      const session = getStoredSession();
+      if(!session.token) return false;
+      if(!sessionIsLocallyUsable(session)){
+        clearStoredSession();
+        return false;
+      }
+      try{
+        setLoading(true);
+        el("btn_login_text").textContent = "Validando sesión...";
+        const rows = await callRpc("rpc_session_touch", { p_session_token:session.token });
+        if(!Array.isArray(rows) || rows.length === 0){
+          clearStoredSession();
+          return false;
+        }
+        localStorage.setItem("dp_last_activity", new Date().toISOString());
+        return redirectByRole(session.role);
+      }catch(_){
+        showAlert("No se pudo validar la sesión actual. Puedes intentarlo de nuevo con tu PIN.");
+        return false;
+      }finally{
+        setLoading(false);
+      }
+    }
 
     pinInput.addEventListener("input", (e) => {
       const clean = pinSanitize(e.target.value);
@@ -232,7 +271,10 @@
 
         const session = rows[0];
         saveSession(session);
-        redirectByRole(session.role);
+        if(!redirectByRole(session.role)){
+          clearStoredSession();
+          showAlert("El usuario no tiene un rol autorizado.");
+        }
 
       } catch(err){
         showAlert(err.message || "No se pudo iniciar sesion.");
@@ -241,6 +283,11 @@
         if(resetPinAfterSubmit) preparePinRetry();
       }
     });
+
+    (async function init(){
+      const redirected = await restoreStoredSession();
+      if(!redirected) pinInput.focus();
+    })();
   </script>
 </body>
 </html>

@@ -39,6 +39,7 @@
       .navbar .container{ gap:.5rem; }
       .navbar-brand{ max-width:48vw; }
       .navbar-brand .fw-semibold{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      #session_user{ display:none !important; }
       main.container{ padding-top:1rem !important; }
       .app-card{ border-radius:12px; }
       #search_panel .app-card{ position:sticky; top:0; z-index:10; }
@@ -61,7 +62,8 @@
       </a>
       <div class="ms-auto d-flex align-items-center gap-2">
         <button id="btn_sale_open" class="btn btn-primary btn-sm">Venta <span id="sale_count" class="badge text-bg-light text-primary ms-1">0</span></button>
-        <a class="btn btn-outline-secondary btn-sm" href="index.html">Ingresar</a>
+        <span id="session_user" class="badge text-bg-light border d-none"></span>
+        <a id="session_action" class="btn btn-outline-secondary btn-sm" href="index.html">Ingresar</a>
       </div>
     </div>
   </nav>
@@ -218,6 +220,12 @@
     const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
     const el = id => document.getElementById(id);
+    const SESSION_KEYS = ["dp_session_token","dp_role","dp_display_name","dp_user_id","dp_expires_at","dp_last_activity"];
+    const ROLE_DESTINATIONS = {
+      admin:{ href:"dashboard.html", label:"Dashboard" },
+      dispatch:{ href:"dispatch-menu.html", label:"Despacho" },
+      cashier:{ href:"cashier.html", label:"Caja" }
+    };
     let currentRows = [];
     let suggestionRows = [];
     let suggestTimer = null;
@@ -281,6 +289,51 @@
       try{ data = text ? JSON.parse(text) : null; }catch{ data = null; }
       if(!res.ok) throw new Error(data?.message || data?.details || "Error de conexion.");
       return data;
+    }
+
+    function clearStoredSession(){
+      SESSION_KEYS.forEach(key => localStorage.removeItem(key));
+    }
+
+    function getStoredSession(){
+      return {
+        token:localStorage.getItem("dp_session_token") || "",
+        role:String(localStorage.getItem("dp_role") || "").toLowerCase(),
+        name:localStorage.getItem("dp_display_name") || "",
+        expiresAt:localStorage.getItem("dp_expires_at") || ""
+      };
+    }
+
+    function sessionIsLocallyUsable(session){
+      if(!session.token || !ROLE_DESTINATIONS[session.role]) return false;
+      const expiresAt = Date.parse(session.expiresAt || "");
+      return Number.isFinite(expiresAt) && expiresAt > Date.now();
+    }
+
+    async function setupSessionNavigation(){
+      const session = getStoredSession();
+      if(!session.token) return;
+      if(!sessionIsLocallyUsable(session)){
+        clearStoredSession();
+        return;
+      }
+      try{
+        const rows = await callRpc("rpc_session_touch", { p_session_token:session.token });
+        if(!Array.isArray(rows) || rows.length === 0){
+          clearStoredSession();
+          return;
+        }
+        const destination = ROLE_DESTINATIONS[session.role];
+        el("session_user").textContent = session.name ? `Usuario: ${session.name}` : "Sesión activa";
+        el("session_user").classList.remove("d-none");
+        el("session_action").textContent = destination.label;
+        el("session_action").href = destination.href;
+        el("session_action").classList.remove("btn-outline-secondary");
+        el("session_action").classList.add("btn-outline-primary");
+        localStorage.setItem("dp_last_activity", new Date().toISOString());
+      }catch(_){
+        // La consulta pública sigue disponible aunque no se pueda validar la sesión.
+      }
     }
 
     function renderDetail(row){
@@ -532,6 +585,7 @@
       if(!el("search_help_wrap").contains(e.target)) toggleSearchHelp(false);
     });
     renderSearchHelp();
+    setupSessionNavigation();
   </script>
 </body>
 </html>
