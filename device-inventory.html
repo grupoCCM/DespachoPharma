@@ -355,7 +355,7 @@
                 <col style="width:56px" />
                 <col style="width:56px" />
                 <col style="width:68px" />
-                <col style="width:70px" />
+                <col style="width:135px" />
                 <col style="width:78px" />
                 <col style="width:90px" />
               </colgroup>
@@ -370,7 +370,7 @@
                   <th class="text-center">Entrada</th>
                   <th class="text-center">Salida</th>
                   <th class="text-center">Saldo</th>
-                  <th>Ref.</th>
+                  <th>Origen / Ref.</th>
                   <th>Expediente</th>
                   <th>Usuario</th>
                 </tr>
@@ -635,6 +635,17 @@
       return labels[String(status || "not_applicable").toLowerCase()] || String(status || "No aplica");
     }
 
+    function referenceLabel(reference){
+      const value = String(reference || "").trim();
+      const labels = {
+        device_unit_register:"Ingreso individual",
+        bulk_load:"Carga masiva",
+        device_sale:"Venta",
+        device_sale_void:"Anulación"
+      };
+      return labels[value.toLowerCase()] || value || "-";
+    }
+
     function renderKardex(payload){
       const summary = payload?.summary || {};
       const pagination = payload?.pagination || {};
@@ -664,7 +675,7 @@
           <td class="text-center fw-semibold text-success k-qty">${Number(r.entry_qty || 0) || "-"}</td>
           <td class="text-center fw-semibold text-danger k-qty">${Number(r.exit_qty || 0) || "-"}</td>
           <td class="text-center fw-semibold k-qty">${Number(r.product_balance_after || 0)}</td>
-          <td class="k-reference">${esc(r.reference || "-")}</td>
+          <td class="k-reference">${esc(referenceLabel(r.reference))}</td>
           <td class="k-expediente">${esc(r.expediente || "-")}</td>
           <td class="k-user">${esc(r.user_name || "-")}</td>
         </tr>
@@ -798,7 +809,7 @@
         Producto:String(r.product_name || ""),
         Tipo:String(r.category || ""),
         "Código único":String(r.serial_code || ""),
-        Referencia:String(r.reference || ""),
+        "Origen / referencia":referenceLabel(r.reference),
         Expediente:String(r.expediente || ""),
         Usuario:String(r.user_name || ""),
         Nota:String(r.note || "")
