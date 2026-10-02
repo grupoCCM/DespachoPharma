@@ -41,6 +41,24 @@
     .kardex-summary .value{ font-weight:750; font-size:1.05rem; }
     .unit-row-muted{ color:var(--muted); background:#f8fafc; }
     .unit-filter[aria-pressed="true"]{ color:#fff; background:#0d6efd; border-color:#0d6efd; }
+    .inventory-summary-table{ width:100%; min-width:720px; table-layout:fixed; }
+    .inventory-summary-table thead th,
+    .recent-units-table thead th{ padding:.7rem .75rem; color:#475569; font-size:.77rem; font-weight:750; letter-spacing:0; white-space:nowrap; }
+    .inventory-summary-table tbody td{ padding:.75rem; border-color:#e2e8f0; }
+    .inventory-summary-table tbody tr:hover td,
+    .recent-units-table tbody tr:hover td{ background:#f8fafc; }
+    .inventory-product-name{ font-weight:700; line-height:1.25; }
+    .inventory-product-meta{ margin-top:.22rem; color:var(--muted); font-size:.76rem; }
+    .inventory-value{ font-weight:750; font-variant-numeric:tabular-nums; }
+    .recent-units-table{ width:100%; min-width:920px; table-layout:fixed; font-size:.87rem; }
+    .recent-units-table tbody td{ padding:.68rem .75rem; border-color:#e2e8f0; }
+    .recent-units-table .unit-product-name{ font-weight:650; line-height:1.25; }
+    .recent-units-table .unit-product-meta{ margin-top:.22rem; font-size:.75rem; }
+    .recent-units-table .unit-serial{ font-size:.8rem; overflow-wrap:anywhere; }
+    .recent-units-table .unit-movement-date{ font-weight:600; white-space:nowrap; }
+    .recent-units-table .unit-movement-time{ margin-top:.15rem; color:var(--muted); font-size:.75rem; white-space:nowrap; }
+    .recent-units-table .unit-expediente,
+    .recent-units-table .unit-user{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .action-col{ min-width:150px; }
     .serial-preview{ min-height:180px; max-height:260px; overflow:auto; border:1px solid var(--border); border-radius:12px; background:#fff; }
     @media (max-width: 767px){
@@ -192,7 +210,14 @@
             <input id="q_inventory" class="form-control" style="max-width:320px" placeholder="Buscar producto o serial" autocomplete="off" />
           </div>
           <div class="table-box">
-            <table class="table table-sm mb-0">
+            <table class="table table-sm mb-0 inventory-summary-table">
+              <colgroup>
+                <col style="width:48%" />
+                <col style="width:13%" />
+                <col style="width:13%" />
+                <col style="width:13%" />
+                <col style="width:13%" />
+              </colgroup>
               <thead class="table-light">
                 <tr>
                   <th>Producto</th>
@@ -218,13 +243,20 @@
             </div>
           </div>
           <div class="table-box">
-            <table class="table table-sm mb-0">
+            <table class="table table-sm mb-0 recent-units-table">
+              <colgroup>
+                <col style="width:260px" />
+                <col style="width:185px" />
+                <col style="width:105px" />
+                <col style="width:150px" />
+                <col style="width:100px" />
+                <col style="width:120px" />
+              </colgroup>
               <thead class="table-light">
                 <tr>
-                  <th>Estado</th>
                   <th>Producto</th>
                   <th>Código único</th>
-                  <th>Tipo</th>
+                  <th>Estado</th>
                   <th>Último movimiento</th>
                   <th>Expediente</th>
                   <th>Usuario</th>
@@ -527,11 +559,11 @@
       const tb = el("tbody_products");
       tb.innerHTML = rows.length ? rows.map(r => `
         <tr>
-          <td><div class="fw-semibold">${esc(r.name)}</div><div class="small soft">${esc(r.external_code)} - ${esc(r.category || "-")}</div></td>
-          <td class="text-center fw-semibold text-success">${Number(r.available_qty||0)}</td>
-          <td class="text-center">${Number(r.sold_qty||0)}</td>
-          <td class="text-center">${Number(r.unavailable_qty||0)}</td>
-          <td class="text-end">${money(r.available_cost_value)}</td>
+          <td><div class="inventory-product-name">${esc(r.name)}</div><div class="inventory-product-meta">${esc(r.external_code)} · ${esc(r.category || "-")}</div></td>
+          <td class="text-center inventory-value text-success">${Number(r.available_qty||0)}</td>
+          <td class="text-center inventory-value text-primary">${Number(r.sold_qty||0)}</td>
+          <td class="text-center inventory-value ${Number(r.unavailable_qty||0) > 0 ? "text-danger" : "text-muted"}">${Number(r.unavailable_qty||0)}</td>
+          <td class="text-end inventory-value">${money(r.available_cost_value)}</td>
         </tr>
       `).join("") : `<tr><td colspan="5" class="text-center text-muted py-4">Sin productos.</td></tr>`;
     }
@@ -568,15 +600,14 @@
       el("units_visible_count").textContent = rows.length;
       tb.innerHTML = rows.length ? rows.map(r => `
         <tr class="${String(r.status || "").toLowerCase() === "available" ? "" : "unit-row-muted"}">
+          <td><div class="unit-product-name">${esc(r.product_name)}</div><div class="unit-product-meta soft">${esc(r.external_code)} · ${esc(r.category || "-")}</div></td>
+          <td class="mono unit-serial">${esc(r.serial_code)}</td>
           <td>${unitStatusBadge(r)}</td>
-          <td><div class="fw-semibold">${esc(r.product_name)}</div><div class="small soft">${esc(r.external_code)}</div></td>
-          <td class="mono">${esc(r.serial_code)}</td>
-          <td>${esc(r.category || "-")}</td>
-          <td>${dateTime(unitMovementTime(r))}</td>
-          <td>${esc(r.expediente || "-")}</td>
-          <td>${esc(unitMovementUser(r) || "-")}</td>
+          <td><div class="unit-movement-date">${dateOnly(unitMovementTime(r))}</div><div class="unit-movement-time">${timeOnly(unitMovementTime(r))}</div></td>
+          <td class="unit-expediente">${esc(r.expediente || "-")}</td>
+          <td class="unit-user">${esc(unitMovementUser(r) || "-")}</td>
         </tr>
-      `).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin unidades para este filtro.</td></tr>`;
+      `).join("") : `<tr><td colspan="6" class="text-center text-muted py-4">Sin unidades para este filtro.</td></tr>`;
     }
 
     function renderAdminUnits(rows){
