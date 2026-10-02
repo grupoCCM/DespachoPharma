@@ -18,7 +18,22 @@
     .table td,.table th{ vertical-align:middle; }
     .table-box{ max-height:390px; overflow:auto; border:1px solid var(--border); border-radius:12px; }
     .table-box thead th{ position:sticky; top:0; z-index:1; }
-    .kardex-table{ min-width:1280px; }
+    .kardex-table{ width:100%; min-width:1120px; table-layout:fixed; font-size:.86rem; }
+    .kardex-table thead th{ padding:.65rem .55rem; color:#475569; font-size:.76rem; font-weight:750; letter-spacing:0; white-space:nowrap; }
+    .kardex-table tbody td{ padding:.65rem .55rem; border-color:#e2e8f0; }
+    .kardex-table tbody tr:hover td{ background:#f8fafc; }
+    .kardex-table .k-date,
+    .kardex-table .k-time,
+    .kardex-table .k-qty,
+    .kardex-table .k-reference,
+    .kardex-table .k-expediente,
+    .kardex-table .k-user{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .kardex-table .k-date{ position:sticky; left:0; z-index:1; background:#fff; }
+    .kardex-table thead .k-date{ z-index:3; background:#f8f9fa; }
+    .kardex-table tbody tr:hover .k-date{ background:#f8fafc; }
+    .kardex-table .k-product-name{ font-weight:650; line-height:1.25; }
+    .kardex-table .k-product-meta{ margin-top:.2rem; font-size:.74rem; }
+    .kardex-table .k-serial{ font-size:.8rem; overflow-wrap:anywhere; }
     .kardex-summary{ display:grid; grid-template-columns:repeat(7,minmax(110px,1fr)); border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff; }
     .kardex-summary > div{ padding:11px 12px; border-right:1px solid var(--border); }
     .kardex-summary > div:last-child{ border-right:0; }
@@ -330,18 +345,32 @@
 
           <div class="table-box">
             <table class="table table-sm mb-0 kardex-table">
+              <colgroup>
+                <col style="width:88px" />
+                <col style="width:104px" />
+                <col style="width:92px" />
+                <col style="width:86px" />
+                <col style="width:220px" />
+                <col style="width:180px" />
+                <col style="width:56px" />
+                <col style="width:56px" />
+                <col style="width:68px" />
+                <col style="width:70px" />
+                <col style="width:78px" />
+                <col style="width:90px" />
+              </colgroup>
               <thead class="table-light">
                 <tr>
-                  <th>Fecha</th>
+                  <th class="k-date">Fecha</th>
                   <th>Hora</th>
                   <th>Movimiento</th>
-                   <th>Estado</th>
-                  <th class="text-center">Entrada</th>
-                  <th class="text-center">Salida</th>
-                  <th class="text-center">Saldo producto</th>
+                  <th>Estado</th>
                   <th>Producto</th>
                   <th>Código único</th>
-                  <th>Referencia</th>
+                  <th class="text-center">Entrada</th>
+                  <th class="text-center">Salida</th>
+                  <th class="text-center">Saldo</th>
+                  <th>Ref.</th>
                   <th>Expediente</th>
                   <th>Usuario</th>
                 </tr>
@@ -626,18 +655,18 @@
       el("btn_k_next").disabled = kardexPage >= kardexTotalPages;
       tb.innerHTML = rows.length ? rows.map(r => `
         <tr>
-          <td>${dateOnly(r.created_at)}</td>
-          <td>${timeOnly(r.created_at)}</td>
+          <td class="k-date">${dateOnly(r.created_at)}</td>
+          <td class="k-time">${timeOnly(r.created_at)}</td>
           <td>${movementBadge(r.movement_type)}</td>
-           <td>${transactionStatusBadge(r.transaction_status)}</td>
-          <td class="text-center fw-semibold text-success">${Number(r.entry_qty || 0) || "-"}</td>
-          <td class="text-center fw-semibold text-danger">${Number(r.exit_qty || 0) || "-"}</td>
-          <td class="text-center fw-semibold">${Number(r.product_balance_after || 0)}</td>
-          <td><div class="fw-semibold">${esc(r.product_name)}</div><div class="small soft">${esc(r.external_code)} - ${esc(r.category || "-")}</div></td>
-          <td class="mono">${esc(r.serial_code)}</td>
-          <td>${esc(r.reference || "-")}</td>
-          <td>${esc(r.expediente || "-")}</td>
-          <td>${esc(r.user_name || "-")}</td>
+          <td>${transactionStatusBadge(r.transaction_status)}</td>
+          <td><div class="k-product-name">${esc(r.product_name)}</div><div class="k-product-meta soft">${esc(r.external_code)} · ${esc(r.category || "-")}</div></td>
+          <td class="mono k-serial">${esc(r.serial_code)}</td>
+          <td class="text-center fw-semibold text-success k-qty">${Number(r.entry_qty || 0) || "-"}</td>
+          <td class="text-center fw-semibold text-danger k-qty">${Number(r.exit_qty || 0) || "-"}</td>
+          <td class="text-center fw-semibold k-qty">${Number(r.product_balance_after || 0)}</td>
+          <td class="k-reference">${esc(r.reference || "-")}</td>
+          <td class="k-expediente">${esc(r.expediente || "-")}</td>
+          <td class="k-user">${esc(r.user_name || "-")}</td>
         </tr>
        `).join("") : `<tr><td colspan="12" class="text-center text-muted py-4">Sin movimientos para los filtros seleccionados.</td></tr>`;
     }
