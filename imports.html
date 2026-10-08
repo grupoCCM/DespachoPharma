@@ -13,7 +13,7 @@
     }
     body{ background:var(--bg); color:var(--text); }
     .app-card{
-      background:var(--card); border:1px solid var(--border); border-radius:16px;
+      background:var(--card); border:1px solid var(--border); border-radius:8px;
       box-shadow:0 6px 20px rgba(15,23,42,.06);
     }
     .brand-dot{ width:10px;height:10px;border-radius:999px;background:#3b82f6;display:inline-block;margin-right:8px; }
@@ -21,10 +21,24 @@
     .metric{ min-height:86px; }
     .table td,.table th{ vertical-align:middle; }
     .hash-cell{ max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .workflow-step{ display:flex; align-items:flex-start; gap:.75rem; }
+    .step-number{
+      flex:0 0 28px; width:28px; height:28px; border-radius:50%; display:grid; place-items:center;
+      background:#0d6efd; color:#fff; font-weight:700; font-size:.875rem;
+    }
+    .source-help summary{ color:#475569; cursor:pointer; font-size:.8rem; }
+    .source-help[open] summary{ margin-bottom:.35rem; }
+    .file-meta{ color:var(--muted); font-size:.78rem; }
+    .checkpoint-file{ max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .batch-metric{ min-height:74px; padding:.875rem 1rem; }
+    .batch-metric + .batch-metric{ border-left:1px solid var(--border); }
     .nav-module-separator{ width:1px; height:28px; background:var(--border); margin:0 .25rem; }
     .btn-device-module{ border-color:#0f766e; color:#0f766e; background:#ecfdf5; font-weight:700; }
     .btn-device-module:hover,.btn-device-module:focus{ background:#0f766e; color:#fff; border-color:#0f766e; }
-    @media (max-width: 768px){ .nav-module-separator{ display:none; } }
+    @media (max-width: 768px){
+      .nav-module-separator{ display:none; }
+      .batch-metric + .batch-metric{ border-left:0; border-top:1px solid var(--border); }
+    }
   </style>
   <link href="app-nav.css" rel="stylesheet">
 </head>
@@ -48,35 +62,87 @@
     <div id="alert_page" class="alert alert-danger d-none" role="alert"></div>
 
     <div class="row g-3">
-      <div class="col-12 col-lg-3">
-        <div class="app-card p-3 metric">
-          <div class="text-muted small">Estado</div>
-          <div id="metric_status" class="fs-5 fw-semibold">-</div>
-          <div id="metric_batch" class="small text-muted mono">-</div>
+      <div class="col-12">
+        <div class="app-card p-3">
+          <div class="workflow-step">
+            <span class="step-number" aria-hidden="true">1</span>
+            <div>
+              <div class="fw-semibold">Seleccionar archivos</div>
+              <div class="text-muted small">Puedes preparar uno o varios archivos; cada uno se valida antes de habilitar su procesamiento.</div>
+            </div>
+          </div>
+
+          <div class="row g-3 mt-1">
+            <div class="col-12 col-md-6 col-xl-3">
+              <label class="form-label" for="file_sales">Ventas / utilidad</label>
+              <input id="file_sales" class="form-control file-input" type="file" accept=".xlsx,.xls,.csv" data-source="sales_profit">
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+              <label class="form-label" for="file_consults">Clientes consulta</label>
+              <input id="file_consults" class="form-control file-input" type="file" accept=".csv,.xlsx,.xls" data-source="consultations">
+              <details class="source-help mt-2">
+                <summary>Ver estructura requerida</summary>
+                <div class="small text-muted">A codigo, B servicio, C venta, D comprobante, E fecha, F expediente, G paciente. El orden es obligatorio.</div>
+              </details>
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+              <label class="form-label" for="file_inventory">Inventario</label>
+              <input id="file_inventory" class="form-control file-input" type="file" accept=".xlsx,.xls,.csv" data-source="inventory">
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+              <label class="form-label" for="file_purchases">Compras</label>
+              <input id="file_purchases" class="form-control file-input" type="file" accept=".xlsx,.xls,.csv" data-source="purchases">
+            </div>
+          </div>
+
+          <hr class="my-4">
+
+          <div class="d-flex flex-wrap gap-3 justify-content-between align-items-start">
+            <div class="workflow-step">
+              <span class="step-number" aria-hidden="true">2</span>
+              <div>
+                <div class="fw-semibold">Revisar y procesar</div>
+                <div class="text-muted small">Confirma archivo, periodo y filas validas antes de aplicar la carga.</div>
+              </div>
+            </div>
+            <div class="d-flex gap-2">
+              <button id="btn_clear_files" class="btn btn-outline-secondary btn-sm">Limpiar seleccion</button>
+              <button id="btn_process_selected" class="btn btn-success btn-sm" disabled>
+                <span id="btn_process_selected_text">Procesar seleccionados</span>
+                <span id="btn_process_selected_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive mt-3">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Tipo</th>
+                  <th>Archivo</th>
+                  <th>Periodo detectado</th>
+                  <th class="text-end">Filas validas</th>
+                  <th>Estado</th>
+                  <th class="text-end">Accion</th>
+                </tr>
+              </thead>
+              <tbody id="tbody_selected">
+                <tr><td colspan="6" class="text-center text-muted py-4">Selecciona un archivo para iniciar la revision.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="small text-muted mt-3">
+            Cada archivo se procesa de forma independiente. Si seleccionas varios, veras el resultado individual de cada carga.
+          </div>
         </div>
       </div>
-      <div class="col-12 col-lg-3">
-        <div class="app-card p-3 metric">
-          <div class="text-muted small">Archivos</div>
-          <div id="metric_files" class="fs-5 fw-semibold">0</div>
-          <div class="small text-muted">en el ultimo lote</div>
-        </div>
+
+      <div class="col-12 mt-4">
+        <h2 class="h6 mb-1">Puntos de corte</h2>
+        <div class="text-muted small">Fechas registradas para descargar solo informacion posterior desde el sistema de origen.</div>
       </div>
-      <div class="col-12 col-lg-3">
-        <div class="app-card p-3 metric">
-          <div class="text-muted small">Advertencias</div>
-          <div id="metric_warnings" class="fs-5 fw-semibold">0</div>
-          <div class="small text-muted">requieren revision</div>
-        </div>
-      </div>
-      <div class="col-12 col-lg-3">
-        <div class="app-card p-3 metric">
-          <div class="text-muted small">Errores</div>
-          <div id="metric_errors" class="fs-5 fw-semibold">0</div>
-          <div class="small text-muted">bloquean la carga</div>
-        </div>
-      </div>
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-4">
         <div class="app-card p-3 h-100">
           <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start">
             <div>
@@ -84,11 +150,11 @@
               <div id="last_purchase_date" class="fs-5 fw-semibold">-</div>
               <div id="last_purchase_meta" class="small text-muted">Usa esta fecha para descargar compras posteriores desde el otro sistema.</div>
             </div>
-            <span id="last_purchase_file" class="badge text-bg-light border">-</span>
+            <span id="last_purchase_file" class="badge text-bg-light border checkpoint-file">-</span>
           </div>
         </div>
       </div>
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-4">
         <div class="app-card p-3 h-100">
           <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start">
             <div>
@@ -96,7 +162,47 @@
               <div id="last_sales_profit_date" class="fs-5 fw-semibold">-</div>
               <div id="last_sales_profit_meta" class="small text-muted">Usa esta fecha para descargar ventas posteriores desde el otro sistema.</div>
             </div>
-            <span id="last_sales_profit_file" class="badge text-bg-light border">-</span>
+            <span id="last_sales_profit_file" class="badge text-bg-light border checkpoint-file">-</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4">
+        <div class="app-card p-3 h-100">
+          <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start">
+            <div>
+              <div class="text-muted small">Ultima consulta cargada</div>
+              <div id="last_consultation_date" class="fs-5 fw-semibold">-</div>
+              <div id="last_consultation_meta" class="small text-muted">Usa esta fecha para descargar consultas posteriores desde el otro sistema.</div>
+            </div>
+            <span id="last_consultation_file" class="badge text-bg-light border checkpoint-file">-</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 mt-4">
+        <h2 class="h6 mb-1">Ultimo procesamiento</h2>
+        <div class="text-muted small">El estado y las alertas siguientes corresponden exclusivamente al lote mas reciente.</div>
+      </div>
+      <div class="col-12">
+        <div class="app-card overflow-hidden">
+          <div class="row g-0">
+            <div class="col-12 col-md-3 batch-metric">
+              <div class="text-muted small">Estado</div>
+              <div id="metric_status" class="fs-5 fw-semibold">-</div>
+              <div id="metric_batch" class="small text-muted mono text-truncate">-</div>
+            </div>
+            <div class="col-12 col-md-3 batch-metric">
+              <div class="text-muted small">Archivos procesados</div>
+              <div id="metric_files" class="fs-5 fw-semibold">0</div>
+            </div>
+            <div class="col-12 col-md-3 batch-metric">
+              <div class="text-muted small">Advertencias</div>
+              <div id="metric_warnings" class="fs-5 fw-semibold">0</div>
+            </div>
+            <div class="col-12 col-md-3 batch-metric">
+              <div class="text-muted small">Errores</div>
+              <div id="metric_errors" class="fs-5 fw-semibold">0</div>
+            </div>
           </div>
         </div>
       </div>
@@ -140,64 +246,6 @@
         </div>
       </div>
 
-      <div class="col-12">
-        <div class="app-card p-3">
-          <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start">
-            <div>
-              <div class="fw-semibold">Preparar nuevos archivos</div>
-              <div class="text-muted small">Selecciona los archivos antes de procesarlos para verificar nombre, tamano y huella.</div>
-            </div>
-            <div class="d-flex gap-2">
-              <button id="btn_process_selected" class="btn btn-success btn-sm" disabled>
-                <span id="btn_process_selected_text">Procesar seleccionados</span>
-                <span id="btn_process_selected_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
-              </button>
-              <button id="btn_clear_files" class="btn btn-outline-secondary btn-sm">Limpiar seleccion</button>
-            </div>
-          </div>
-
-          <div class="row g-3 mt-1">
-            <div class="col-12 col-md-6 col-xl-3">
-              <label class="form-label" for="file_sales">Ventas / utilidad</label>
-              <input id="file_sales" class="form-control file-input" type="file" accept=".xlsx,.xls,.csv" data-source="sales_profit">
-            </div>
-            <div class="col-12 col-md-6 col-xl-3">
-              <label class="form-label" for="file_consults">Clientes consulta</label>
-              <input id="file_consults" class="form-control file-input" type="file" accept=".csv,.xlsx,.xls" data-source="consultations">
-            </div>
-            <div class="col-12 col-md-6 col-xl-3">
-              <label class="form-label" for="file_inventory">Inventario</label>
-              <input id="file_inventory" class="form-control file-input" type="file" accept=".xlsx,.xls,.csv" data-source="inventory">
-            </div>
-            <div class="col-12 col-md-6 col-xl-3">
-              <label class="form-label" for="file_purchases">Compras</label>
-              <input id="file_purchases" class="form-control file-input" type="file" accept=".xlsx,.xls,.csv" data-source="purchases">
-            </div>
-          </div>
-
-          <div class="table-responsive mt-3">
-            <table class="table table-sm mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th>Tipo</th>
-                  <th>Archivo</th>
-                  <th class="text-end">Tamano</th>
-                  <th>Hash local</th>
-                  <th>Estado</th>
-                  <th class="text-end">Accion</th>
-                </tr>
-              </thead>
-              <tbody id="tbody_selected">
-                <tr><td colspan="6" class="text-center text-muted py-4">No hay archivos seleccionados.</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="alert alert-info mt-3 mb-0">
-            Puedes procesar uno o varios archivos. Inventario actualiza existencias y lotes; compras suma entradas nuevas; ventas/utilidad y clientes consulta actualizan dashboard y penetracion. Los duplicados se omiten.
-          </div>
-        </div>
-      </div>
     </div>
   </main>
 
@@ -298,6 +346,14 @@
       const n = Number(value || 0);
       return Number.isFinite(n) ? n.toLocaleString("es-SV", { style:"currency", currency:"USD" }) : "-";
     }
+    function escapeHtml(value){
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
 
     function setLoading(isLoading){
       el("btn_refresh").disabled = isLoading;
@@ -307,8 +363,9 @@
 
     function setFileProcessing(isLoading){
       isProcessingFiles = isLoading;
-      const hasFiles = selectedFilesCache.length > 0;
-      el("btn_process_selected").disabled = isLoading || !hasFiles;
+      const pending = selectedFilesCache.filter(row => row.ready && !row.result);
+      const hasInvalid = selectedFilesCache.some(row => !row.ready);
+      el("btn_process_selected").disabled = isLoading || !pending.length || hasInvalid;
       el("btn_process_selected_spinner").classList.toggle("d-none", !isLoading);
       el("btn_process_selected_text").textContent = isLoading ? "Procesando..." : "Procesar seleccionados";
       document.querySelectorAll(".btn-process-file").forEach(btn => { btn.disabled = isLoading; });
@@ -336,6 +393,7 @@
       const visibleIssues = duplicateAlerts.concat(issues);
       const purchaseCheckpoint = payload && payload.purchase_checkpoint ? payload.purchase_checkpoint : null;
       const salesProfitCheckpoint = payload && payload.sales_profit_checkpoint ? payload.sales_profit_checkpoint : null;
+      const consultationCheckpoint = payload && payload.consultation_checkpoint ? payload.consultation_checkpoint : null;
 
       el("metric_status").innerHTML = latest ? statusBadge(latest.status) : "-";
       el("metric_batch").textContent = latest ? latest.batch_key : "-";
@@ -353,6 +411,11 @@
         ? `${Number(salesProfitCheckpoint.sales_lines || 0)} lineas - ${Number(salesProfitCheckpoint.units || 0).toLocaleString("es-SV")} productos - neto ${fmtMoney(salesProfitCheckpoint.net_sales)} - utilidad ${fmtMoney(salesProfitCheckpoint.profit)}`
         : "Sin ventas/utilidad cargadas.";
       el("last_sales_profit_file").textContent = salesProfitCheckpoint ? (salesProfitCheckpoint.source_file || "Sin archivo") : "-";
+      el("last_consultation_date").textContent = consultationCheckpoint ? fmtDateOnly(consultationCheckpoint.max_source_date) : "-";
+      el("last_consultation_meta").textContent = consultationCheckpoint
+        ? `${Number(consultationCheckpoint.row_count || 0).toLocaleString("es-SV")} filas; periodo ${fmtDateOnly(consultationCheckpoint.min_source_date)} a ${fmtDateOnly(consultationCheckpoint.max_source_date)}; ${Number(consultationCheckpoint.duplicate_rows_detected || 0).toLocaleString("es-SV")} duplicadas omitidas`
+        : "Sin consultas cargadas.";
+      el("last_consultation_file").textContent = consultationCheckpoint ? (consultationCheckpoint.source_file || "Sin archivo") : "-";
 
       el("tbody_files").innerHTML = files.length ? files.map(row => `
         <tr>
@@ -525,6 +588,51 @@
       return rows;
     }
 
+    function getDetectedPeriod(source, rows){
+      if(source === "inventory") return "Existencias y lotes";
+      const dates = rows.map(row => row[4]).filter(Boolean).sort();
+      if(!dates.length) return "Sin fecha detectada";
+      const first = fmtDateOnly(dates[0]);
+      const last = fmtDateOnly(dates[dates.length - 1]);
+      return first === last ? first : `${first} - ${last}`;
+    }
+
+    function renderSelectedTable(){
+      if(!selectedFilesCache.length){
+        el("tbody_selected").innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">Selecciona un archivo para iniciar la revision.</td></tr>`;
+        setFileProcessing(false);
+        return;
+      }
+
+      el("tbody_selected").innerHTML = selectedFilesCache.map(row => {
+        const label = SOURCE_CONFIG[row.source]?.label || row.source;
+        let status = `<span class="badge text-bg-primary">Validado</span>`;
+        if(row.processing) status = `<span class="badge text-bg-warning">Procesando</span>`;
+        if(row.result) status = `<span class="badge text-bg-success">Completado</span>`;
+        if(row.error && row.ready) status = `<span class="badge text-bg-danger">Error al procesar</span>`;
+        if(!row.ready) status = `<span class="badge text-bg-danger">Revisar archivo</span>`;
+        const buttonLabel = row.result ? "Procesado" : row.error && row.ready ? "Reintentar" : "Procesar";
+        const disabled = isProcessingFiles || !row.ready || row.result ? "disabled" : "";
+        const detail = row.error
+          ? `<div class="small text-danger mt-1">${escapeHtml(row.error)}</div>`
+          : row.result
+            ? `<div class="small text-success mt-1">${escapeHtml(summarizeImportResult(row.result))}</div>`
+            : "";
+        return `<tr>
+          <td class="fw-semibold">${escapeHtml(label)}</td>
+          <td>
+            <div>${escapeHtml(row.file.name)}</div>
+            <div class="file-meta">${fmtBytes(row.file.size)} · SHA ${escapeHtml(row.hash.slice(0, 10))}...</div>
+          </td>
+          <td>${escapeHtml(row.period || "-")}</td>
+          <td class="text-end">${row.ready ? Number(row.rows.length).toLocaleString("es-SV") : "-"}</td>
+          <td>${status}${detail}</td>
+          <td class="text-end"><button class="btn btn-outline-primary btn-sm btn-process-file" data-source="${escapeHtml(row.source)}" ${disabled}>${buttonLabel}</button></td>
+        </tr>`;
+      }).join("");
+      setFileProcessing(isProcessingFiles);
+    }
+
     async function renderSelectedFiles(){
       const inputs = Array.from(document.querySelectorAll(".file-input"));
       const selected = inputs
@@ -533,53 +641,39 @@
 
       if(!selected.length){
         selectedFilesCache = [];
-        setFileProcessing(false);
-        el("tbody_selected").innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No hay archivos seleccionados.</td></tr>`;
+        renderSelectedTable();
         return;
       }
 
-      el("tbody_selected").innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">Calculando huellas...</td></tr>`;
+      setFileProcessing(true);
+      el("tbody_selected").innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Validando archivos...</td></tr>`;
       const rows = [];
       for(const item of selected){
-        const hash = await hashFile(item.file);
-        rows.push({ ...item, hash });
+        try{
+          const hash = await hashFile(item.file);
+          const parsedRows = item.source === "inventory"
+            ? await readInventoryRows(item.file)
+            : await readOperationalRows(item.file, item.source);
+          rows.push({ ...item, hash, rows:parsedRows, period:getDetectedPeriod(item.source, parsedRows), ready:true, error:"", result:null, processing:false });
+        }catch(err){
+          rows.push({ ...item, hash:"", rows:[], period:"-", ready:false, error:err.message || "No se pudo leer el archivo.", result:null, processing:false });
+        }
       }
       selectedFilesCache = rows;
-      setFileProcessing(false);
-
-      const seen = new Map();
-      el("tbody_selected").innerHTML = rows.map(row => {
-        const repeated = seen.has(row.hash);
-        seen.set(row.hash, true);
-        const label = SOURCE_CONFIG[row.source]?.label || row.source;
-        const status = repeated ? "Duplicado local" : "Listo para procesar";
-        const badge = repeated ? "text-bg-warning" : "text-bg-success";
-        return `<tr>
-          <td class="fw-semibold">${label}</td>
-          <td>${row.file.name}</td>
-          <td class="text-end">${fmtBytes(row.file.size)}</td>
-          <td class="mono hash-cell" title="${row.hash}">${row.hash}</td>
-          <td><span class="badge ${badge}">${status}</span></td>
-          <td class="text-end">
-            <button class="btn btn-outline-primary btn-sm btn-process-file" data-source="${row.source}" ${isProcessingFiles ? "disabled" : ""}>Procesar</button>
-          </td>
-        </tr>`;
-      }).join("");
+      isProcessingFiles = false;
+      renderSelectedTable();
     }
 
     async function processFile(item){
       const config = SOURCE_CONFIG[item.source];
       if(!config) throw new Error(`Tipo de archivo no soportado: ${item.source}`);
       const s = getSession();
-      const rows = item.source === "inventory"
-        ? await readInventoryRows(item.file)
-        : await readOperationalRows(item.file, item.source);
       return callRpc(config.rpc, {
         p_session_token:s.token,
         p_source_file:item.file.name,
         p_sha256:item.hash,
         p_size_bytes:item.file.size,
-        p_rows:rows
+        p_rows:item.rows
       });
     }
 
@@ -604,22 +698,39 @@
 
     async function processSelected(source=null){
       hideAlert();
-      const items = source
+      const items = (source
         ? selectedFilesCache.filter(row => row.source === source)
-        : selectedFilesCache.slice();
+        : selectedFilesCache.slice())
+        .filter(row => row.ready && !row.result);
       if(!items.length) return showAlert("Selecciona al menos un archivo antes de procesar.");
       setFileProcessing(true);
-      try{
-        const results = [];
-        for(const item of items){
-          results.push(await processFile(item));
+      const results = [];
+      const failures = [];
+      for(const item of items){
+        item.processing = true;
+        renderSelectedTable();
+        try{
+          item.result = await processFile(item);
+          item.error = "";
+          results.push(item.result);
+        }catch(err){
+          item.error = err.message || "No se pudo procesar el archivo.";
+          failures.push(`${SOURCE_CONFIG[item.source]?.label || item.source}: ${item.error}`);
+        }finally{
+          item.processing = false;
+          renderSelectedTable();
         }
-        showAlert(`Procesamiento completado. ${results.map(summarizeImportResult).join(" | ")}`, "success");
+      }
+      try{
         await loadOverview();
-      }catch(err){
-        showAlert(err.message || "No se pudieron procesar los archivos.");
+        if(failures.length){
+          showAlert(`Proceso finalizado con archivos pendientes. ${failures.join(" | ")}`, "warning");
+        }else{
+          showAlert(`Procesamiento completado. ${results.map(summarizeImportResult).join(" | ")}`, "success");
+        }
       }finally{
         setFileProcessing(false);
+        renderSelectedTable();
       }
     }
 
