@@ -15,9 +15,10 @@
     body{ background:var(--bg); color:var(--text); }
     .app-card{ background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:0 6px 20px rgba(15,23,42,.06); }
     .brand-dot{ width:10px;height:10px;border-radius:999px;background:#3b82f6;display:inline-block;margin-right:8px; }
-    .metric{ min-height:104px; }
+    .metric{ min-height:104px; height:100%; }
     .metric-value{ font-size:1.45rem; font-weight:700; line-height:1.15; }
     .metric-label{ color:var(--muted); font-size:.82rem; }
+    .metric-detail{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .metric-soft-profit{ background:#f0fdf4; border-color:#bbf7d0; box-shadow:inset 4px 0 0 #22c55e, 0 6px 20px rgba(15,23,42,.05); }
     .metric-soft-profit .metric-label{ color:#166534; }
     .metric-margin-neutral{ background:#f8fafc; border-color:#cbd5e1; box-shadow:inset 4px 0 0 #94a3b8, 0 6px 20px rgba(15,23,42,.05); }
@@ -126,93 +127,113 @@
         <div class="app-card p-3 metric">
           <div class="metric-label">Venta neta</div>
           <div id="m_net_sales" class="metric-value">$0.00</div>
-          <div id="m_sales_range" class="small text-muted">-</div>
+          <div id="m_sales_range" class="small text-muted metric-detail">-</div>
         </div>
       </div>
       <div class="col-12 col-md-6 col-xl-3">
         <div class="app-card p-3 metric">
           <div class="metric-label">Utilidad</div>
           <div id="m_profit" class="metric-value">$0.00</div>
-          <div class="small text-muted">segun filtro</div>
+          <div class="small text-muted metric-detail">segun filtro</div>
         </div>
       </div>
       <div class="col-12 col-md-6 col-xl-3">
         <div id="m_margin_card" class="app-card p-3 metric metric-margin-neutral">
           <div class="metric-label">Margen del periodo</div>
           <div id="m_margin" class="metric-value">-</div>
-          <div id="m_margin_detail" class="small">GM ponderado segun filtro</div>
-          <div id="m_margin_freshness" class="small text-muted">Ventas cargadas hasta -</div>
+          <div id="m_margin_detail" class="small metric-detail">GM ponderado segun filtro</div>
+          <div id="m_margin_freshness" class="small text-muted metric-detail">Ventas cargadas hasta -</div>
         </div>
       </div>
       <div class="col-12 col-md-6 col-xl-3">
         <div class="app-card p-3 metric metric-soft-profit">
           <div class="metric-label">Utilidad promedio neta</div>
           <div id="m_avg_net_profit" class="metric-value">$0.00</div>
-          <div id="m_avg_net_profit_detail" class="small text-muted">&uacute;ltimos 12 meses</div>
+          <div id="m_avg_net_profit_detail" class="small text-muted metric-detail">&uacute;ltimos 12 meses</div>
         </div>
       </div>
       <div class="col-12 col-md-6 col-xl-3">
         <div class="app-card p-3 metric">
-          <div class="metric-label">Productos por dia</div>
-          <div id="m_products_day" class="metric-value">0</div>
-          <div id="m_products_day_detail" class="small text-muted">segun filtro</div>
+          <div class="metric-label">Ventas registradas</div>
+          <div id="m_sales_documents" class="metric-value">0</div>
+          <div id="m_sales_documents_detail" class="small text-muted metric-detail">segun filtro</div>
         </div>
       </div>
       <div class="col-12 col-md-6 col-xl-3">
         <div class="app-card p-3 metric">
-          <div class="metric-label">Inventario valorizado</div>
-          <div id="m_inventory_value" class="metric-value">$0.00</div>
-          <div id="m_inventory_units" class="small text-muted">0 unidades</div>
+          <div class="metric-label">Ticket promedio neto</div>
+          <div id="m_avg_ticket" class="metric-value">$0.00</div>
+          <div id="m_avg_ticket_detail" class="small text-muted metric-detail">venta neta por operacion</div>
         </div>
       </div>
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="app-card p-3 metric">
-          <div class="metric-label">Penetracion</div>
-          <div id="m_penetration" class="metric-value">0%</div>
-          <div id="m_penetration_detail" class="small text-muted">-</div>
-        </div>
-      </div>
-
       <div class="col-12 col-md-6 col-xl-3">
         <div class="app-card p-3 metric">
           <div class="metric-label">Pacientes con venta</div>
           <div id="m_consulted" class="metric-value">0</div>
-          <div id="m_consult_date" class="small text-muted">-</div>
+          <div id="m_consult_date" class="small text-muted metric-detail">-</div>
         </div>
       </div>
       <div class="col-12 col-md-6 col-xl-3">
         <div class="app-card p-3 metric">
-          <div class="metric-label">Lineas con utilidad negativa</div>
-          <div id="m_negative" class="metric-value text-danger">0</div>
-          <div id="m_negative_detail" class="small text-muted">segun filtro</div>
-        </div>
-      </div>
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="app-card p-3 metric">
-          <div class="metric-label">Compra sugerida</div>
-          <div id="m_recommended_value" class="metric-value">$0.00</div>
-          <div id="m_recommended_qty" class="small text-muted">0 unidades</div>
-        </div>
-      </div>
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="app-card p-3 metric">
-          <div class="metric-label">Articulos pedir ya</div>
-          <div id="m_recommended_now" class="metric-value">0</div>
-          <div id="m_recommended_items" class="small text-muted">0 recomendaciones</div>
-        </div>
-      </div>
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="app-card p-3 metric">
-          <div class="metric-label">Productos por paciente</div>
-          <div id="m_products_patient" class="metric-value">0</div>
-          <div id="m_products_patient_detail" class="small text-muted">segun filtro</div>
+          <div class="metric-label">Productos por venta</div>
+          <div id="m_products_sale" class="metric-value">0</div>
+          <div id="m_products_sale_detail" class="small text-muted metric-detail">unidades por operacion</div>
         </div>
       </div>
       <div class="col-12 col-md-6 col-xl-3">
         <div class="app-card p-3 metric">
           <div class="metric-label">Productos vendidos</div>
           <div id="m_products_sold" class="metric-value">0</div>
-          <div id="m_products_sold_detail" class="small text-muted">segun filtro</div>
+          <div id="m_products_sold_detail" class="small text-muted metric-detail">segun filtro</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Productos por paciente</div>
+          <div id="m_products_patient" class="metric-value">0</div>
+          <div id="m_products_patient_detail" class="small text-muted metric-detail">segun filtro</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Productos por dia</div>
+          <div id="m_products_day" class="metric-value">0</div>
+          <div id="m_products_day_detail" class="small text-muted metric-detail">segun filtro</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Penetracion</div>
+          <div id="m_penetration" class="metric-value">0%</div>
+          <div id="m_penetration_detail" class="small text-muted metric-detail">-</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Inventario valorizado</div>
+          <div id="m_inventory_value" class="metric-value">$0.00</div>
+          <div id="m_inventory_units" class="small text-muted metric-detail">0 unidades</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Lineas con utilidad negativa</div>
+          <div id="m_negative" class="metric-value text-danger">0</div>
+          <div id="m_negative_detail" class="small text-muted metric-detail">segun filtro</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Compra sugerida</div>
+          <div id="m_recommended_value" class="metric-value">$0.00</div>
+          <div id="m_recommended_qty" class="small text-muted metric-detail">0 unidades</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div class="app-card p-3 metric">
+          <div class="metric-label">Articulos pedir ya</div>
+          <div id="m_recommended_now" class="metric-value">0</div>
+          <div id="m_recommended_items" class="small text-muted metric-detail">0 recomendaciones</div>
         </div>
       </div>
     </div>
@@ -527,6 +548,7 @@
         profit,
         margin_pct: netSales ? (profit / netSales) * 100 : null,
         units: rows.reduce((sum,row) => sum + Number(row.units || 0), 0),
+        sales_documents: rows.reduce((sum,row) => sum + Number(row.sales_documents || 0), 0),
         sales_days: rows.reduce((sum,row) => sum + salesDays(row), 0),
         negative_profit_lines: rows.reduce((sum,row) => sum + Number(row.negative_profit_lines || 0), 0)
       };
@@ -880,7 +902,7 @@
         return;
       }
       const label = el("month_filter").value ? monthLabel(rows[rows.length - 1]?.month) : "periodo visible";
-      el("m_products_day_detail").textContent = `${num(metric.units)} productos / ${num(metric.days)} dias con venta (${label})`;
+      el("m_products_day_detail").textContent = `${num(metric.days)} dias con venta · ${label}`;
     }
 
     function renderProductsPerPatient(monthlyRows){
@@ -890,7 +912,7 @@
         el("m_products_patient_detail").textContent = "sin pacientes con venta";
         return;
       }
-      el("m_products_patient_detail").textContent = `${num(metric.units)} productos / ${num(metric.patients)} pacientes (${metric.label})`;
+      el("m_products_patient_detail").textContent = `${num(metric.patients)} pacientes · ${metric.label}`;
     }
 
     function renderFilteredMetricCards(monthly, penetration){
@@ -901,13 +923,20 @@
       const pen = aggregatePenetration(penRows);
       const salesPatients = salesPatientMetric(rows);
       const label = selected ? monthLabel(selected) : `${rows.length} meses visibles`;
+      const salesDocuments = Number(sales.sales_documents || 0);
 
       el("m_net_sales").textContent = money(sales.net_sales);
       el("m_sales_range").textContent = label;
       el("m_profit").textContent = money(sales.profit);
       renderPeriodMargin(sales, rows, monthly);
+      el("m_sales_documents").textContent = num(salesDocuments);
+      el("m_sales_documents_detail").textContent = label;
+      el("m_avg_ticket").textContent = money(salesDocuments ? sales.net_sales / salesDocuments : 0);
+      el("m_avg_ticket_detail").textContent = salesDocuments ? "venta neta por operacion" : "sin ventas";
+      el("m_products_sale").textContent = num(salesDocuments ? sales.units / salesDocuments : 0, 2);
+      el("m_products_sale_detail").textContent = salesDocuments ? "unidades por operacion" : "sin ventas";
       el("m_penetration").textContent = pct(pen.penetration_pct);
-      el("m_penetration_detail").textContent = pen.consulted_patients ? `${label}: ${pen.converted_patients}/${pen.consulted_patients}` : `${label}: sin consultas`;
+      el("m_penetration_detail").textContent = pen.consulted_patients ? `${pen.converted_patients}/${pen.consulted_patients} · ${label}` : `sin consultas · ${label}`;
       el("m_consulted").textContent = num(salesPatients.patients);
       el("m_consult_date").textContent = salesPatients.label;
       el("m_negative").textContent = num(sales.negative_profit_lines);
