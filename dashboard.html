@@ -20,6 +20,13 @@
     .metric-label{ color:var(--muted); font-size:.82rem; }
     .metric-soft-profit{ background:#f0fdf4; border-color:#bbf7d0; box-shadow:inset 4px 0 0 #22c55e, 0 6px 20px rgba(15,23,42,.05); }
     .metric-soft-profit .metric-label{ color:#166534; }
+    .metric-margin-neutral{ background:#f8fafc; border-color:#cbd5e1; box-shadow:inset 4px 0 0 #94a3b8, 0 6px 20px rgba(15,23,42,.05); }
+    .metric-margin-good{ background:#f0fdf4; border-color:#bbf7d0; box-shadow:inset 4px 0 0 #22c55e, 0 6px 20px rgba(15,23,42,.05); }
+    .metric-margin-review{ background:#fffbeb; border-color:#fde68a; box-shadow:inset 4px 0 0 #f59e0b, 0 6px 20px rgba(15,23,42,.05); }
+    .metric-margin-critical{ background:#fef2f2; border-color:#fecaca; box-shadow:inset 4px 0 0 #ef4444, 0 6px 20px rgba(15,23,42,.05); }
+    .metric-margin-good .metric-label{ color:#166534; }
+    .metric-margin-review .metric-label{ color:#92400e; }
+    .metric-margin-critical .metric-label{ color:#991b1b; }
     .table td,.table th{ vertical-align:middle; }
     .bar-row{ display:grid; grid-template-columns:82px minmax(120px,1fr) minmax(140px,max-content); gap:.75rem; align-items:center; }
     .bar-track{ height:10px; background:#e2e8f0; border-radius:999px; overflow:hidden; }
@@ -126,7 +133,15 @@
         <div class="app-card p-3 metric">
           <div class="metric-label">Utilidad</div>
           <div id="m_profit" class="metric-value">$0.00</div>
-          <div id="m_margin" class="small text-muted">Margen -</div>
+          <div class="small text-muted">segun filtro</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 col-xl-3">
+        <div id="m_margin_card" class="app-card p-3 metric metric-margin-neutral">
+          <div class="metric-label">Margen del periodo</div>
+          <div id="m_margin" class="metric-value">-</div>
+          <div id="m_margin_detail" class="small">GM ponderado segun filtro</div>
+          <div id="m_margin_freshness" class="small text-muted">Ventas cargadas hasta -</div>
         </div>
       </div>
       <div class="col-12 col-md-6 col-xl-3">
@@ -447,6 +462,11 @@
     function num(v, digits=0){ return new Intl.NumberFormat("es-SV",{maximumFractionDigits:digits}).format(Number(v || 0)); }
     function pct(v){ return v === null || v === undefined ? "-" : `${num(v,2)}%`; }
     function shortDate(v){ return v ? String(v).slice(0,10) : "-"; }
+    function dateLabel(v){
+      if(!v) return "-";
+      const d = new Date(`${String(v).slice(0,10)}T00:00:00`);
+      return Number.isNaN(d.getTime()) ? shortDate(v) : d.toLocaleDateString("es-SV");
+    }
     function esc(value){ return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch])); }
     function debouncePriceMarginSearch(){
       clearTimeout(priceMarginTimer);
@@ -510,6 +530,41 @@
         sales_days: rows.reduce((sum,row) => sum + salesDays(row), 0),
         negative_profit_lines: rows.reduce((sum,row) => sum + Number(row.negative_profit_lines || 0), 0)
       };
+    }
+    function renderPeriodMargin(sales, rows, monthly){
+      const margin = sales.margin_pct;
+      const selected = el("month_filter").value;
+      const card = el("m_margin_card");
+      const stateClasses = ["metric-margin-neutral", "metric-margin-good", "metric-margin-review", "metric-margin-critical"];
+      card.classList.remove(...stateClasses);
+
+      if(margin === null || margin === undefined || !Number.isFinite(Number(margin))){
+        card.classList.add("metric-margin-neutral");
+        el("m_margin").textContent = "-";
+        el("m_margin_detail").textContent = "Sin venta neta en el periodo";
+      }else{
+        const value = Number(margin);
+        card.classList.add(value >= 25 ? "metric-margin-good" : value >= 20 ? "metric-margin-review" : "metric-margin-critical");
+        el("m_margin").textContent = pct(value);
+
+        if(selected){
+          const previous = prevMonth(monthly, selected);
+          if(previous && previous.margin_pct !== null && previous.margin_pct !== undefined){
+            const delta = value - Number(previous.margin_pct);
+            const sign = delta > 0 ? "+" : "";
+            el("m_margin_detail").textContent = `${sign}${num(delta,2)} pp vs ${monthLabel(previous.month)}`;
+          }else{
+            el("m_margin_detail").textContent = "Sin mes anterior comparable";
+          }
+        }else{
+          el("m_margin_detail").textContent = `GM ponderado de ${rows.length} meses`;
+        }
+      }
+
+      const lastSaleDate = dashboardData?.summary?.last_sale_date;
+      el("m_margin_freshness").textContent = lastSaleDate
+        ? `Ventas cargadas hasta ${dateLabel(lastSaleDate)}`
+        : "Sin fecha de ventas cargada";
     }
     function averageNetProfitPeriod(monthly){
       const rows = monthly
@@ -850,7 +905,7 @@
       el("m_net_sales").textContent = money(sales.net_sales);
       el("m_sales_range").textContent = label;
       el("m_profit").textContent = money(sales.profit);
-      el("m_margin").textContent = `Margen ${pct(sales.margin_pct)}`;
+      renderPeriodMargin(sales, rows, monthly);
       el("m_penetration").textContent = pct(pen.penetration_pct);
       el("m_penetration_detail").textContent = pen.consulted_patients ? `${label}: ${pen.converted_patients}/${pen.consulted_patients}` : `${label}: sin consultas`;
       el("m_consulted").textContent = num(salesPatients.patients);
@@ -900,7 +955,6 @@
       el("m_net_sales").textContent = money(s.net_sales);
       el("m_sales_range").textContent = `${shortDate(s.first_sale_date)} a ${shortDate(s.last_sale_date)}`;
       el("m_profit").textContent = money(s.profit);
-      el("m_margin").textContent = `Margen ${pct(s.margin_pct)}`;
       el("m_inventory_value").textContent = money(s.inventory_value);
       el("m_inventory_units").textContent = `${num(s.inventory_units)} unidades`;
       el("m_penetration").textContent = pct(latestPen.penetration_pct);
