@@ -210,9 +210,9 @@
       </div>
       <div class="col-12 col-md-6 col-xl-3">
         <div class="app-card p-3 metric">
-          <div class="metric-label">Inventario valorizado</div>
+          <div class="metric-label">Inventario vendible valorizado</div>
           <div id="m_inventory_value" class="metric-value">$0.00</div>
-          <div id="m_inventory_units" class="small text-muted metric-detail">0 unidades</div>
+          <div id="m_inventory_units" class="small text-muted metric-detail">0 unidades vendibles</div>
         </div>
       </div>
       <div class="col-12 col-md-6 col-xl-3">
@@ -985,7 +985,7 @@
       el("m_sales_range").textContent = `${shortDate(s.first_sale_date)} a ${shortDate(s.last_sale_date)}`;
       el("m_profit").textContent = money(s.profit);
       el("m_inventory_value").textContent = money(s.inventory_value);
-      el("m_inventory_units").textContent = `${num(s.inventory_units)} unidades`;
+      el("m_inventory_units").textContent = `${num(s.inventory_units)} unidades vendibles`;
       el("m_penetration").textContent = pct(latestPen.penetration_pct);
       el("m_penetration_detail").textContent = latestPen.month ? `${monthLabel(latestPen.month)}: ${latestPen.converted_patients || 0}/${latestPen.consulted_patients || 0}` : "-";
       el("m_consulted").textContent = num(s.patients_with_sales);
