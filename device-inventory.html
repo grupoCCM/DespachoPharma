@@ -124,10 +124,12 @@
             <div class="col-12 col-md-4">
               <label class="form-label" for="reg_serial">Codigo unico</label>
               <input id="reg_serial" class="form-control mono" autocomplete="off" placeholder="Escanea o digita el serial" />
+              <div id="reg_identifier_preview" class="form-text">Acepta serial directo o lectura GS1 completa.</div>
             </div>
             <div class="col-6 col-md-2">
               <label class="form-label" for="reg_cost">Costo</label>
               <input id="reg_cost" class="form-control" inputmode="decimal" autocomplete="off" />
+              <div class="form-text">El valor inicial es una sugerencia del catalogo.</div>
             </div>
             <div class="col-6 col-md-2">
               <label class="form-label" for="reg_exp">Vence</label>
@@ -136,6 +138,12 @@
             <div class="col-12 col-md-4">
               <label class="form-label" for="reg_lot">Lote</label>
               <input id="reg_lot" class="form-control" autocomplete="off" placeholder="Opcional" />
+            </div>
+            <div class="col-12">
+              <div class="form-check">
+                <input id="reg_cost_confirm" class="form-check-input" type="checkbox" />
+                <label class="form-check-label" for="reg_cost_confirm">Confirmé el costo real de esta unidad.</label>
+              </div>
             </div>
             <div class="col-12 col-md-4">
               <label class="form-label" for="reg_doc">Documento</label>
@@ -167,6 +175,7 @@
             <div class="col-6 col-lg-2">
               <label class="form-label" for="bulk_cost">Costo</label>
               <input id="bulk_cost" class="form-control" inputmode="decimal" autocomplete="off" />
+              <div class="form-text">Costo unitario para toda la carga.</div>
             </div>
             <div class="col-6 col-lg-2">
               <label class="form-label" for="bulk_exp">Vence</label>
@@ -186,6 +195,12 @@
             </div>
             <div class="col-12">
               <div id="bulk_summary" class="serial-preview p-3 small soft">Pega codigos para prevalidar la carga.</div>
+            </div>
+            <div class="col-12">
+              <div class="form-check">
+                <input id="bulk_cost_confirm" class="form-check-input" type="checkbox" />
+                <label class="form-check-label" for="bulk_cost_confirm">Confirmé el costo real de las unidades de esta carga.</label>
+              </div>
             </div>
           </div>
           <div class="d-flex justify-content-end gap-2 mt-3">
@@ -538,6 +553,7 @@
               <label class="form-label" for="adjust_action">Acción</label>
               <select id="adjust_action" class="form-select">
                 <option value="correction">Corregir datos</option>
+                <option value="identifier_correction">Corregir código único</option>
                 <option value="retire">Retirar de disponibilidad</option>
                 <option value="reinstate">Reintegrar a disponibilidad</option>
                 <option value="reclassify">Reclasificar producto</option>
@@ -564,6 +580,14 @@
                 <div class="col-12 col-md-3"><label class="form-label" for="adjust_doc">Documento</label><input id="adjust_doc" class="form-control" autocomplete="off" /></div>
                 <div class="col-12"><label class="form-label" for="adjust_note">Comentario de la unidad</label><input id="adjust_note" class="form-control" autocomplete="off" /></div>
               </div>
+            </div>
+            <div id="adjust_identifier_fields" class="col-12 d-none">
+              <label class="form-label" for="adjust_identifier">Código correcto o lectura GS1 completa</label>
+              <div class="input-group">
+                <input id="adjust_identifier" class="form-control mono" autocomplete="off" />
+                <button id="btn_preview_identifier" class="btn btn-outline-primary" type="button">Validar</button>
+              </div>
+              <div id="adjust_identifier_preview" class="form-text">Valida antes de aplicar la corrección.</div>
             </div>
             <div class="col-12 col-md-6">
               <label class="form-label" for="adjust_reason_code">Motivo</label>
@@ -743,7 +767,7 @@
     }
 
     function adjustmentActionLabel(action){
-      return ({correction:"Corrección",retire:"Retiro",reinstate:"Reintegro",reclassify:"Reclasificación"})[String(action||"").toLowerCase()] || action || "-";
+      return ({correction:"Corrección",identifier_correction:"Código corregido",retire:"Retiro",reinstate:"Reintegro",reclassify:"Reclasificación"})[String(action||"").toLowerCase()] || action || "-";
     }
 
     function adjustmentEffectLabel(row){
@@ -1027,27 +1051,81 @@
 
     function syncDefaultCost(){
       const opt = el("reg_product").selectedOptions[0];
-      if(opt && !el("reg_cost").value) el("reg_cost").value = opt.dataset.cost || "";
+      if(opt) el("reg_cost").value = opt.dataset.cost || "";
+      el("reg_cost_confirm").checked = false;
     }
 
     function syncBulkDefaultCost(){
       const opt = el("bulk_product").selectedOptions[0];
-      if(opt && !el("bulk_cost").value) el("bulk_cost").value = opt.dataset.cost || "";
+      if(opt) el("bulk_cost").value = opt.dataset.cost || "";
+      el("bulk_cost_confirm").checked = false;
+    }
+
+    function compactIdentifier(value){
+      return String(value || "").trim().replace(/\u001d/g, "").replace(/\s+/g, "").toUpperCase();
+    }
+
+    function gs1Date(value){
+      if(!value) return null;
+      const year = 2000 + Number(value.slice(0,2));
+      const month = Number(value.slice(2,4));
+      const day = Number(value.slice(4,6));
+      const date = new Date(Date.UTC(year, month - 1, day));
+      if(date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+      return `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    }
+
+    function parseDeviceIdentifier(value){
+      const inputCode = compactIdentifier(value);
+      const match = inputCode.match(/^01([0-9]{14})(?:11([0-9]{6}))?(?:17([0-9]{6}))?10(.{1,20})21([A-Z0-9-]{6,40})$/);
+      const canonicalSerial = match ? match[5] : inputCode;
+      return {
+        inputCode,
+        canonicalSerial,
+        isGs1:Boolean(match),
+        gtin:match?.[1] || null,
+        manufacturedAt:gs1Date(match?.[2]),
+        expiresAt:gs1Date(match?.[3]),
+        lotNo:match?.[4] || null,
+        valid:/^[A-Z0-9-]{6,40}$/.test(canonicalSerial)
+      };
+    }
+
+    function renderIdentifierPreview(targetId, parsed, match){
+      const box = el(targetId);
+      if(!parsed.inputCode){ box.textContent = "Acepta serial directo o lectura GS1 completa."; return; }
+      if(!parsed.valid){ box.innerHTML = '<span class="text-danger">Código inválido.</span>'; return; }
+      const duplicate = match && !match.same_unit
+        ? `<span class="text-danger fw-semibold">Ya pertenece a ${esc(match.product_name)} (${esc(match.serial_code)}).</span>`
+        : "";
+      box.innerHTML = parsed.isGs1
+        ? `<span class="text-success fw-semibold">GS1 reconocido.</span> Serial: <span class="mono">${esc(parsed.canonicalSerial)}</span> · Lote: ${esc(parsed.lotNo || "-")} · Vence: ${esc(parsed.expiresAt || "-")} ${duplicate}`
+        : `Serial: <span class="mono">${esc(parsed.canonicalSerial)}</span> ${duplicate}`;
+    }
+
+    function previewRegisterIdentifier(){
+      const parsed = parseDeviceIdentifier(el("reg_serial").value);
+      renderIdentifierPreview("reg_identifier_preview", parsed, null);
+      if(parsed.isGs1){
+        if(!el("reg_lot").value && parsed.lotNo) el("reg_lot").value = parsed.lotNo;
+        if(!el("reg_exp").value && parsed.expiresAt) el("reg_exp").value = parsed.expiresAt;
+      }
     }
 
     function parseBulkSerials(){
       const lines = el("bulk_serials").value.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-      const normalized = lines.map(x => x.replace(/\s+/g,"").toUpperCase());
       const seen = new Set();
       const unique = [];
       const duplicates = [];
       const invalid = [];
-      normalized.forEach(code => {
-        if(!/^[A-Z0-9-]{6,40}$/.test(code)) invalid.push(code);
-        if(seen.has(code)) duplicates.push(code);
-        else { seen.add(code); unique.push(code); }
+      const parsedRows = lines.map(parseDeviceIdentifier);
+      parsedRows.forEach(parsed => {
+        const key = parsed.canonicalSerial.toLowerCase();
+        if(!parsed.valid) invalid.push(parsed.inputCode);
+        if(seen.has(key)) duplicates.push(parsed.inputCode);
+        else { seen.add(key); unique.push(parsed.inputCode); }
       });
-      return { lines, unique, duplicates, invalid };
+      return { lines, unique, duplicates, invalid, parsedRows };
     }
 
     function renderBulkSummary(){
@@ -1060,11 +1138,11 @@
       box.innerHTML = `
         <div class="d-flex gap-2 flex-wrap mb-2">
           <span class="badge text-bg-light border">Leidos: ${parsed.lines.length}</span>
-          <span class="badge text-bg-success">Unicos: ${parsed.unique.length}</span>
+          <span class="badge text-bg-success">Unidades: ${parsed.unique.length}</span>
           <span class="badge text-bg-warning">Duplicados: ${parsed.duplicates.length}</span>
           <span class="badge text-bg-danger">Invalidos: ${parsed.invalid.length}</span>
         </div>
-        <div class="mono">${parsed.unique.slice(0,80).map(esc).join("<br>")}${parsed.unique.length > 80 ? "<br>..." : ""}</div>
+        <div class="mono">${parsed.parsedRows.slice(0,80).map(row => `${esc(row.canonicalSerial)}${row.isGs1 ? ' <span class="text-success">(GS1)</span>' : ""}`).join("<br>")}${parsed.unique.length > 80 ? "<br>..." : ""}</div>
       `;
       return parsed;
     }
@@ -1236,6 +1314,9 @@
       const parsed = renderBulkSummary();
       if(parsed.unique.length === 0) return showAlert("alert_main","Pega al menos un codigo.");
       if(parsed.invalid.length > 0) return showAlert("alert_main","Hay codigos con formato invalido. Corrige antes de registrar.");
+      const bulkCost = Number(el("bulk_cost").value);
+      if(!Number.isFinite(bulkCost) || bulkCost < 0) return showAlert("alert_main","Indica un costo unitario valido.");
+      if(!el("bulk_cost_confirm").checked) return showAlert("alert_main","Confirma el costo real de la carga antes de registrarla.");
       try{
         btnLoad("btn_bulk_register","btn_bulk_text","btn_bulk_spinner",true,"Registrando...","Registrar carga masiva");
         const result = await callRpc("rpc_device_units_bulk_register", {
@@ -1244,12 +1325,13 @@
           p_serials:parsed.unique,
           p_lot_no:el("bulk_lot").value || null,
           p_expires_at:el("bulk_exp").value || null,
-          p_cost:el("bulk_cost").value ? Number(el("bulk_cost").value) : null,
+          p_cost:bulkCost,
           p_source_doc_no:el("bulk_doc").value || null,
           p_note:"Carga masiva desde modulo admin"
         });
         showAlert("alert_ok", `Carga procesada. Insertados: ${Number(result?.inserted || 0)}. Ya existentes: ${Number(result?.existing || 0)}. Duplicados en texto: ${Number(result?.duplicated_in_batch || 0)}.`);
         el("bulk_serials").value = "";
+        el("bulk_cost_confirm").checked = false;
         renderBulkSummary();
         await refresh(); await loadAdminUnits(); await loadKardex(true);
       }catch(err){
@@ -1263,8 +1345,8 @@
 
     function allowedAdjustmentActions(unit){
       const status = String(unit?.status || "").toLowerCase();
-      if(status === "available") return ["correction","retire","reclassify"];
-      if(["inactive","damaged","lost","retired"].includes(status)) return ["correction","reinstate"];
+      if(status === "available") return ["correction","identifier_correction","retire","reclassify"];
+      if(["inactive","damaged","lost","retired"].includes(status)) return ["correction","identifier_correction","reinstate"];
       return [];
     }
 
@@ -1272,10 +1354,12 @@
       if(!selectedUnit) return;
       const action = el("adjust_action").value;
       el("adjust_metadata_fields").classList.toggle("d-none", action !== "correction");
+      el("adjust_identifier_fields").classList.toggle("d-none", action !== "identifier_correction");
       el("adjust_target_product_wrap").classList.toggle("d-none", action !== "reclassify");
       el("adjust_target_status_wrap").classList.toggle("d-none", action !== "retire");
       const effects = {
         correction:"Actualiza datos descriptivos. La cantidad disponible no cambia.",
+        identifier_correction:"Corrige el código único y conserva el anterior como alias de auditoría. No cambia existencias.",
         retire:"Descuenta 1 unidad disponible y conserva la unidad en la trazabilidad.",
         reinstate:"Suma 1 unidad disponible. No se permite si la unidad está vencida.",
         reclassify:"Mueve 1 unidad del producto actual al producto destino, sin cambiar el total general."
@@ -1298,6 +1382,8 @@
       el("adjust_lot").value = selectedUnit.lot_no || "";
       el("adjust_doc").value = selectedUnit.source_doc_no || "";
       el("adjust_note").value = selectedUnit.note || "";
+      el("adjust_identifier").value = "";
+      el("adjust_identifier_preview").textContent = "Valida antes de aplicar la corrección.";
       el("adjust_status").value = "retired";
       el("adjust_reason_code").value = "entry_error";
       el("adjust_reference").value = "";
@@ -1305,6 +1391,24 @@
       adjustmentRequestId = crypto.randomUUID();
       updateAdjustmentForm();
       adjustmentModal.show();
+    }
+
+    async function previewAdjustmentIdentifier(){
+      if(!selectedUnit) return;
+      const identifier = el("adjust_identifier").value.trim();
+      const parsed = parseDeviceIdentifier(identifier);
+      renderIdentifierPreview("adjust_identifier_preview", parsed, null);
+      if(!parsed.valid) return;
+      try{
+        const result = await callRpc("rpc_device_identifier_preview", {
+          p_session_token:getSession().token,
+          p_identifier:identifier,
+          p_device_unit_id:selectedUnit.device_unit_id
+        });
+        renderIdentifierPreview("adjust_identifier_preview", parsed, result?.matching_unit || null);
+      }catch(err){
+        el("adjust_identifier_preview").innerHTML = `<span class="text-danger">${esc(err.message || "No se pudo validar el código.")}</span>`;
+      }
     }
 
     async function applyAdjustment(){
@@ -1315,22 +1419,38 @@
       const action = el("adjust_action").value;
       try{
         btnLoad("btn_apply_adjustment","btn_adjustment_text","btn_adjustment_spinner",true,"Aplicando...","Aplicar ajuste");
-        const result = await callRpc("rpc_device_inventory_adjustment_apply", {
-          p_session_token:getSession().token,
-          p_request_id:adjustmentRequestId,
-          p_device_unit_id:selectedUnit.device_unit_id,
-          p_action:action,
-          p_reason_code:el("adjust_reason_code").value,
-          p_reason_detail:reason,
-          p_reference_no:el("adjust_reference").value || null,
-          p_target_external_code:action === "reclassify" ? Number(el("adjust_product").value) : null,
-          p_target_status:action === "retire" ? el("adjust_status").value : null,
-          p_lot_no:action === "correction" ? el("adjust_lot").value || null : selectedUnit.lot_no || null,
-          p_expires_at:action === "correction" ? el("adjust_exp").value || null : selectedUnit.expires_at || null,
-          p_cost:action === "correction" ? (el("adjust_cost").value ? Number(el("adjust_cost").value) : null) : selectedUnit.cost,
-          p_source_doc_no:action === "correction" ? el("adjust_doc").value || null : selectedUnit.source_doc_no || null,
-          p_note:action === "correction" ? el("adjust_note").value || null : selectedUnit.note || null
-        });
+        let result;
+        if(action === "identifier_correction"){
+          const identifier = el("adjust_identifier").value.trim();
+          const parsed = parseDeviceIdentifier(identifier);
+          if(!parsed.valid) throw new Error("Indica un código único válido antes de aplicar.");
+          result = await callRpc("rpc_device_identifier_correct", {
+            p_session_token:getSession().token,
+            p_request_id:adjustmentRequestId,
+            p_device_unit_id:selectedUnit.device_unit_id,
+            p_identifier:identifier,
+            p_reason_code:el("adjust_reason_code").value,
+            p_reason_detail:reason,
+            p_reference_no:el("adjust_reference").value || null
+          });
+        }else{
+          result = await callRpc("rpc_device_inventory_adjustment_apply", {
+            p_session_token:getSession().token,
+            p_request_id:adjustmentRequestId,
+            p_device_unit_id:selectedUnit.device_unit_id,
+            p_action:action,
+            p_reason_code:el("adjust_reason_code").value,
+            p_reason_detail:reason,
+            p_reference_no:el("adjust_reference").value || null,
+            p_target_external_code:action === "reclassify" ? Number(el("adjust_product").value) : null,
+            p_target_status:action === "retire" ? el("adjust_status").value : null,
+            p_lot_no:action === "correction" ? el("adjust_lot").value || null : selectedUnit.lot_no || null,
+            p_expires_at:action === "correction" ? el("adjust_exp").value || null : selectedUnit.expires_at || null,
+            p_cost:action === "correction" ? (el("adjust_cost").value ? Number(el("adjust_cost").value) : null) : selectedUnit.cost,
+            p_source_doc_no:action === "correction" ? el("adjust_doc").value || null : selectedUnit.source_doc_no || null,
+            p_note:action === "correction" ? el("adjust_note").value || null : selectedUnit.note || null
+          });
+        }
         adjustmentModal.hide();
         showAlert("alert_ok",`Ajuste #${Number(result?.adjustment_no || 0)} aplicado con trazabilidad.`);
         await refresh(); await loadAdminUnits(); await loadKardex(true);
@@ -1345,6 +1465,11 @@
       hideAlert("alert_main"); hideAlert("alert_ok");
       const serial = el("reg_serial").value.trim();
       if(!serial){ showAlert("alert_main","Codigo unico requerido."); el("reg_serial").focus(); return; }
+      const parsed = parseDeviceIdentifier(serial);
+      if(!parsed.valid) return showAlert("alert_main","El código único no tiene un formato válido.");
+      const unitCost = Number(el("reg_cost").value);
+      if(!Number.isFinite(unitCost) || unitCost < 0) return showAlert("alert_main","Indica un costo válido.");
+      if(!el("reg_cost_confirm").checked) return showAlert("alert_main","Confirma el costo real de la unidad antes de registrarla.");
       try{
         btnLoad("btn_register","btn_register_text","btn_register_spinner",true,"Registrando...","Registrar unidad");
         await callRpc("rpc_device_unit_register", {
@@ -1353,12 +1478,14 @@
           p_serial_code:serial,
           p_lot_no:el("reg_lot").value || null,
           p_expires_at:el("reg_exp").value || null,
-          p_cost:el("reg_cost").value ? Number(el("reg_cost").value) : null,
+          p_cost:unitCost,
           p_source_doc_no:el("reg_doc").value || null,
           p_note:el("reg_note").value || null
         });
         el("reg_serial").value = "";
         el("reg_note").value = "";
+        el("reg_cost_confirm").checked = false;
+        previewRegisterIdentifier();
         showAlert("alert_ok","Unidad registrada y disponible para despacho.");
         await refresh();
         await loadAdminUnits();
@@ -1417,6 +1544,9 @@
       el("btn_k_prev").addEventListener("click", () => { if(kardexPage > 1){ kardexPage -= 1; loadKardex(); } });
       el("btn_k_next").addEventListener("click", () => { if(kardexPage < kardexTotalPages){ kardexPage += 1; loadKardex(); } });
       el("adjust_action").addEventListener("change", updateAdjustmentForm);
+      el("btn_preview_identifier").addEventListener("click", previewAdjustmentIdentifier);
+      el("adjust_identifier").addEventListener("keydown", event => { if(event.key === "Enter"){ event.preventDefault(); previewAdjustmentIdentifier(); } });
+      el("reg_serial").addEventListener("input", previewRegisterIdentifier);
       el("btn_apply_adjustment").addEventListener("click", applyAdjustment);
       el("btn_new_product").addEventListener("click", () => openProduct());
       el("btn_save_product").addEventListener("click", saveProduct);
