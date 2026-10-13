@@ -66,6 +66,9 @@
     .catalog-table td,.catalog-table th{ padding:.7rem .65rem; }
     .catalog-name{ font-weight:700; line-height:1.25; }
     .catalog-meta{ margin-top:.2rem; color:var(--muted); font-size:.75rem; }
+    .adjustment-effect{ border:1px solid var(--border); border-radius:10px; background:#f8fafc; padding:12px; }
+    .adjustment-history-table{ min-width:980px; font-size:.86rem; }
+    .adjustment-history-table td,.adjustment-history-table th{ padding:.65rem; }
     @media (max-width: 767px){
       .navbar .container{ gap:.5rem; }
       .navbar .btn{ padding:.25rem .45rem; }
@@ -103,7 +106,7 @@
       <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-register" type="button">Registrar unidad</button></li>
       <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-bulk" type="button">Carga masiva</button></li>
       <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-inventory" type="button">Inventario</button></li>
-      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-units" type="button">Unidades</button></li>
+      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-units" type="button">Ajustes</button></li>
       <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-history" type="button">Kardex</button></li>
       <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-catalog" type="button">Catálogo</button></li>
     </ul>
@@ -267,8 +270,8 @@
         <div class="app-card p-3">
           <div class="d-flex justify-content-between align-items-end gap-3 flex-wrap mb-3">
             <div>
-              <h2 class="h5 mb-1">Unidades administrables</h2>
-              <div class="soft small">Corrige producto, lote, costo o retira unidades disponibles con trazabilidad.</div>
+              <h2 class="h5 mb-1">Ajuste de inventario</h2>
+              <div class="soft small">Corrige, retira, reintegra o reclasifica una unidad identificada por su código único.</div>
             </div>
             <div class="d-flex gap-2 flex-wrap">
               <select id="unit_status" class="form-select" style="max-width:180px">
@@ -297,6 +300,18 @@
                 </tr>
               </thead>
               <tbody id="tbody_admin_units"></tbody>
+            </table>
+          </div>
+          <div class="d-flex justify-content-between align-items-end gap-3 flex-wrap mt-4 mb-2">
+            <div>
+              <h3 class="h6 mb-1">Ajustes recientes</h3>
+              <div class="soft small">Bitácora inmutable con motivo, efecto, fecha y usuario.</div>
+            </div>
+          </div>
+          <div class="table-box">
+            <table class="table table-sm mb-0 adjustment-history-table">
+              <thead class="table-light"><tr><th>#</th><th>Fecha</th><th>Código único</th><th>Acción</th><th>Efecto</th><th>Producto</th><th>Motivo</th><th>Usuario</th></tr></thead>
+              <tbody id="tbody_adjustments"></tbody>
             </table>
           </div>
         </div>
@@ -507,80 +522,78 @@
     </div></div>
   </div>
 
-  <div class="modal fade" id="unitModal" tabindex="-1" aria-hidden="true">
+  <div class="modal fade" id="adjustmentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
           <div>
-            <h5 class="modal-title">Corregir unidad</h5>
-            <div id="edit_serial_label" class="small soft mono">-</div>
+            <h5 class="modal-title">Ajustar unidad</h5>
+            <div id="adjust_unit_label" class="small soft mono">-</div>
           </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
         </div>
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-12 col-md-6">
-              <label class="form-label" for="edit_product">Producto correcto</label>
-              <select id="edit_product" class="form-select"></select>
+              <label class="form-label" for="adjust_action">Acción</label>
+              <select id="adjust_action" class="form-select">
+                <option value="correction">Corregir datos</option>
+                <option value="retire">Retirar de disponibilidad</option>
+                <option value="reinstate">Reintegrar a disponibilidad</option>
+                <option value="reclassify">Reclasificar producto</option>
+              </select>
             </div>
-            <div class="col-6 col-md-3">
-              <label class="form-label" for="edit_cost">Costo</label>
-              <input id="edit_cost" class="form-control" inputmode="decimal" autocomplete="off" />
+            <div id="adjust_target_product_wrap" class="col-12 col-md-6 d-none">
+              <label class="form-label" for="adjust_product">Producto destino</label>
+              <select id="adjust_product" class="form-select"></select>
             </div>
-            <div class="col-6 col-md-3">
-              <label class="form-label" for="edit_exp">Vence</label>
-              <input id="edit_exp" class="form-control" type="date" />
+            <div id="adjust_target_status_wrap" class="col-12 col-md-6 d-none">
+              <label class="form-label" for="adjust_status">Estado de retiro</label>
+              <select id="adjust_status" class="form-select">
+                <option value="retired">Retirado</option>
+                <option value="damaged">Dañado</option>
+                <option value="lost">Perdido</option>
+                <option value="inactive">Inactivo</option>
+              </select>
             </div>
-            <div class="col-12 col-md-4">
-              <label class="form-label" for="edit_lot">Lote</label>
-              <input id="edit_lot" class="form-control" autocomplete="off" />
+            <div id="adjust_metadata_fields" class="col-12">
+              <div class="row g-3">
+                <div class="col-6 col-md-3"><label class="form-label" for="adjust_cost">Costo</label><input id="adjust_cost" class="form-control" inputmode="decimal" autocomplete="off" /></div>
+                <div class="col-6 col-md-3"><label class="form-label" for="adjust_exp">Vence</label><input id="adjust_exp" class="form-control" type="date" /></div>
+                <div class="col-12 col-md-3"><label class="form-label" for="adjust_lot">Lote</label><input id="adjust_lot" class="form-control" autocomplete="off" /></div>
+                <div class="col-12 col-md-3"><label class="form-label" for="adjust_doc">Documento</label><input id="adjust_doc" class="form-control" autocomplete="off" /></div>
+                <div class="col-12"><label class="form-label" for="adjust_note">Comentario de la unidad</label><input id="adjust_note" class="form-control" autocomplete="off" /></div>
+              </div>
             </div>
-            <div class="col-12 col-md-4">
-              <label class="form-label" for="edit_doc">Documento</label>
-              <input id="edit_doc" class="form-control" autocomplete="off" />
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="adjust_reason_code">Motivo</label>
+              <select id="adjust_reason_code" class="form-select">
+                <option value="entry_error">Error de ingreso</option>
+                <option value="damage">Daño</option>
+                <option value="loss">Pérdida</option>
+                <option value="found">Unidad encontrada</option>
+                <option value="repaired">Unidad reparada</option>
+                <option value="return">Devolución</option>
+                <option value="other">Otro</option>
+              </select>
             </div>
-            <div class="col-12 col-md-4">
-              <label class="form-label" for="edit_note">Comentario</label>
-              <input id="edit_note" class="form-control" autocomplete="off" />
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="adjust_reference">Documento o referencia</label>
+              <input id="adjust_reference" class="form-control" autocomplete="off" placeholder="Opcional" />
             </div>
             <div class="col-12">
-              <label class="form-label" for="edit_reason">Motivo de correccion</label>
-              <input id="edit_reason" class="form-control" autocomplete="off" placeholder="Ej: producto seleccionado por error" />
+              <label class="form-label" for="adjust_reason_detail">Detalle del motivo</label>
+              <textarea id="adjust_reason_detail" class="form-control" rows="3" placeholder="Explica qué ocurrió y por qué se aplica el ajuste"></textarea>
             </div>
+            <div class="col-12"><div id="adjust_effect" class="adjustment-effect small"></div></div>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button id="btn_save_edit" type="button" class="btn btn-primary">Guardar correccion</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="retireModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <div>
-            <h5 class="modal-title">Retirar unidad</h5>
-            <div id="retire_serial_label" class="small soft mono">-</div>
-          </div>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-        </div>
-        <div class="modal-body">
-          <label class="form-label" for="retire_status">Estado</label>
-          <select id="retire_status" class="form-select mb-3">
-            <option value="retired">Retirado</option>
-            <option value="damaged">Danado</option>
-            <option value="lost">Perdido</option>
-            <option value="inactive">Inactivo</option>
-          </select>
-          <label class="form-label" for="retire_reason">Motivo</label>
-          <textarea id="retire_reason" class="form-control" rows="3" placeholder="Explica por que sale de disponibilidad"></textarea>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button id="btn_save_retire" type="button" class="btn btn-danger">Retirar unidad</button>
+          <button id="btn_apply_adjustment" type="button" class="btn btn-primary">
+            <span id="btn_adjustment_text">Aplicar ajuste</span>
+            <span id="btn_adjustment_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+          </button>
         </div>
       </div>
     </div>
@@ -596,11 +609,12 @@
     let recentUnits = [];
     let recentUnitsFilter = "available";
     let adminUnits = [];
+    let recentAdjustments = [];
     let kardexPage = 1;
     let kardexTotalPages = 1;
     let selectedUnit = null;
-    let unitModal = null;
-    let retireModal = null;
+    let adjustmentModal = null;
+    let adjustmentRequestId = null;
     let catalogProducts = [];
     let catalogAllProducts = [];
     let selectedProduct = null;
@@ -635,6 +649,10 @@
       if(s === "lost") return `<span class="badge text-bg-danger">Perdido</span>`;
       if(s === "inactive") return `<span class="badge text-bg-secondary">Inactivo</span>`;
       return `<span class="badge text-bg-secondary">${esc(v || "-")}</span>`;
+    }
+
+    function statusText(v){
+      return ({available:"Disponible",sold:"Vendido",retired:"Retirado",damaged:"Dañado",lost:"Perdido",inactive:"Inactivo"})[String(v||"").toLowerCase()] || String(v || "-");
     }
 
     function unitStatusBadge(row){
@@ -715,17 +733,41 @@
           <td class="text-end">${money(r.cost)}</td>
           <td>${esc(r.source_doc_no || "-")}</td>
           <td class="text-end">
-            ${String(r.status).toLowerCase() === "available" ? `
-              <div class="btn-group btn-group-sm">
-                <button class="btn btn-outline-primary" data-edit="${esc(r.device_unit_id)}">Editar</button>
-                <button class="btn btn-outline-danger" data-retire="${esc(r.device_unit_id)}">Retirar</button>
-              </div>
-            ` : `<span class="small soft">Sin accion</span>`}
+            ${String(r.status).toLowerCase() === "sold"
+              ? `<span class="small soft">Usa anulación</span>`
+              : `<button class="btn btn-sm btn-outline-primary" data-adjust="${esc(r.device_unit_id)}">Ajustar</button>`}
           </td>
         </tr>
       `).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin unidades.</td></tr>`;
-      tb.querySelectorAll("button[data-edit]").forEach(btn => btn.addEventListener("click", () => openEdit(btn.getAttribute("data-edit"))));
-      tb.querySelectorAll("button[data-retire]").forEach(btn => btn.addEventListener("click", () => openRetire(btn.getAttribute("data-retire"))));
+      tb.querySelectorAll("button[data-adjust]").forEach(btn => btn.addEventListener("click", () => openAdjustment(btn.getAttribute("data-adjust"))));
+    }
+
+    function adjustmentActionLabel(action){
+      return ({correction:"Corrección",retire:"Retiro",reinstate:"Reintegro",reclassify:"Reclasificación"})[String(action||"").toLowerCase()] || action || "-";
+    }
+
+    function adjustmentEffectLabel(row){
+      if(row.action === "reclassify") return `${row.from_external_code} → ${row.to_external_code}`;
+      const qty = Number(row.qty_delta || 0);
+      if(qty > 0) return `+${qty} disponible`;
+      if(qty < 0) return `${qty} disponible`;
+      return "Sin cambio de cantidad";
+    }
+
+    function renderAdjustments(rows){
+      const tb = el("tbody_adjustments");
+      tb.innerHTML = rows.length ? rows.map(r => `
+        <tr>
+          <td class="fw-semibold">#${Number(r.adjustment_no || 0)}</td>
+          <td><div>${dateOnly(r.created_at)}</div><div class="small soft">${timeOnly(r.created_at)}</div></td>
+          <td class="mono">${esc(r.serial_code)}</td>
+          <td>${esc(adjustmentActionLabel(r.action))}</td>
+          <td class="fw-semibold">${esc(adjustmentEffectLabel(r))}</td>
+          <td><div>${esc(r.to_product_name)}</div><div class="small soft">${esc(r.to_external_code)}</div></td>
+          <td><div>${esc(r.reason_detail)}</div><div class="small soft">${esc(r.reference_no || "Sin referencia")}</div></td>
+          <td>${esc(r.user_name || "-")}</td>
+        </tr>
+      `).join("") : `<tr><td colspan="8" class="text-center text-muted py-4">Aún no hay ajustes con el flujo nuevo.</td></tr>`;
     }
 
     function productStateBadge(active){
@@ -927,7 +969,8 @@
         device_unit_register:"Ingreso individual",
         bulk_load:"Carga masiva",
         device_sale:"Venta",
-        device_sale_void:"Anulación"
+        device_sale_void:"Anulación",
+        device_inventory_adjustment:"Ajuste de inventario"
       };
       return labels[value.toLowerCase()] || value || "-";
     }
@@ -974,7 +1017,7 @@
       const options = activeProducts.map(p => `<option value="${esc(p.external_code)}" data-cost="${esc(p.default_cost || "")}">${esc(p.external_code)} - ${esc(p.name)}</option>`).join("");
       el("reg_product").innerHTML = options;
       el("bulk_product").innerHTML = options;
-      el("edit_product").innerHTML = options;
+      el("adjust_product").innerHTML = options;
       const selectedKardexProduct = el("k_product").value;
       el("k_product").innerHTML = `<option value="">Todos</option>${selectorProducts.map(p => `<option value="${esc(p.external_code)}">${esc(p.external_code)} - ${esc(p.name)}</option>`).join("")}`;
       if([...el("k_product").options].some(option => option.value === selectedKardexProduct)) el("k_product").value = selectedKardexProduct;
@@ -1165,13 +1208,24 @@
     async function loadAdminUnits(){
       hideAlert("alert_main");
       try{
-        adminUnits = await callRpc("rpc_device_unit_admin_list", {
-          p_session_token:getSession().token,
-          p_query:el("q_units").value || "",
-          p_status:el("unit_status").value || "available",
-          p_limit:200
-        });
+        const query = el("q_units").value || "";
+        const [unitsResult, adjustmentsResult] = await Promise.all([
+          callRpc("rpc_device_unit_admin_list", {
+            p_session_token:getSession().token,
+            p_query:query,
+            p_status:el("unit_status").value || "available",
+            p_limit:200
+          }),
+          callRpc("rpc_device_inventory_adjustment_list", {
+            p_session_token:getSession().token,
+            p_query:query,
+            p_limit:30
+          })
+        ]);
+        adminUnits = unitsResult;
+        recentAdjustments = adjustmentsResult;
         renderAdminUnits(Array.isArray(adminUnits) ? adminUnits : []);
+        renderAdjustments(Array.isArray(recentAdjustments) ? recentAdjustments : []);
       }catch(err){
         showAlert("alert_main", err.message || "No se pudieron cargar las unidades.");
       }
@@ -1207,71 +1261,83 @@
 
     function findUnit(id){ return adminUnits.find(u => String(u.device_unit_id) === String(id)); }
 
-    function openEdit(id){
+    function allowedAdjustmentActions(unit){
+      const status = String(unit?.status || "").toLowerCase();
+      if(status === "available") return ["correction","retire","reclassify"];
+      if(["inactive","damaged","lost","retired"].includes(status)) return ["correction","reinstate"];
+      return [];
+    }
+
+    function updateAdjustmentForm(){
+      if(!selectedUnit) return;
+      const action = el("adjust_action").value;
+      el("adjust_metadata_fields").classList.toggle("d-none", action !== "correction");
+      el("adjust_target_product_wrap").classList.toggle("d-none", action !== "reclassify");
+      el("adjust_target_status_wrap").classList.toggle("d-none", action !== "retire");
+      const effects = {
+        correction:"Actualiza datos descriptivos. La cantidad disponible no cambia.",
+        retire:"Descuenta 1 unidad disponible y conserva la unidad en la trazabilidad.",
+        reinstate:"Suma 1 unidad disponible. No se permite si la unidad está vencida.",
+        reclassify:"Mueve 1 unidad del producto actual al producto destino, sin cambiar el total general."
+      };
+      el("adjust_effect").textContent = effects[action] || "";
+      el("btn_apply_adjustment").className = `btn ${action === "retire" ? "btn-danger" : "btn-primary"}`;
+    }
+
+    function openAdjustment(id){
       selectedUnit = findUnit(id);
       if(!selectedUnit) return;
-      el("edit_serial_label").textContent = selectedUnit.serial_code || "-";
-      el("edit_product").value = selectedUnit.external_code;
-      el("edit_cost").value = selectedUnit.cost ?? "";
-      el("edit_exp").value = selectedUnit.expires_at || "";
-      el("edit_lot").value = selectedUnit.lot_no || "";
-      el("edit_doc").value = selectedUnit.source_doc_no || "";
-      el("edit_note").value = selectedUnit.note || "";
-      el("edit_reason").value = "";
-      unitModal.show();
+      const actions = allowedAdjustmentActions(selectedUnit);
+      if(actions.length === 0) return showAlert("alert_main","Esta unidad se corrige mediante el flujo de anulación de su entrega.");
+      [...el("adjust_action").options].forEach(option => { option.disabled = !actions.includes(option.value); });
+      el("adjust_action").value = actions[0];
+      el("adjust_unit_label").textContent = `${selectedUnit.serial_code || "-"} · ${selectedUnit.product_name || "-"} · ${statusText(selectedUnit.status)}`;
+      el("adjust_product").value = selectedUnit.external_code;
+      el("adjust_cost").value = selectedUnit.cost ?? "";
+      el("adjust_exp").value = selectedUnit.expires_at || "";
+      el("adjust_lot").value = selectedUnit.lot_no || "";
+      el("adjust_doc").value = selectedUnit.source_doc_no || "";
+      el("adjust_note").value = selectedUnit.note || "";
+      el("adjust_status").value = "retired";
+      el("adjust_reason_code").value = "entry_error";
+      el("adjust_reference").value = "";
+      el("adjust_reason_detail").value = "";
+      adjustmentRequestId = crypto.randomUUID();
+      updateAdjustmentForm();
+      adjustmentModal.show();
     }
 
-    function openRetire(id){
-      selectedUnit = findUnit(id);
-      if(!selectedUnit) return;
-      el("retire_serial_label").textContent = `${selectedUnit.serial_code || "-"} · ${selectedUnit.product_name || "-"}`;
-      el("retire_status").value = "retired";
-      el("retire_reason").value = "";
-      retireModal.show();
-    }
-
-    async function saveEdit(){
-      if(!selectedUnit) return;
-      hideAlert("alert_main"); hideAlert("alert_ok");
-      const reason = el("edit_reason").value.trim();
-      if(!reason) return showAlert("alert_main","Motivo requerido para guardar la correccion.");
-      try{
-        await callRpc("rpc_device_unit_update", {
-          p_session_token:getSession().token,
-          p_device_unit_id:selectedUnit.device_unit_id,
-          p_external_code:Number(el("edit_product").value),
-          p_lot_no:el("edit_lot").value || null,
-          p_expires_at:el("edit_exp").value || null,
-          p_cost:el("edit_cost").value ? Number(el("edit_cost").value) : null,
-          p_source_doc_no:el("edit_doc").value || null,
-          p_note:el("edit_note").value || null,
-          p_reason:reason
-        });
-        unitModal.hide();
-        showAlert("alert_ok","Unidad corregida con trazabilidad.");
-        await refresh(); await loadAdminUnits(); await loadKardex(true);
-      }catch(err){
-        showAlert("alert_main", err.message || "No se pudo corregir la unidad.");
-      }
-    }
-
-    async function saveRetire(){
+    async function applyAdjustment(){
       if(!selectedUnit) return;
       hideAlert("alert_main"); hideAlert("alert_ok");
-      const reason = el("retire_reason").value.trim();
-      if(!reason) return showAlert("alert_main","Motivo requerido para retirar la unidad.");
+      const reason = el("adjust_reason_detail").value.trim();
+      if(reason.length < 3) return showAlert("alert_main","Describe el motivo del ajuste.");
+      const action = el("adjust_action").value;
       try{
-        await callRpc("rpc_device_unit_retire", {
+        btnLoad("btn_apply_adjustment","btn_adjustment_text","btn_adjustment_spinner",true,"Aplicando...","Aplicar ajuste");
+        const result = await callRpc("rpc_device_inventory_adjustment_apply", {
           p_session_token:getSession().token,
+          p_request_id:adjustmentRequestId,
           p_device_unit_id:selectedUnit.device_unit_id,
-          p_new_status:el("retire_status").value,
-          p_reason:reason
+          p_action:action,
+          p_reason_code:el("adjust_reason_code").value,
+          p_reason_detail:reason,
+          p_reference_no:el("adjust_reference").value || null,
+          p_target_external_code:action === "reclassify" ? Number(el("adjust_product").value) : null,
+          p_target_status:action === "retire" ? el("adjust_status").value : null,
+          p_lot_no:action === "correction" ? el("adjust_lot").value || null : selectedUnit.lot_no || null,
+          p_expires_at:action === "correction" ? el("adjust_exp").value || null : selectedUnit.expires_at || null,
+          p_cost:action === "correction" ? (el("adjust_cost").value ? Number(el("adjust_cost").value) : null) : selectedUnit.cost,
+          p_source_doc_no:action === "correction" ? el("adjust_doc").value || null : selectedUnit.source_doc_no || null,
+          p_note:action === "correction" ? el("adjust_note").value || null : selectedUnit.note || null
         });
-        retireModal.hide();
-        showAlert("alert_ok","Unidad retirada de disponibilidad.");
+        adjustmentModal.hide();
+        showAlert("alert_ok",`Ajuste #${Number(result?.adjustment_no || 0)} aplicado con trazabilidad.`);
         await refresh(); await loadAdminUnits(); await loadKardex(true);
       }catch(err){
-        showAlert("alert_main", err.message || "No se pudo retirar la unidad.");
+        showAlert("alert_main", err.message || "No se pudo aplicar el ajuste.");
+      }finally{
+        btnLoad("btn_apply_adjustment","btn_adjustment_text","btn_adjustment_spinner",false,"Aplicando...","Aplicar ajuste");
       }
     }
 
@@ -1315,8 +1381,7 @@
       }
       el("nav_user").textContent = s.name || "-";
       el("btn_logout").addEventListener("click", logout);
-      unitModal = new bootstrap.Modal(el("unitModal"));
-      retireModal = new bootstrap.Modal(el("retireModal"));
+      adjustmentModal = new bootstrap.Modal(el("adjustmentModal"));
       productModal = new bootstrap.Modal(el("productModal"));
       productActionModal = new bootstrap.Modal(el("productActionModal"));
       el("btn_refresh").addEventListener("click", async () => { await refresh(); await loadAdminUnits(); await loadKardex(); });
@@ -1351,8 +1416,8 @@
       });
       el("btn_k_prev").addEventListener("click", () => { if(kardexPage > 1){ kardexPage -= 1; loadKardex(); } });
       el("btn_k_next").addEventListener("click", () => { if(kardexPage < kardexTotalPages){ kardexPage += 1; loadKardex(); } });
-      el("btn_save_edit").addEventListener("click", saveEdit);
-      el("btn_save_retire").addEventListener("click", saveRetire);
+      el("adjust_action").addEventListener("change", updateAdjustmentForm);
+      el("btn_apply_adjustment").addEventListener("click", applyAdjustment);
       el("btn_new_product").addEventListener("click", () => openProduct());
       el("btn_save_product").addEventListener("click", saveProduct);
       el("btn_confirm_product_action").addEventListener("click", confirmProductAction);
