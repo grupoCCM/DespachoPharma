@@ -31,6 +31,32 @@
       letter-spacing:.35rem;
       text-align:center;
     }
+    .btn-follow-up{
+      border-color:#0f766e;
+      color:#0f766e;
+      background:#ecfdf5;
+      font-weight:600;
+    }
+    .btn-follow-up:hover,.btn-follow-up:focus{ background:#0f766e; border-color:#0f766e; color:#fff; }
+    .follow-up-dialog{
+      width:min(620px,calc(100vw - 24px));
+      max-height:calc(100vh - 32px);
+      padding:0;
+      border:0;
+      border-radius:12px;
+      box-shadow:0 24px 70px rgba(15,23,42,.28);
+    }
+    .follow-up-dialog::backdrop{ background:rgba(15,23,42,.55); }
+    .follow-up-tabs{ display:flex; gap:.35rem; border-bottom:1px solid var(--border); }
+    .follow-up-tab{ border:0; border-bottom:3px solid transparent; background:transparent; padding:.7rem .9rem; color:var(--muted); font-weight:600; }
+    .follow-up-tab.active{ color:#0f766e; border-bottom-color:#0f766e; }
+    .follow-up-recent-list{ max-height:390px; overflow:auto; }
+    .follow-up-recent-item{ padding:.75rem 0; border-bottom:1px solid var(--border); }
+    .follow-up-recent-item:last-child{ border-bottom:0; }
+    .outcome-choice{ display:grid; grid-template-columns:1fr 1fr; gap:.5rem; }
+    .outcome-choice label{ cursor:pointer; border:1px solid #cbd5e1; border-radius:8px; padding:.65rem .75rem; }
+    .outcome-choice label:has(input:checked){ border-color:#0f766e; background:#ecfdf5; color:#115e59; }
+    @media (max-width:480px){ .outcome-choice{ grid-template-columns:1fr; } }
   </style>
 </head>
 
@@ -71,6 +97,7 @@
                 <span id="btn_login_spinner" class="spinner-border spinner-border-sm ms-2 d-none" aria-hidden="true"></span>
               </button>
               <a class="btn btn-outline-primary" href="availability.html">Consultar disponibilidad</a>
+              <button id="btn_follow_up" type="button" class="btn btn-follow-up">Registrar resultado</button>
               <button id="btn_clear" type="button" class="btn btn-outline-secondary">Limpiar</button>
             </div>
           </form>
@@ -93,6 +120,67 @@
     </div>
   </main>
 
+  <dialog id="follow_up_dialog" class="follow-up-dialog" aria-labelledby="follow_up_title">
+    <div class="p-3 p-sm-4">
+      <div class="d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <h2 id="follow_up_title" class="h5 mb-1">Seguimiento venta</h2>
+          <div class="text-muted small">Registra el resultado del ofrecimiento al paciente.</div>
+        </div>
+        <button id="btn_follow_up_close" type="button" class="btn-close" aria-label="Cerrar"></button>
+      </div>
+
+      <div class="follow-up-tabs mt-3" role="tablist" aria-label="Seguimiento venta">
+        <button type="button" class="follow-up-tab active" data-follow-up-tab="register">Registrar</button>
+        <button type="button" class="follow-up-tab" data-follow-up-tab="recent">Recientes</button>
+      </div>
+
+      <section class="pt-3" data-follow-up-panel="register">
+        <div id="follow_up_alert" class="alert d-none" role="alert"></div>
+        <form id="follow_up_form" autocomplete="off">
+          <div class="mb-3">
+            <label for="follow_up_expediente" class="form-label">Expediente</label>
+            <input id="follow_up_expediente" class="form-control" inputmode="numeric" maxlength="20" required>
+          </div>
+          <fieldset class="mb-3">
+            <legend class="form-label">Resultado</legend>
+            <div class="outcome-choice">
+              <label><input class="form-check-input me-2" type="radio" name="follow_up_outcome" value="no_purchase" required>Sin compra</label>
+              <label><input class="form-check-input me-2" type="radio" name="follow_up_outcome" value="partial_purchase" required>Compra parcial</label>
+            </div>
+          </fieldset>
+          <div class="mb-3">
+            <label for="follow_up_reason" class="form-label">Motivo principal</label>
+            <select id="follow_up_reason" class="form-select" required>
+              <option value="">Selecciona un motivo</option>
+            </select>
+          </div>
+          <div id="follow_up_comment_group" class="mb-3">
+            <label for="follow_up_comment" class="form-label">Comentario <span id="follow_up_comment_optional" class="text-muted">(opcional)</span></label>
+            <textarea id="follow_up_comment" class="form-control" rows="2" maxlength="500"></textarea>
+          </div>
+          <div class="d-flex flex-column-reverse flex-sm-row justify-content-end gap-2">
+            <button id="btn_follow_up_cancel" type="button" class="btn btn-outline-secondary">Cancelar</button>
+            <button id="btn_follow_up_save" type="submit" class="btn btn-success">
+              <span id="btn_follow_up_save_text">Guardar resultado</span>
+              <span id="btn_follow_up_save_spinner" class="spinner-border spinner-border-sm ms-2 d-none" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="pt-3 d-none" data-follow-up-panel="recent">
+        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+          <div class="small text-muted">Registros de este navegador durante los últimos 7 días.</div>
+          <button id="btn_follow_up_recent_refresh" type="button" class="btn btn-sm btn-outline-secondary">Actualizar</button>
+        </div>
+        <div id="follow_up_recent_list" class="follow-up-recent-list">
+          <div class="text-center text-muted py-4">Sin registros recientes.</div>
+        </div>
+      </section>
+    </div>
+  </dialog>
+
   <script>
     /***********************
      * CONFIG (RELLENAR)
@@ -107,6 +195,10 @@
       admin: "dashboard.html"
     };
     const SESSION_KEYS = ["dp_session_token","dp_role","dp_display_name","dp_user_id","dp_expires_at","dp_last_activity"];
+    const FOLLOW_UP_RECEIPTS_KEY = "dp_sales_follow_up_receipts";
+    const QUICK_ACTION = new URLSearchParams(window.location.search).get("action") === "sales-follow-up";
+    let followUpReasons = [];
+    let followUpRequestKey = null;
 
     /***********************
      * UTILIDADES
@@ -203,6 +295,106 @@
       return data;
     }
 
+    function followUpOutcomeLabel(value){
+      return value === "partial_purchase" ? "Compra parcial" : "Sin compra";
+    }
+
+    function followUpEsc(value){
+      return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
+    }
+
+    function followUpDateLabel(value){
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("es-SV", { dateStyle:"short", timeStyle:"short" });
+    }
+
+    function getFollowUpReceipts(){
+      try{
+        const stored = JSON.parse(localStorage.getItem(FOLLOW_UP_RECEIPTS_KEY) || "[]");
+        return Array.isArray(stored) ? stored.filter(Boolean).slice(0, 50) : [];
+      }catch(_){ return []; }
+    }
+
+    function rememberFollowUpReceipt(token){
+      if(!token) return;
+      const receipts = [token, ...getFollowUpReceipts().filter(item => item !== token)].slice(0, 50);
+      localStorage.setItem(FOLLOW_UP_RECEIPTS_KEY, JSON.stringify(receipts));
+    }
+
+    function setFollowUpAlert(message, type="danger"){
+      const alert = el("follow_up_alert");
+      alert.textContent = message || "";
+      alert.className = message ? `alert alert-${type}` : "alert d-none";
+    }
+
+    function setFollowUpLoading(loading){
+      el("btn_follow_up_save").disabled = loading;
+      el("btn_follow_up_save_spinner").classList.toggle("d-none", !loading);
+      el("btn_follow_up_save_text").textContent = loading ? "Guardando..." : "Guardar resultado";
+    }
+
+    function switchFollowUpTab(tab){
+      document.querySelectorAll("[data-follow-up-tab]").forEach(button => {
+        button.classList.toggle("active", button.dataset.followUpTab === tab);
+      });
+      document.querySelectorAll("[data-follow-up-panel]").forEach(panel => {
+        panel.classList.toggle("d-none", panel.dataset.followUpPanel !== tab);
+      });
+      if(tab === "recent") loadFollowUpRecent();
+      else setTimeout(() => el("follow_up_expediente").focus(), 0);
+    }
+
+    async function loadFollowUpReasons(){
+      if(followUpReasons.length) return;
+      const rows = await callRpc("rpc_sales_follow_up_public_reasons", {});
+      followUpReasons = Array.isArray(rows) ? rows : [];
+      el("follow_up_reason").innerHTML = `<option value="">Selecciona un motivo</option>${followUpReasons.map(row => `<option value="${row.reason_id}">${followUpEsc(row.label)}</option>`).join("")}`;
+    }
+
+    async function openFollowUp(){
+      setFollowUpAlert("");
+      switchFollowUpTab("register");
+      const dialog = el("follow_up_dialog");
+      if(!dialog.open) dialog.showModal();
+      try{
+        await loadFollowUpReasons();
+        el("follow_up_expediente").focus();
+      }catch(err){
+        setFollowUpAlert(err.message || "No se pudieron cargar los motivos.");
+      }
+    }
+
+    function updateFollowUpCommentRule(){
+      const selected = followUpReasons.find(row => row.reason_id === el("follow_up_reason").value);
+      const required = selected?.code === "other";
+      el("follow_up_comment").required = required;
+      el("follow_up_comment_optional").textContent = required ? "(obligatorio)" : "(opcional)";
+    }
+
+    async function loadFollowUpRecent(){
+      const list = el("follow_up_recent_list");
+      const receipts = getFollowUpReceipts();
+      if(!receipts.length){
+        list.innerHTML = `<div class="text-center text-muted py-4">Sin registros recientes en este navegador.</div>`;
+        return;
+      }
+      list.innerHTML = `<div class="text-center text-muted py-4">Consultando...</div>`;
+      try{
+        const rows = await callRpc("rpc_sales_follow_up_recent", { p_receipts:receipts });
+        list.innerHTML = Array.isArray(rows) && rows.length ? rows.map(row => `
+          <div class="follow-up-recent-item">
+            <div class="d-flex justify-content-between gap-2">
+              <strong>Exp. ${followUpEsc(row.expediente)}</strong>
+              <span class="badge ${row.status === "voided" ? "text-bg-secondary" : "text-bg-success"}">${row.status === "voided" ? "Anulado" : "Registrado"}</span>
+            </div>
+            <div>${followUpEsc(followUpOutcomeLabel(row.outcome))} · ${followUpEsc(row.reason)}</div>
+            <div class="small text-muted">${followUpEsc(followUpDateLabel(row.created_at))}</div>
+          </div>`).join("") : `<div class="text-center text-muted py-4">Sin registros recientes.</div>`;
+      }catch(err){
+        list.innerHTML = `<div class="alert alert-danger">${followUpEsc(err.message || "No se pudieron consultar los registros.")}</div>`;
+      }
+    }
+
     /***********************
      * INIT
      ***********************/
@@ -224,6 +416,7 @@
           return false;
         }
         localStorage.setItem("dp_last_activity", new Date().toISOString());
+        if(QUICK_ACTION) return false;
         return redirectByRole(session.role);
       }catch(_){
         showAlert("No se pudo validar la sesión actual. Puedes intentarlo de nuevo con tu PIN.");
@@ -243,6 +436,48 @@
       hideAlert();
       pinInput.value = "";
       pinInput.focus();
+    });
+
+    el("btn_follow_up").addEventListener("click", openFollowUp);
+    el("btn_follow_up_close").addEventListener("click", () => el("follow_up_dialog").close());
+    el("btn_follow_up_cancel").addEventListener("click", () => el("follow_up_dialog").close());
+    el("btn_follow_up_recent_refresh").addEventListener("click", loadFollowUpRecent);
+    el("follow_up_reason").addEventListener("change", updateFollowUpCommentRule);
+    el("follow_up_expediente").addEventListener("input", event => {
+      event.target.value = String(event.target.value || "").replace(/\D/g, "").slice(0, 20);
+    });
+    document.querySelectorAll("[data-follow-up-tab]").forEach(button => {
+      button.addEventListener("click", () => switchFollowUpTab(button.dataset.followUpTab));
+    });
+    el("follow_up_dialog").addEventListener("click", event => {
+      if(event.target === el("follow_up_dialog")) el("follow_up_dialog").close();
+    });
+
+    el("follow_up_form").addEventListener("submit", async event => {
+      event.preventDefault();
+      setFollowUpAlert("");
+      const outcome = document.querySelector('input[name="follow_up_outcome"]:checked')?.value || "";
+      if(!followUpRequestKey) followUpRequestKey = crypto.randomUUID();
+      try{
+        setFollowUpLoading(true);
+        const data = await callRpc("rpc_sales_follow_up_create", {
+          p_expediente:el("follow_up_expediente").value,
+          p_outcome:outcome,
+          p_reason_id:el("follow_up_reason").value || null,
+          p_comment:el("follow_up_comment").value,
+          p_idempotency_key:followUpRequestKey
+        });
+        rememberFollowUpReceipt(data?.receipt_token);
+        setFollowUpAlert(data?.duplicate ? "Este resultado ya estaba registrado recientemente." : `Resultado guardado para el expediente ${data?.expediente || ""}.`, "success");
+        el("follow_up_form").reset();
+        updateFollowUpCommentRule();
+        followUpRequestKey = null;
+        setTimeout(() => el("follow_up_expediente").focus(), 0);
+      }catch(err){
+        setFollowUpAlert(err.message || "No se pudo guardar el resultado.");
+      }finally{
+        setFollowUpLoading(false);
+      }
     });
 
     el("loginForm").addEventListener("submit", async (e) => {
@@ -286,7 +521,9 @@
 
     (async function init(){
       const redirected = await restoreStoredSession();
-      if(!redirected) pinInput.focus();
+      if(redirected) return;
+      if(QUICK_ACTION) await openFollowUp();
+      else pinInput.focus();
     })();
   </script>
 </body>

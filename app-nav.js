@@ -34,6 +34,7 @@
       ${item("history.html", "Histórico", "history")}
       ${item("imports.html", "Importaciones", "imports")}
       ${item("catalog.html", "Catálogo", "catalog")}
+      ${item("index.html?action=sales-follow-up", "Registrar resultado", "sales-follow-up")}
     `)}
     <span class="app-nav-module-divider" aria-hidden="true"></span>
     ${item("device-inventory.html", "Dispositivos", "devices", "app-nav-devices")}
@@ -41,6 +42,7 @@
 
   const operationsLinks = `
     ${item(role === "cashier" ? "cashier.html" : "dispatch-menu.html", role === "cashier" ? "Caja" : "Despacho", "operations")}
+    ${item("index.html?action=sales-follow-up", "Registrar resultado", "sales-follow-up")}
     ${item("inventory-audit.html", "Inventario", "inventory")}
     ${item("availability.html", "Disponibilidad", "availability")}
   `;

@@ -70,6 +70,16 @@
     .pm-filter-card{ background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:.75rem; }
     .pm-filter-card .form-control{ min-height:38px; }
     .pm-muted-note{ color:#64748b; font-size:.78rem; }
+    .sf-metric{ min-height:96px; }
+    .sf-bar-row{ display:grid; grid-template-columns:minmax(150px,1fr) minmax(120px,2fr) 72px; gap:.75rem; align-items:center; padding:.45rem 0; }
+    .sf-table-wrap{ max-height:58vh; overflow:auto; border:1px solid var(--border); border-radius:8px; }
+    .sf-table{ min-width:980px; margin:0; font-size:.86rem; }
+    .sf-table thead th{ position:sticky; top:0; z-index:1; background:#f8fafc; }
+    .sf-dialog{ width:min(680px,calc(100vw - 24px)); max-height:calc(100vh - 32px); padding:0; border:0; border-radius:12px; box-shadow:0 24px 70px rgba(15,23,42,.28); }
+    .sf-dialog::backdrop{ background:rgba(15,23,42,.55); }
+    .sf-reason-list{ max-height:380px; overflow:auto; }
+    .sf-status-active{ background:#dcfce7; color:#166534; }
+    .sf-status-voided{ background:#e2e8f0; color:#475569; }
     .nav-module-separator{ width:1px; height:28px; background:var(--border); margin:0 .25rem; }
     .btn-device-module{ border-color:#0f766e; color:#0f766e; background:#ecfdf5; font-weight:700; }
     .btn-device-module:hover,.btn-device-module:focus{ background:#0f766e; color:#fff; border-color:#0f766e; }
@@ -78,6 +88,9 @@
       .bar-row{ grid-template-columns:64px 1fr; }
       .bar-row > div:last-child{ grid-column:2; text-align:left !important; }
       .price-margin-wrap{ max-height:70vh; }
+      .sf-bar-row{ grid-template-columns:1fr 64px; }
+      .sf-bar-row .bar-track{ grid-column:1; grid-row:2; }
+      .sf-table-wrap{ max-height:68vh; }
       .nav-module-separator{ display:none; }
     }
   </style>
@@ -105,6 +118,7 @@
     <div class="dashboard-tabs mb-3" role="tablist" aria-label="Vistas del dashboard">
       <button type="button" class="dashboard-tab-btn active" data-dashboard-tab="main">Resumen</button>
       <button type="button" class="dashboard-tab-btn" data-dashboard-tab="price_margin">Precios / margen</button>
+      <button type="button" class="dashboard-tab-btn" data-dashboard-tab="sales_follow_up">Seguimiento venta</button>
     </div>
 
     <section data-dashboard-section="main">
@@ -457,6 +471,138 @@
         </div>
       </div>
     </section>
+
+    <section class="d-none" data-dashboard-section="sales_follow_up">
+      <div class="app-card p-3 mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+          <div>
+            <div class="fw-semibold">Seguimiento venta</div>
+            <div class="small text-muted">Resultados registrados durante el ofrecimiento de medicamentos.</div>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <button id="sf_btn_export" type="button" class="btn btn-sm btn-outline-success">Descargar CSV</button>
+            <button id="sf_btn_reasons" type="button" class="btn btn-sm btn-outline-secondary">Motivos</button>
+            <button id="sf_btn_new" type="button" class="btn btn-sm btn-primary">Nuevo registro</button>
+          </div>
+        </div>
+        <div class="row g-2 align-items-end mt-2">
+          <div class="col-12 col-sm-6 col-lg-3">
+            <label for="sf_month" class="form-label small mb-1">Periodo</label>
+            <input id="sf_month" type="month" class="form-control">
+          </div>
+          <div class="col-12 col-sm-6 col-lg-3">
+            <label for="sf_outcome_filter" class="form-label small mb-1">Resultado</label>
+            <select id="sf_outcome_filter" class="form-select">
+              <option value="">Todos</option>
+              <option value="no_purchase">Sin compra</option>
+              <option value="partial_purchase">Compra parcial</option>
+            </select>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-3">
+            <label for="sf_reason_filter" class="form-label small mb-1">Motivo</label>
+            <select id="sf_reason_filter" class="form-select"><option value="">Todos</option></select>
+          </div>
+          <div class="col-12 col-sm-6 col-lg-3">
+            <label for="sf_search" class="form-label small mb-1">Buscar</label>
+            <input id="sf_search" type="search" class="form-control" placeholder="Expediente o comentario">
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-sm-6 col-xl-3"><div class="app-card p-3 sf-metric"><div class="metric-label">Registros</div><div id="sf_total" class="metric-value">0</div><div class="small text-muted">resultados activos</div></div></div>
+        <div class="col-12 col-sm-6 col-xl-3"><div class="app-card p-3 sf-metric"><div class="metric-label">Pacientes únicos</div><div id="sf_patients" class="metric-value">0</div><div class="small text-muted">expedientes distintos</div></div></div>
+        <div class="col-12 col-sm-6 col-xl-3"><div class="app-card p-3 sf-metric"><div class="metric-label">Sin compra</div><div id="sf_no_purchase" class="metric-value text-danger">0</div><div class="small text-muted">ofrecimientos registrados</div></div></div>
+        <div class="col-12 col-sm-6 col-xl-3"><div class="app-card p-3 sf-metric"><div class="metric-label">Compra parcial</div><div id="sf_partial" class="metric-value text-warning">0</div><div class="small text-muted">ofrecimientos registrados</div></div></div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-xl-7">
+          <div class="app-card p-3 h-100">
+            <div class="fw-semibold mb-1">Motivos registrados</div>
+            <div class="small text-muted mb-3">Distribución sobre registros activos del periodo.</div>
+            <div id="sf_reason_bars"><div class="text-center text-muted py-4">Sin datos.</div></div>
+          </div>
+        </div>
+        <div class="col-12 col-xl-5">
+          <div class="app-card p-3 h-100">
+            <div class="fw-semibold mb-1">Actividad por fecha</div>
+            <div class="small text-muted mb-3">Registros y pacientes únicos por día.</div>
+            <div id="sf_trend" class="small"><div class="text-center text-muted py-4">Sin datos.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="app-card p-3">
+        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+          <div>
+            <div class="fw-semibold">Registros</div>
+            <div id="sf_records_hint" class="small text-muted">0 resultados visibles.</div>
+          </div>
+          <select id="sf_status_filter" class="form-select form-select-sm" style="max-width:150px">
+            <option value="active">Activos</option>
+            <option value="">Todos</option>
+            <option value="voided">Anulados</option>
+          </select>
+        </div>
+        <div class="sf-table-wrap">
+          <table class="table table-sm table-hover align-middle sf-table">
+            <thead><tr><th>Fecha</th><th>Expediente</th><th>Resultado</th><th>Motivo</th><th>Comentario</th><th>Estado</th><th>Acción</th></tr></thead>
+            <tbody id="sf_records_body"><tr><td colspan="7" class="text-center text-muted py-4">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <dialog id="sf_event_dialog" class="sf-dialog" aria-labelledby="sf_event_title">
+      <form id="sf_event_form" class="p-3 p-sm-4" autocomplete="off">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div><h2 id="sf_event_title" class="h5 mb-1">Registro</h2><div class="small text-muted">Corrección administrativa del seguimiento.</div></div>
+          <button type="button" class="btn-close" data-sf-close="sf_event_dialog" aria-label="Cerrar"></button>
+        </div>
+        <input id="sf_event_id" type="hidden">
+        <div id="sf_event_alert" class="alert alert-danger d-none"></div>
+        <div class="row g-3">
+          <div class="col-12 col-sm-6"><label for="sf_event_expediente" class="form-label">Expediente</label><input id="sf_event_expediente" class="form-control" inputmode="numeric" maxlength="20" required></div>
+          <div class="col-12 col-sm-6"><label for="sf_event_outcome" class="form-label">Resultado</label><select id="sf_event_outcome" class="form-select" required><option value="no_purchase">Sin compra</option><option value="partial_purchase">Compra parcial</option></select></div>
+          <div class="col-12"><label for="sf_event_reason" class="form-label">Motivo</label><select id="sf_event_reason" class="form-select" required></select></div>
+          <div class="col-12"><label for="sf_event_comment" class="form-label">Comentario</label><textarea id="sf_event_comment" class="form-control" rows="3" maxlength="500"></textarea></div>
+          <div class="col-12"><label for="sf_event_dispatch" class="form-label">ID de despacho vinculado <span class="text-muted">(opcional)</span></label><input id="sf_event_dispatch" class="form-control" placeholder="UUID"></div>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mt-4"><button type="button" class="btn btn-outline-secondary" data-sf-close="sf_event_dialog">Cancelar</button><button id="sf_event_save" type="submit" class="btn btn-primary">Guardar</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="sf_reasons_dialog" class="sf-dialog" aria-labelledby="sf_reasons_title">
+      <div class="p-3 p-sm-4">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div><h2 id="sf_reasons_title" class="h5 mb-1">Motivos</h2><div class="small text-muted">Renombrar o desactivar conserva los registros históricos.</div></div>
+          <button type="button" class="btn-close" data-sf-close="sf_reasons_dialog" aria-label="Cerrar"></button>
+        </div>
+        <form id="sf_reason_form" class="row g-2 align-items-end mb-3">
+          <input id="sf_reason_id" type="hidden">
+          <div class="col-12 col-sm"><label for="sf_reason_label" class="form-label small mb-1">Nombre</label><input id="sf_reason_label" class="form-control" maxlength="120" required></div>
+          <div class="col-5 col-sm-2"><label for="sf_reason_order" class="form-label small mb-1">Orden</label><input id="sf_reason_order" type="number" class="form-control" value="100"></div>
+          <div class="col-7 col-sm-auto"><div class="form-check mb-2"><input id="sf_reason_active" class="form-check-input" type="checkbox" checked><label class="form-check-label" for="sf_reason_active">Activo</label></div></div>
+          <div class="col-12 col-sm-auto"><button id="sf_reason_save" type="submit" class="btn btn-primary w-100">Guardar</button></div>
+        </form>
+        <div id="sf_reason_alert" class="alert alert-danger d-none"></div>
+        <div id="sf_reason_list" class="sf-reason-list"></div>
+      </div>
+    </dialog>
+
+    <dialog id="sf_void_dialog" class="sf-dialog" aria-labelledby="sf_void_title">
+      <form id="sf_void_form" class="p-3 p-sm-4">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div><h2 id="sf_void_title" class="h5 mb-1">Anular registro</h2><div class="small text-muted">El histórico se conservará y dejará de contar en los indicadores.</div></div>
+          <button type="button" class="btn-close" data-sf-close="sf_void_dialog" aria-label="Cerrar"></button>
+        </div>
+        <input id="sf_void_event_id" type="hidden">
+        <label for="sf_void_reason" class="form-label">Motivo de anulación</label>
+        <textarea id="sf_void_reason" class="form-control" rows="3" maxlength="300" required></textarea>
+        <div class="d-flex justify-content-end gap-2 mt-3"><button type="button" class="btn btn-outline-secondary" data-sf-close="sf_void_dialog">Cancelar</button><button id="sf_void_save" type="submit" class="btn btn-danger">Anular</button></div>
+      </form>
+    </dialog>
   </main>
 
   <script>
@@ -468,6 +614,8 @@
     let activeDashboardTab = "main";
     let priceMarginSearch = "";
     let priceMarginTimer = null;
+    let salesFollowUpData = { summary:{}, reasons:[], trend:[], records:[], catalog:[] };
+    let salesFollowUpLoaded = false;
 
     function getSession(){
       return {
@@ -690,6 +838,143 @@
       document.querySelectorAll("[data-dashboard-section]").forEach(section => {
         section.classList.toggle("d-none", section.dataset.dashboardSection !== activeDashboardTab);
       });
+      if(activeDashboardTab === "sales_follow_up" && !salesFollowUpLoaded) loadSalesFollowUp();
+    }
+
+    function sfOutcomeLabel(value){ return value === "partial_purchase" ? "Compra parcial" : "Sin compra"; }
+    function sfDateParts(value){
+      const date = new Date(value);
+      if(Number.isNaN(date.getTime())) return { date:"-", time:"-" };
+      return {
+        date:date.toLocaleDateString("es-SV", { day:"2-digit", month:"2-digit", year:"numeric" }),
+        time:date.toLocaleTimeString("es-SV", { hour:"2-digit", minute:"2-digit" })
+      };
+    }
+    function sfMonthRange(){
+      const value = el("sf_month").value;
+      if(!value) return { start:null, end:null };
+      const [year, month] = value.split("-").map(Number);
+      const last = new Date(year, month, 0).getDate();
+      return { start:`${value}-01`, end:`${value}-${String(last).padStart(2,"0")}` };
+    }
+    function sfSetDialogAlert(id, message){
+      const node = el(id);
+      node.textContent = message || "";
+      node.classList.toggle("d-none", !message);
+    }
+    function sfFilteredRecords(){
+      const outcome = el("sf_outcome_filter").value;
+      const reason = el("sf_reason_filter").value;
+      const status = el("sf_status_filter").value;
+      const search = el("sf_search").value.trim().toLowerCase();
+      return (salesFollowUpData.records || []).filter(row => {
+        if(outcome && row.outcome !== outcome) return false;
+        if(reason && row.reason_id !== reason) return false;
+        if(status && row.status !== status) return false;
+        if(search && !`${row.expediente || ""} ${row.comment || ""} ${row.reason || ""}`.toLowerCase().includes(search)) return false;
+        return true;
+      });
+    }
+    function sfRenderRecords(){
+      const rows = sfFilteredRecords();
+      el("sf_records_hint").textContent = `${num(rows.length)} resultados visibles.`;
+      el("sf_records_body").innerHTML = tableRows(rows, row => {
+        const date = sfDateParts(row.created_at);
+        const statusClass = row.status === "voided" ? "sf-status-voided" : "sf-status-active";
+        const statusLabel = row.status === "voided" ? "Anulado" : "Activo";
+        return `<tr>
+          <td><div>${esc(date.date)}</div><div class="small text-muted">${esc(date.time)}</div></td>
+          <td class="fw-semibold">${esc(row.expediente)}</td>
+          <td>${esc(sfOutcomeLabel(row.outcome))}</td>
+          <td>${esc(row.reason)}</td>
+          <td><div class="truncate" title="${esc(row.comment || "")}">${esc(row.comment || "-")}</div></td>
+          <td><span class="status-pill ${statusClass}">${statusLabel}</span>${row.void_reason ? `<div class="small text-muted mt-1">${esc(row.void_reason)}</div>` : ""}</td>
+          <td><div class="d-flex gap-1">
+            <button type="button" class="btn btn-sm btn-outline-primary" data-sf-edit="${row.event_id}">Editar</button>
+            ${row.status === "voided"
+              ? `<button type="button" class="btn btn-sm btn-outline-success" data-sf-restore="${row.event_id}">Restaurar</button>`
+              : `<button type="button" class="btn btn-sm btn-outline-danger" data-sf-void="${row.event_id}">Anular</button>`}
+          </div></td>
+        </tr>`;
+      }, 7);
+    }
+    function sfRenderOverview(){
+      const data = salesFollowUpData || {};
+      const summary = data.summary || {};
+      el("sf_total").textContent = num(summary.records);
+      el("sf_patients").textContent = num(summary.unique_patients);
+      el("sf_no_purchase").textContent = num(summary.no_purchase);
+      el("sf_partial").textContent = num(summary.partial_purchase);
+
+      const maxReason = Math.max(1, ...(data.reasons || []).map(row => Number(row.qty || 0)));
+      el("sf_reason_bars").innerHTML = (data.reasons || []).length ? data.reasons.map(row => `
+        <div class="sf-bar-row">
+          <div class="text-truncate" title="${esc(row.reason)}">${esc(row.reason)}</div>
+          <div class="bar-track"><div class="bar-fill amber" style="width:${Math.max(2, Number(row.qty || 0) * 100 / maxReason)}%"></div></div>
+          <div class="text-end fw-semibold">${num(row.qty)} <span class="small text-muted">${num(row.pct,1)}%</span></div>
+        </div>`).join("") : `<div class="text-center text-muted py-4">Sin datos.</div>`;
+
+      const trend = (data.trend || []).slice(-12).reverse();
+      el("sf_trend").innerHTML = trend.length ? trend.map(row => `<div class="d-flex justify-content-between gap-2 py-2 border-bottom"><span>${esc(dateLabel(row.day))}</span><span><strong>${num(row.records)}</strong> registros · ${num(row.patients)} pacientes</span></div>`).join("") : `<div class="text-center text-muted py-4">Sin datos.</div>`;
+
+      const activeCatalog = (data.catalog || []).filter(row => row.active);
+      const currentFilter = el("sf_reason_filter").value;
+      el("sf_reason_filter").innerHTML = `<option value="">Todos</option>${activeCatalog.map(row => `<option value="${row.reason_id}">${esc(row.label)}</option>`).join("")}`;
+      el("sf_reason_filter").value = activeCatalog.some(row => row.reason_id === currentFilter) ? currentFilter : "";
+      sfRenderRecords();
+      sfRenderReasonList();
+    }
+    async function loadSalesFollowUp(){
+      hideAlert();
+      try{
+        const session = getSession();
+        const range = sfMonthRange();
+        salesFollowUpData = await callRpc("rpc_sales_follow_up_admin_overview", {
+          p_session_token:session.token,
+          p_start_date:range.start,
+          p_end_date:range.end
+        }) || { summary:{}, reasons:[], trend:[], records:[], catalog:[] };
+        salesFollowUpLoaded = true;
+        sfRenderOverview();
+      }catch(err){ showAlert(err.message || "No se pudo cargar Seguimiento venta."); }
+    }
+    function sfOpenEvent(row=null){
+      sfSetDialogAlert("sf_event_alert", "");
+      const reasonOptions = (salesFollowUpData.catalog || []).filter(reason => reason.active || reason.reason_id === row?.reason_id);
+      el("sf_event_reason").innerHTML = reasonOptions.map(reason => `<option value="${reason.reason_id}">${esc(reason.label)}${reason.active ? "" : " (inactivo)"}</option>`).join("");
+      el("sf_event_title").textContent = row ? "Editar registro" : "Nuevo registro";
+      el("sf_event_id").value = row?.event_id || "";
+      el("sf_event_expediente").value = row?.expediente || "";
+      el("sf_event_outcome").value = row?.outcome || "no_purchase";
+      el("sf_event_reason").value = row?.reason_id || salesFollowUpData.catalog?.find(reason => reason.active)?.reason_id || "";
+      el("sf_event_comment").value = row?.comment || "";
+      el("sf_event_dispatch").value = row?.dispatch_id || "";
+      el("sf_event_dialog").showModal();
+      setTimeout(() => el("sf_event_expediente").focus(), 0);
+    }
+    function sfRenderReasonList(){
+      const rows = salesFollowUpData.catalog || [];
+      el("sf_reason_list").innerHTML = rows.length ? rows.map(row => `<div class="d-flex justify-content-between align-items-center gap-2 py-2 border-bottom"><div><div class="fw-semibold">${esc(row.label)}</div><div class="small text-muted">Orden ${num(row.sort_order)} · ${row.active ? "Activo" : "Inactivo"}</div></div><button type="button" class="btn btn-sm btn-outline-primary" data-sf-reason-edit="${row.reason_id}">Editar</button></div>`).join("") : `<div class="text-center text-muted py-4">Sin motivos.</div>`;
+    }
+    function sfCsvCell(value){
+      let text = String(value ?? "");
+      if(/^[=+\-@]/.test(text)) text = `'${text}`;
+      return `"${text.replace(/"/g, '""')}"`;
+    }
+    function sfExportCsv(){
+      const rows = sfFilteredRecords();
+      const header = ["ID","Expediente","Fecha","Hora","Resultado","Motivo","Comentario","Estado","Despacho"];
+      const lines = [header.map(sfCsvCell).join(","), ...rows.map(row => {
+        const date = sfDateParts(row.created_at);
+        return [row.event_id,row.expediente,date.date,date.time,sfOutcomeLabel(row.outcome),row.reason,row.comment || "",row.status === "voided" ? "Anulado" : "Activo",row.delivery_no || ""].map(sfCsvCell).join(",");
+      })];
+      const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type:"text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `seguimiento_venta_${new Date().toISOString().slice(0,10)}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
     }
 
     function marginStatusLabel(status){
@@ -1066,6 +1351,62 @@
       }
     }
 
+    async function sfSaveEvent(event){
+      event.preventDefault();
+      sfSetDialogAlert("sf_event_alert", "");
+      const button = el("sf_event_save");
+      button.disabled = true;
+      try{
+        const session = getSession();
+        await callRpc("rpc_sales_follow_up_admin_save", {
+          p_session_token:session.token,
+          p_event_id:el("sf_event_id").value || null,
+          p_expediente:el("sf_event_expediente").value,
+          p_outcome:el("sf_event_outcome").value,
+          p_reason_id:el("sf_event_reason").value || null,
+          p_comment:el("sf_event_comment").value,
+          p_dispatch_id:el("sf_event_dispatch").value.trim() || null
+        });
+        el("sf_event_dialog").close();
+        await loadSalesFollowUp();
+      }catch(err){ sfSetDialogAlert("sf_event_alert", err.message || "No se pudo guardar el registro."); }
+      finally{ button.disabled = false; }
+    }
+
+    async function sfSetStatus(eventId, status, reason=null){
+      const session = getSession();
+      await callRpc("rpc_sales_follow_up_admin_set_status", {
+        p_session_token:session.token,
+        p_event_id:eventId,
+        p_status:status,
+        p_reason:reason
+      });
+      await loadSalesFollowUp();
+    }
+
+    async function sfSaveReason(event){
+      event.preventDefault();
+      sfSetDialogAlert("sf_reason_alert", "");
+      const button = el("sf_reason_save");
+      button.disabled = true;
+      try{
+        const session = getSession();
+        await callRpc("rpc_sales_follow_up_admin_save_reason", {
+          p_session_token:session.token,
+          p_reason_id:el("sf_reason_id").value || null,
+          p_label:el("sf_reason_label").value,
+          p_sort_order:Number(el("sf_reason_order").value || 100),
+          p_active:el("sf_reason_active").checked
+        });
+        el("sf_reason_form").reset();
+        el("sf_reason_id").value = "";
+        el("sf_reason_order").value = "100";
+        el("sf_reason_active").checked = true;
+        await loadSalesFollowUp();
+      }catch(err){ sfSetDialogAlert("sf_reason_alert", err.message || "No se pudo guardar el motivo."); }
+      finally{ button.disabled = false; }
+    }
+
     async function init(){
       const s = getSession();
       if(!s.token) return window.location.href = ROUTES.login;
@@ -1073,7 +1414,7 @@
       if(!ok) return logoutAndGoLogin();
       el("nav_user").textContent = s.name || "-";
       el("btn_logout").addEventListener("click", logoutAndGoLogin);
-      el("btn_refresh").addEventListener("click", loadDashboard);
+      el("btn_refresh").addEventListener("click", () => activeDashboardTab === "sales_follow_up" ? loadSalesFollowUp() : loadDashboard());
       el("pm_search").addEventListener("input", event => {
         priceMarginSearch = event.target.value.trim();
         debouncePriceMarginSearch();
@@ -1086,6 +1427,57 @@
       document.querySelectorAll("[data-dashboard-tab]").forEach(btn => {
         btn.addEventListener("click", () => switchDashboardTab(btn.dataset.dashboardTab || "main"));
       });
+      const sfNow = new Date();
+      el("sf_month").value = `${sfNow.getFullYear()}-${String(sfNow.getMonth() + 1).padStart(2,"0")}`;
+      el("sf_month").addEventListener("change", loadSalesFollowUp);
+      ["sf_outcome_filter","sf_reason_filter","sf_status_filter"].forEach(id => el(id).addEventListener("change", sfRenderRecords));
+      el("sf_search").addEventListener("input", sfRenderRecords);
+      el("sf_btn_new").addEventListener("click", () => sfOpenEvent());
+      el("sf_btn_export").addEventListener("click", sfExportCsv);
+      el("sf_btn_reasons").addEventListener("click", () => { sfSetDialogAlert("sf_reason_alert", ""); sfRenderReasonList(); el("sf_reasons_dialog").showModal(); });
+      el("sf_event_form").addEventListener("submit", sfSaveEvent);
+      el("sf_reason_form").addEventListener("submit", sfSaveReason);
+      el("sf_void_form").addEventListener("submit", async event => {
+        event.preventDefault();
+        const button = el("sf_void_save");
+        button.disabled = true;
+        try{
+          await sfSetStatus(el("sf_void_event_id").value, "voided", el("sf_void_reason").value);
+          el("sf_void_dialog").close();
+          el("sf_void_form").reset();
+        }catch(err){ showAlert(err.message || "No se pudo anular el registro."); }
+        finally{ button.disabled = false; }
+      });
+      el("sf_records_body").addEventListener("click", async event => {
+        const edit = event.target.closest("[data-sf-edit]");
+        const voidButton = event.target.closest("[data-sf-void]");
+        const restore = event.target.closest("[data-sf-restore]");
+        if(edit){
+          const row = (salesFollowUpData.records || []).find(item => item.event_id === edit.dataset.sfEdit);
+          if(row) sfOpenEvent(row);
+        }else if(voidButton){
+          el("sf_void_event_id").value = voidButton.dataset.sfVoid;
+          el("sf_void_reason").value = "";
+          el("sf_void_dialog").showModal();
+          setTimeout(() => el("sf_void_reason").focus(), 0);
+        }else if(restore){
+          try{ await sfSetStatus(restore.dataset.sfRestore, "active", null); }
+          catch(err){ showAlert(err.message || "No se pudo restaurar el registro."); }
+        }
+      });
+      el("sf_reason_list").addEventListener("click", event => {
+        const button = event.target.closest("[data-sf-reason-edit]");
+        if(!button) return;
+        const row = (salesFollowUpData.catalog || []).find(item => item.reason_id === button.dataset.sfReasonEdit);
+        if(!row) return;
+        el("sf_reason_id").value = row.reason_id;
+        el("sf_reason_label").value = row.label;
+        el("sf_reason_order").value = row.sort_order;
+        el("sf_reason_active").checked = Boolean(row.active);
+        el("sf_reason_label").focus();
+      });
+      document.querySelectorAll("[data-sf-close]").forEach(button => button.addEventListener("click", () => el(button.dataset.sfClose).close()));
+      ["sf_event_dialog","sf_reasons_dialog","sf_void_dialog"].forEach(id => el(id).addEventListener("click", event => { if(event.target === el(id)) el(id).close(); }));
       el("month_filter").addEventListener("change", () => {
         const monthly = (dashboardData?.monthly_sales || []).slice().sort((a,b) => String(a.month).localeCompare(String(b.month)));
         const penetration = (dashboardData?.penetration || []).slice().sort((a,b) => String(b.month).localeCompare(String(a.month)));
