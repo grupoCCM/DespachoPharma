@@ -926,6 +926,7 @@
     }
     async function loadSalesFollowUp(){
       hideAlert();
+      setLoading(true);
       try{
         const session = getSession();
         const range = sfMonthRange();
@@ -936,7 +937,11 @@
         }) || { summary:{}, reasons:[], trend:[], records:[], catalog:[] };
         salesFollowUpLoaded = true;
         sfRenderOverview();
-      }catch(err){ showAlert(err.message || "No se pudo cargar Seguimiento venta."); }
+      }catch(err){
+        showAlert(err.message || "No se pudo cargar Seguimiento venta.");
+      }finally{
+        setLoading(false);
+      }
     }
     function sfOpenEvent(row=null){
       sfSetDialogAlert("sf_event_alert", "");
