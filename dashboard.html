@@ -924,9 +924,14 @@
       sfRenderRecords();
       sfRenderReasonList();
     }
-    async function loadSalesFollowUp(){
+    async function loadSalesFollowUp(options={}){
+      const showGlobalLoading = options?.showGlobalLoading === true;
+      const loadingStartedAt = performance.now();
       hideAlert();
-      setLoading(true);
+      if(showGlobalLoading){
+        setLoading(true);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
       try{
         const session = getSession();
         const range = sfMonthRange();
@@ -940,7 +945,11 @@
       }catch(err){
         showAlert(err.message || "No se pudo cargar Seguimiento venta.");
       }finally{
-        setLoading(false);
+        if(showGlobalLoading){
+          const remainingMs = Math.max(0, 350 - (performance.now() - loadingStartedAt));
+          if(remainingMs) await new Promise(resolve => setTimeout(resolve, remainingMs));
+          setLoading(false);
+        }
       }
     }
     function sfOpenEvent(row=null){
@@ -1419,7 +1428,9 @@
       if(!ok) return logoutAndGoLogin();
       el("nav_user").textContent = s.name || "-";
       el("btn_logout").addEventListener("click", logoutAndGoLogin);
-      el("btn_refresh").addEventListener("click", () => activeDashboardTab === "sales_follow_up" ? loadSalesFollowUp() : loadDashboard());
+      el("btn_refresh").addEventListener("click", () => activeDashboardTab === "sales_follow_up"
+        ? loadSalesFollowUp({ showGlobalLoading:true })
+        : loadDashboard());
       el("pm_search").addEventListener("input", event => {
         priceMarginSearch = event.target.value.trim();
         debouncePriceMarginSearch();
