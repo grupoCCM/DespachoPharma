@@ -230,7 +230,7 @@ begin
         'lot_17_qty', 1,
         'lot_019_qty', 5,
         'lot_27_qty', 18,
-        'applied_by_migration', '090_reconcile_izaban_25_recount_lots.sql'
+        'applied_by_migration', '091_reconcile_izaban_25_recount_lots.sql'
       )
     );
   end if;
