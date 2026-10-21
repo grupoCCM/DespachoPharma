@@ -93,6 +93,13 @@
     .resolution-step{ color:#334155; font-size:.88rem; }
     .resolution-meta{ color:var(--muted); font-size:.78rem; display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:6px; }
     .resolution-meta span{ white-space:nowrap; }
+    .resolution-actions{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+    .resolution-state{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:7px; }
+    .verification-queue{ border-top:1px solid var(--border); margin-top:16px; padding-top:16px; }
+    .verification-row{ display:grid; grid-template-columns:minmax(260px,1fr) minmax(180px,.55fr) auto; gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); }
+    .verification-row:last-child{ border-bottom:0; }
+    .variance-modal{ width:min(680px,100%); max-height:calc(100vh - 32px); overflow:auto; background:#fff; border-radius:14px; box-shadow:0 24px 60px rgba(15,23,42,.28); }
+    .variance-session-select{ min-width:240px; max-width:360px; }
     .return-current{ border-top:1px solid var(--border); padding-top:16px; }
     .return-review{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; padding:14px 0 0; border-top:1px solid var(--border); }
     .return-lines{ max-height:340px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
@@ -103,7 +110,7 @@
     .return-doc-row:hover{ background:#f8fafc; }
     .return-doc-row:focus-visible{ outline:2px solid #0d6efd; outline-offset:-2px; }
     .resolution-empty{ padding:22px 16px; text-align:center; color:var(--muted); }
-    @media (max-width: 991.98px){ .resolution-row{ grid-template-columns:1fr; align-items:start; } }
+    @media (max-width: 991.98px){ .resolution-row,.verification-row{ grid-template-columns:1fr; align-items:start; } }
     @media (max-width: 575.98px){ .resolution-row{ grid-template-columns:1fr; } }
     .nav-module-separator{ width:1px; height:28px; background:var(--border); margin:0 .25rem; }
     .btn-device-module{ border-color:#0f766e; color:#0f766e; background:#ecfdf5; font-weight:700; }
@@ -499,6 +506,16 @@
           </tbody>
         </table>
       </div>
+      <div id="verification_queue_box" class="verification-queue d-none">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+          <div>
+            <div class="fw-semibold">Segundo conteo independiente</div>
+            <div class="small text-muted">Solo muestra productos contados por otra persona. La cantidad esperada y el primer resultado permanecen ocultos durante la verificacion.</div>
+          </div>
+          <span id="verification_queue_count" class="badge text-bg-warning">0 pendientes</span>
+        </div>
+        <div id="verification_queue_list" class="mt-2"></div>
+      </div>
     </div>
 
     <div class="row g-3 mb-3 admin-panel d-none" data-inventory-section="movements">
@@ -578,6 +595,7 @@
             <div id="resolution_help" class="small text-muted">Diferencias reales del conteo contra la existencia congelada al iniciar esa sesion.</div>
           </div>
           <div class="d-flex flex-wrap align-items-center gap-2">
+            <select id="variance_session_select" class="form-select form-select-sm variance-session-select" aria-label="Conteo historico"></select>
             <span id="resolution_count" class="badge text-bg-light border">0 pendientes</span>
             <div class="resolution-tabs" role="group" aria-label="Filtro de pendientes">
               <button type="button" class="btn btn-sm btn-primary" data-variance-filter="open">Abiertos</button>
@@ -720,6 +738,69 @@
     </div>
   </div>
 
+  <div id="variance_modal" class="modal-backdrop-lite" aria-hidden="true">
+    <div class="variance-modal">
+      <div class="p-3 border-bottom d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <div id="variance_modal_title" class="h5 mb-1">Gestionar diferencia</div>
+          <div id="variance_modal_product" class="text-muted small">Producto</div>
+        </div>
+        <button id="btn_variance_modal_close" class="btn btn-outline-secondary btn-sm" type="button">Cerrar</button>
+      </div>
+      <div class="p-3">
+        <div id="variance_modal_alert" class="alert alert-danger d-none"></div>
+        <div id="variance_modal_context" class="alert alert-light border small"></div>
+        <div id="variance_verify_fields" class="row g-3 d-none">
+          <div class="col-12 col-md-4">
+            <label class="form-label" for="variance_verified_qty">Cantidad verificada</label>
+            <input id="variance_verified_qty" class="form-control" type="number" min="0" step="1">
+          </div>
+          <div class="col-12 col-md-8">
+            <label class="form-label" for="variance_verify_note">Detalle de la verificacion</label>
+            <input id="variance_verify_note" class="form-control" maxlength="500" placeholder="Ej: segundo conteo fisico completo">
+          </div>
+        </div>
+        <div id="variance_comment_fields" class="d-none">
+          <label class="form-label" for="variance_comment_note">Seguimiento realizado</label>
+          <textarea id="variance_comment_note" class="form-control" rows="3" maxlength="800" placeholder="Documenta la investigacion, evidencia revisada o responsable asignado"></textarea>
+        </div>
+        <div id="variance_resolution_fields" class="row g-3 d-none">
+          <div class="col-12 col-md-6">
+            <label class="form-label" for="variance_resolution_type">Resultado</label>
+            <select id="variance_resolution_type" class="form-select">
+              <option value="found_recovered">Producto encontrado / recuperado</option>
+              <option value="reimbursement">Reintegro o pago</option>
+              <option value="authorized_loss">Perdida autorizada</option>
+              <option value="document_error">Error documental</option>
+              <option value="responsibility_assigned">Responsabilidad asignada</option>
+              <option value="supplier_return">Devolucion / proveedor</option>
+              <option value="other">Otro</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label" for="variance_resolution_qty">Unidades</label>
+            <input id="variance_resolution_qty" class="form-control" type="number" min="1" step="1">
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label" for="variance_resolution_amount">Monto recuperado</label>
+            <input id="variance_resolution_amount" class="form-control" type="number" min="0" step="0.01" value="0">
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="variance_resolution_note">Evidencia / explicacion</label>
+            <textarea id="variance_resolution_note" class="form-control" rows="3" maxlength="800"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="p-3 border-top d-flex justify-content-end gap-2">
+        <button id="btn_variance_modal_cancel" class="btn btn-outline-secondary" type="button">Cancelar</button>
+        <button id="btn_variance_modal_save" class="btn btn-primary" type="button">
+          <span id="btn_variance_modal_save_text">Guardar</span>
+          <span id="btn_variance_modal_spinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
@@ -731,7 +812,13 @@
     let countSuggestTimer = null;
     let varianceRowsCache = [];
     let varianceSessionCache = null;
+    let varianceSummaryCache = {};
+    let varianceSessionsCache = [];
+    let selectedVarianceSessionId = "";
     let varianceFilter = "open";
+    let activeVarianceCase = null;
+    let varianceModalMode = "";
+    let varianceOperationKey = "";
     let reclassFromRows = [];
     let reclassToRows = [];
     let reclassFromTimer = null;
@@ -905,10 +992,30 @@
     }
 
     function varianceStatusBadge(row){
-      if(row?.is_resolved) return `<span class="badge text-bg-success">Solventado</span>`;
-      if(row?.status === "applied") return `<span class="badge text-bg-success">Ajustado</span>`;
-      if(row?.condition_status && row.condition_status !== "ok") return `<span class="badge text-bg-danger">Hallazgo</span>`;
+      const status = row?.investigation_status;
+      if(status === "resolved") return `<span class="badge text-bg-success">Resuelto</span>`;
+      if(status === "partially_resolved") return `<span class="badge text-bg-info">Resolucion parcial</span>`;
+      if(status === "investigating") return `<span class="badge text-bg-primary">En investigacion</span>`;
+      if(status === "pending_verification") return `<span class="badge text-bg-warning">Pendiente verificar</span>`;
       return `<span class="badge text-bg-warning">Abierto</span>`;
+    }
+
+    function varianceStockBadge(row){
+      if(row?.stock_adjustment_status === "applied") return `<span class="badge text-bg-success">Stock ajustado</span>`;
+      if(row?.stock_adjustment_status === "not_required") return `<span class="badge text-bg-secondary">Sin ajuste</span>`;
+      return `<span class="badge text-bg-danger">Stock pendiente</span>`;
+    }
+
+    function varianceActionButtons(row){
+      if(row.investigation_status === "resolved") return `<button class="btn btn-sm btn-outline-secondary" data-case-action="comment" data-case-id="${row.case_id}">Ver / anotar</button>`;
+      const buttons = [];
+      if(row.investigation_status === "pending_verification") buttons.push(`<button class="btn btn-sm btn-outline-primary" data-case-action="verify" data-case-id="${row.case_id}">Verificar</button>`);
+      if(row.verified_qty !== null && row.verified_qty !== undefined && row.stock_adjustment_status === "pending") buttons.push(`<button class="btn btn-sm btn-danger" data-case-action="apply" data-case-id="${row.case_id}">Aplicar stock</button>`);
+      if(row.stock_adjustment_status !== "pending"){
+        buttons.push(`<button class="btn btn-sm btn-outline-primary" data-case-action="comment" data-case-id="${row.case_id}">Seguimiento</button>`);
+        buttons.push(`<button class="btn btn-sm btn-outline-success" data-case-action="resolve" data-case-id="${row.case_id}">Resolver</button>`);
+      }
+      return buttons.join("");
     }
 
     function filteredVarianceRows(){
@@ -927,8 +1034,9 @@
 
     function renderResolutionBoard(payload){
       const session = payload?.session || varianceSessionCache;
-      const summary = payload?.summary || {};
+      const summary = payload?.summary && Object.keys(payload.summary).length ? payload.summary : varianceSummaryCache;
       if(Array.isArray(payload?.rows)) varianceRowsCache = payload.rows;
+      if(payload?.summary && Object.keys(payload.summary).length) varianceSummaryCache = payload.summary;
       varianceSessionCache = session || null;
       const count = Number(summary.resolution_items ?? varianceRowsCache.length ?? 0);
       const openCount = Number(summary.open_items ?? varianceRowsCache.filter(row => !row.is_resolved).length);
@@ -955,12 +1063,12 @@
         el("resolution_list").innerHTML = `<div class="resolution-empty">Crea una sesion de conteo para tener una foto congelada de diferencias.</div>`;
         return;
       }
-      el("resolution_help").textContent = `Conteo ${session.title || session.id || "reciente"} - ${session.status || "-"}. Solo quedan abiertos los productos sin ajuste/reclasificacion correctiva.`;
+      el("resolution_help").textContent = `Conteo ${session.title || session.id || "reciente"} - ${session.status || "-"}. El ajuste de stock y la investigacion administrativa se controlan por separado.`;
       const shortageItems = Number(summary.shortage_items || 0);
       const surplusItems = Number(summary.surplus_items || 0);
       el("variance_snapshot").textContent = `Conteo ${session.title || session.id || "reciente"} - esperado congelado al iniciar la sesion.`;
       el("variance_count").textContent = `${num(count)} diferencias de conteo`;
-      el("variance_headline").textContent = `${num(openCount)} diferencias siguen abiertas. ${num(summary.resolved_items || 0)} ya quedaron solventadas con trazabilidad.`;
+      el("variance_headline").textContent = `${num(openCount)} expedientes siguen abiertos. ${num(summary.resolved_items || 0)} tienen cierre administrativo.`;
       el("variance_shortage").textContent = units(summary.open_shortage_qty ?? summary.shortage_qty);
       el("variance_surplus").textContent = units(summary.open_surplus_qty ?? summary.surplus_qty);
       el("variance_net").textContent = units(summary.net_variance_qty);
@@ -983,7 +1091,6 @@
           <div>
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
               <span class="resolution-type ${type === "shortage" ? "shortage" : "surplus"}">${varianceTypeLabel(row)}</span>
-              ${varianceStatusBadge(row)}
             </div>
             <div class="fw-semibold">${esc(row.medicine_name || "-")}</div>
             <div class="resolution-meta">
@@ -993,22 +1100,196 @@
             </div>
           </div>
           <div class="resolution-metric">
-            <div class="small text-muted">Diferencia del conteo</div>
+            <div class="small text-muted">${row.verified_qty === null || row.verified_qty === undefined ? "Diferencia preliminar" : "Diferencia confirmada"}</div>
             <div class="fw-bold ${diffClass}">${units(row.variance_qty)} unidades</div>
-            <div class="small text-muted">Esperado ${units(row.expected_qty)} / Fisico ${units(row.counted_qty)}</div>
+            <div class="small text-muted">Esperado ${units(row.expected_qty)} / Inicial ${units(row.first_count_qty ?? row.counted_qty)}${row.verified_qty === null || row.verified_qty === undefined ? "" : ` / Verificado ${units(row.verified_qty)}`}</div>
+            <div class="small text-muted mt-1">Exposicion ${money(Math.abs(Number(row.variance_value || 0)))}</div>
           </div>
           <div>
             <div class="small text-muted mb-1">Estado / accion</div>
+            <div class="resolution-state">${varianceStockBadge(row)}${varianceStatusBadge(row)}</div>
             <div class="resolution-step">${esc(row.next_step || "Revisar diferencia de conteo")}</div>
             <div class="resolution-meta">
-              <span>Usuario ${esc(row.counted_by_name || "-")}</span>
-              <span>${row.counted_at ? fmtDate(row.counted_at) : "-"}</span>
+              <span>Primer conteo: ${esc(row.opened_by_name || row.counted_by_name || "-")}</span>
+              ${row.verified_by_name ? `<span>Verifico: ${esc(row.verified_by_name)}</span>` : ""}
             </div>
-            ${row.is_resolved ? `<div class="small text-success mt-1">${esc(row.resolution_status || "Solventado")} ${row.corrective_qty ? `(${units(row.corrective_qty)} unid.)` : ""}</div>` : ""}
+            ${Number(row.resolved_qty || 0) > 0 ? `<div class="small text-success mt-1">Resueltas ${units(row.resolved_qty)} / pendientes ${units(row.pending_resolution_qty)}</div>` : ""}
+            <div class="resolution-actions">${varianceActionButtons(row)}</div>
           </div>
         </div>`;
       }).join("");
     }
+
+    function operationKey(prefix){
+      const id = globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      return `${prefix}:${id}`;
+    }
+
+    function varianceRowById(caseId){
+      return varianceRowsCache.find(row => String(row.case_id) === String(caseId)) || null;
+    }
+
+    function showVarianceModalAlert(message){
+      el("variance_modal_alert").textContent = message || "";
+      el("variance_modal_alert").classList.toggle("d-none", !message);
+    }
+
+    function setVarianceModalBusy(busy){
+      el("btn_variance_modal_save").disabled = busy;
+      el("btn_variance_modal_cancel").disabled = busy;
+      el("btn_variance_modal_spinner").classList.toggle("d-none", !busy);
+    }
+
+    function openVarianceModal(row, mode, blind=false){
+      if(!row?.case_id) return;
+      activeVarianceCase = row;
+      varianceModalMode = mode;
+      varianceOperationKey = operationKey(`variance-${mode}`);
+      showVarianceModalAlert("");
+      setVarianceModalBusy(false);
+      ["variance_verify_fields","variance_comment_fields","variance_resolution_fields"].forEach(id => el(id).classList.add("d-none"));
+      el("variance_verified_qty").value = "";
+      el("variance_verify_note").value = "";
+      el("variance_comment_note").value = "";
+      el("variance_resolution_amount").value = "0";
+      el("variance_resolution_note").value = "";
+      el("variance_modal_product").textContent = `${row.external_code || ""} - ${row.medicine_name || "Producto"}`;
+
+      if(mode === "verify"){
+        el("variance_modal_title").textContent = "Segundo conteo independiente";
+        el("variance_modal_context").textContent = blind
+          ? "Cuenta nuevamente las unidades fisicas. El valor esperado y el primer conteo permanecen ocultos para evitar sesgo."
+          : "Registra un segundo conteo realizado por una persona distinta. La observacion original no sera modificada.";
+        el("variance_verify_fields").classList.remove("d-none");
+        el("btn_variance_modal_save_text").textContent = "Confirmar conteo";
+      }else if(mode === "comment"){
+        el("variance_modal_title").textContent = "Seguimiento de investigacion";
+        el("variance_modal_context").textContent = `Diferencia confirmada: ${units(row.variance_qty)} unidades. Stock: ${row.stock_adjustment_status === "applied" ? "ajustado" : "sin ajuste"}.`;
+        el("variance_comment_fields").classList.remove("d-none");
+        el("btn_variance_modal_save_text").textContent = "Guardar seguimiento";
+      }else{
+        el("variance_modal_title").textContent = "Resolver diferencia";
+        el("variance_modal_context").textContent = `Quedan ${units(row.pending_resolution_qty ?? Math.abs(Number(row.variance_qty || 0)))} unidades por resolver. Solo producto encontrado genera una entrada de inventario.`;
+        el("variance_resolution_qty").value = String(Math.trunc(Number(row.pending_resolution_qty ?? Math.abs(Number(row.variance_qty || 0)))));
+        el("variance_resolution_fields").classList.remove("d-none");
+        el("btn_variance_modal_save_text").textContent = "Registrar resolucion";
+      }
+
+      el("variance_modal").classList.add("show");
+      el("variance_modal").setAttribute("aria-hidden", "false");
+      const focusId = mode === "verify" ? "variance_verified_qty" : mode === "comment" ? "variance_comment_note" : "variance_resolution_type";
+      setTimeout(() => el(focusId).focus(), 60);
+    }
+
+    function closeVarianceModal(){
+      if(el("btn_variance_modal_save").disabled) return;
+      activeVarianceCase = null;
+      varianceModalMode = "";
+      varianceOperationKey = "";
+      showVarianceModalAlert("");
+      el("variance_modal").classList.remove("show");
+      el("variance_modal").setAttribute("aria-hidden", "true");
+    }
+
+    async function submitVarianceModal(){
+      if(!activeVarianceCase?.case_id) return;
+      const s = getSession();
+      setVarianceModalBusy(true);
+      showVarianceModalAlert("");
+      try{
+        if(varianceModalMode === "verify"){
+          const qty = Number(el("variance_verified_qty").value);
+          if(!Number.isInteger(qty) || qty < 0) throw new Error("La cantidad verificada debe ser un entero mayor o igual a cero.");
+          await callRpc("rpc_inventory_variance_verify", {
+            p_session_token:s.token,
+            p_case_id:activeVarianceCase.case_id,
+            p_verified_qty:qty,
+            p_note:el("variance_verify_note").value.trim()
+          });
+          showOk("Segundo conteo registrado. La observacion inicial se conserva.");
+        }else if(varianceModalMode === "comment"){
+          await callRpc("rpc_inventory_variance_add_event", {
+            p_session_token:s.token,
+            p_case_id:activeVarianceCase.case_id,
+            p_note:el("variance_comment_note").value.trim(),
+            p_idempotency_key:varianceOperationKey
+          });
+          showOk("Seguimiento agregado al expediente.");
+        }else{
+          const qty = Number(el("variance_resolution_qty").value);
+          const amount = Number(el("variance_resolution_amount").value || 0);
+          if(!Number.isInteger(qty) || qty <= 0) throw new Error("La cantidad resuelta debe ser un entero mayor que cero.");
+          await callRpc("rpc_inventory_variance_resolve", {
+            p_session_token:s.token,
+            p_case_id:activeVarianceCase.case_id,
+            p_resolution_type:el("variance_resolution_type").value,
+            p_qty_resolved:qty,
+            p_amount_recovered:amount,
+            p_note:el("variance_resolution_note").value.trim(),
+            p_idempotency_key:varianceOperationKey
+          });
+          showOk("Resolucion registrada con trazabilidad.");
+        }
+        setVarianceModalBusy(false);
+        closeVarianceModal();
+        markAuditStale();
+        if(activeCountSession?.id) await loadVerificationQueue();
+        if(isAdmin()) await loadAudit();
+      }catch(err){
+        showVarianceModalAlert(err.message || "No se pudo completar la operacion.");
+        setVarianceModalBusy(false);
+      }
+    }
+
+    async function applyVarianceStock(row){
+      if(!row?.case_id) return;
+      const message = `Se aplicaran ${units(row.variance_qty)} unidades al inventario. La investigacion seguira abierta. ¿Continuar?`;
+      if(!window.confirm(message)) return;
+      hideAlert();
+      try{
+        const s = getSession();
+        await callRpc("rpc_inventory_variance_apply_stock", { p_session_token:s.token, p_case_id:row.case_id });
+        showOk("Inventario ajustado. El expediente administrativo permanece abierto.");
+        markAuditStale();
+        await loadAudit();
+      }catch(err){
+        showAlert(err.message || "No se pudo aplicar la diferencia al inventario.");
+      }
+    }
+
+    function renderVarianceSessions(rows){
+      varianceSessionsCache = Array.isArray(rows) ? rows : [];
+      if(!selectedVarianceSessionId && varianceSessionsCache.length) selectedVarianceSessionId = varianceSessionsCache[0].id;
+      el("variance_session_select").innerHTML = varianceSessionsCache.length
+        ? varianceSessionsCache.map(row => `<option value="${row.id}" ${String(row.id) === String(selectedVarianceSessionId) ? "selected" : ""}>${esc(row.title || "Conteo fisico")} - ${new Date(row.started_at).toLocaleDateString("es-SV")} (${num(row.open_case_count)} abiertos)</option>`).join("")
+        : `<option value="">Sin conteos con diferencias</option>`;
+    }
+
+    function renderVerificationQueue(rows){
+      const queue = Array.isArray(rows) ? rows : [];
+      el("verification_queue_box").classList.toggle("d-none", queue.length === 0);
+      el("verification_queue_count").textContent = `${num(queue.length)} ${plural(queue.length, "pendiente", "pendientes")}`;
+      el("verification_queue_list").innerHTML = queue.map((row, idx) => `<div class="verification-row">
+        <div><div class="fw-semibold">${esc(row.medicine_name || "-")}</div><div class="small text-muted">${esc(row.external_code || "-")} - ${esc(row.model || "-")}</div></div>
+        <div class="small text-muted">Primer conteo por ${esc(row.first_counted_by_name || "otro usuario")}</div>
+        <button type="button" class="btn btn-outline-primary btn-sm" data-verification-index="${idx}">Verificar</button>
+      </div>`).join("");
+      document.querySelectorAll("[data-verification-index]").forEach(btn => {
+        btn.addEventListener("click", () => openVarianceModal(queue[Number(btn.dataset.verificationIndex)], "verify", true));
+      });
+    }
+
+    async function loadVerificationQueue(){
+      if(!activeCountSession?.id){ renderVerificationQueue([]); return; }
+      try{
+        const s = getSession();
+        const rows = await callRpc("rpc_inventory_variance_verification_queue", { p_session_token:s.token, p_session_id:activeCountSession.id });
+        renderVerificationQueue(rows);
+      }catch(_){
+        renderVerificationQueue([]);
+      }
+    }
+
     function movementBadge(type){
       if(String(type).includes("reclass")) return "text-bg-warning";
       if(String(type).includes("purchase")) return "text-bg-success";
@@ -1881,6 +2162,7 @@
         el("btn_close_session").disabled = true;
         el("btn_cancel_session").disabled = true;
         el("btn_print_session").disabled = !printableCountSessionId;
+        renderVerificationQueue([]);
         return;
       }
       const total = Number(session.total_items || 0);
@@ -1915,9 +2197,9 @@
         const statusClass = row.status === "applied" ? "text-bg-success" : row.status === "counted" ? "text-bg-primary" : "text-bg-warning";
         const rowClass = row.status === "applied" ? "count-row-applied" : row.status === "counted" ? "count-row-counted" : "count-row-pending";
         const canEdit = row.status !== "applied";
-        const sessionLocked = sessionApplyLocked(session);
-        const canApply = row.status === "counted" && isAdmin() && !sessionLocked;
-        const applyButton = isAdmin() ? `<button class="btn btn-outline-primary" data-session-apply="${idx}" ${canApply ? "" : "disabled"} title="${sessionLocked ? "Crea un nuevo conteo para aplicar diferencias actuales." : ""}">Aplicar</button>` : "";
+        const applyButton = row.status === "counted" && Number(row.variance_qty || 0) !== 0
+          ? `<span class="btn btn-outline-secondary disabled" title="Requiere segundo conteo">Verificar</span>`
+          : "";
         const countedBy = row.counted_by_name || (row.status === "pending" ? "Pendiente" : getSession().name || "-");
         const countedByClass = row.status === "pending" ? "small text-muted" : "small fw-semibold";
         const findingText = isFinding(row) ? `${conditionLabel(row.condition_status)} · ${units(row.condition_qty)}` : "OK";
@@ -1940,9 +2222,6 @@
       }).join("") : `<tr><td colspan="7" class="text-center text-muted py-4">Sin productos para este filtro.</td></tr>`;
       document.querySelectorAll("[data-session-save]").forEach(btn => {
         btn.addEventListener("click", () => saveSessionItem(Number(btn.dataset.sessionSave)));
-      });
-      document.querySelectorAll("[data-session-apply]").forEach(btn => {
-        btn.addEventListener("click", () => applySessionItem(Number(btn.dataset.sessionApply)));
       });
       document.querySelectorAll("[data-session-finding]").forEach(btn => {
         btn.addEventListener("click", () => openFindingModal(Number(btn.dataset.sessionFinding)));
@@ -2191,6 +2470,7 @@
         p_limit:1000
       });
       renderSessionItems(payload || {});
+      await loadVerificationQueue();
     }
 
     function readSessionCount(idx){
@@ -2354,11 +2634,24 @@
           p_query:el("q").value.trim(),
           p_limit:Number(el("limit").value || 80)
         };
-        const [data, variance, resolution] = await Promise.all([
+        const [data, variance, sessions] = await Promise.all([
           callRpc("rpc_inventory_audit", payload),
           callRpc("rpc_inventory_variance_control", payload),
-          callRpc("rpc_inventory_count_resolution_board", payload).catch(err => ({ rpc_error: err.message, rows: [] }))
+          callRpc("rpc_inventory_variance_sessions", { p_session_token:s.token, p_limit:40 }).catch(() => [])
         ]);
+        renderVarianceSessions(sessions);
+        let resolution;
+        try{
+          resolution = await callRpc("rpc_inventory_variance_board", {
+            p_session_token:s.token,
+            p_session_id:selectedVarianceSessionId || null,
+            p_query:el("q").value.trim(),
+            p_limit:Number(el("limit").value || 80)
+          });
+        }catch(err){
+          resolution = await callRpc("rpc_inventory_count_resolution_board", payload)
+            .catch(() => ({ rpc_error:err.message, rows:[] }));
+        }
         renderAudit(data || {});
         renderVariance(variance || {});
         if(resolution?.rpc_error){
@@ -2444,6 +2737,19 @@
             renderResolutionBoard({ session:varianceSessionCache, rows:varianceRowsCache });
           });
         });
+        el("variance_session_select").addEventListener("change", async () => {
+          selectedVarianceSessionId = el("variance_session_select").value;
+          await loadAudit();
+        });
+        el("resolution_list").addEventListener("click", async event => {
+          const button = event.target.closest("[data-case-action]");
+          if(!button) return;
+          const row = varianceRowById(button.dataset.caseId);
+          if(!row) return;
+          const action = button.dataset.caseAction;
+          if(action === "apply") await applyVarianceStock(row);
+          else openVarianceModal(row, action);
+        });
         el("btn_reclassify").addEventListener("click", submitReclassification);
         el("btn_return_new").addEventListener("click", openNewSupplierReturn);
         el("btn_return_back").addEventListener("click", closeSupplierReturnDetail);
@@ -2507,6 +2813,10 @@
       el("btn_finding_save").addEventListener("click", () => saveFindingFromModal(false));
       el("btn_finding_clear").addEventListener("click", () => saveFindingFromModal(true));
       el("finding_modal").addEventListener("click", e => { if(e.target === el("finding_modal")) closeFindingModal(); });
+      el("btn_variance_modal_close").addEventListener("click", closeVarianceModal);
+      el("btn_variance_modal_cancel").addEventListener("click", closeVarianceModal);
+      el("btn_variance_modal_save").addEventListener("click", submitVarianceModal);
+      el("variance_modal").addEventListener("click", e => { if(e.target === el("variance_modal")) closeVarianceModal(); });
       el("finding_condition").addEventListener("change", () => {
         if(el("finding_condition").value === "ok"){
           el("finding_qty").value = "";
@@ -2543,6 +2853,7 @@
       });
       document.addEventListener("keydown", e => {
         if(e.key === "Escape" && el("finding_modal").classList.contains("show")) closeFindingModal();
+        if(e.key === "Escape" && el("variance_modal").classList.contains("show")) closeVarianceModal();
       });
       document.addEventListener("click", e => {
         if(!el("q").contains(e.target) && !el("suggestions").contains(e.target)) hideSuggestions();
