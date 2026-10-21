@@ -632,6 +632,8 @@
 
       const header = rows[0].header || {};
       const items = Array.isArray(rows[0].items) ? rows[0].items : [];
+      const activeItems = items.filter(it => it.line_status !== "removed" && Number(it.qty || 0) > 0);
+      const correctedItems = items.filter(it => it.line_status === "removed" || it.corrected_at);
 
       currentModalDispatchId = header.dispatch_id || dispatchId;
       currentModalKind = "pharmacy";
@@ -645,13 +647,13 @@
       setModalStatus(header.status);
 
       el("m_units").textContent = String(header.total_units ?? 0);
-      el("m_items").textContent = String(header.items_count ?? items.length ?? 0);
+      el("m_items").textContent = String(header.items_count ?? activeItems.length ?? 0);
       el("m_dispatcher").textContent = header.created_by_name || "—";
       el("m_confirmed_at").textContent = header.confirmed_at ? fmtTime(header.confirmed_at) : "—";
 
       const tb = el("m_items_body");
       tb.innerHTML = "";
-      items.forEach(it => {
+      activeItems.forEach(it => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>
@@ -664,9 +666,14 @@
       });
 
       // Buttons visibility:
-      const isConfirmed = (header.status === "confirmed");
+      const isConfirmed = (header.status === "confirmed" && activeItems.length > 0);
       el("btn_modal_validate").disabled = !isConfirmed;
       el("btn_modal_observe").disabled = !isConfirmed;
+
+      if (correctedItems.length > 0 && header.status !== "observed"){
+        el("m_existing_note").textContent = `${correctedItems.length} producto(s) corregido(s) administrativamente. La lista muestra solo lo pendiente de validar.`;
+        el("m_existing_note").classList.remove("d-none");
+      }
 
       if (header.status === "observed" && header.observation_note){
         el("m_existing_note").textContent = `Observación: ${header.observation_note}`;
