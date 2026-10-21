@@ -285,6 +285,17 @@ begin
 end;
 $$;
 
+update public.audit_log
+set metadata = jsonb_set(
+  metadata,
+  '{applied_by_migration}',
+  to_jsonb('091_reconcile_izaban_25_recount_lots.sql'::text),
+  true
+)
+where event_type = 'INVENTORY_COUNT_ITEM_APPLY'
+  and metadata ->> 'source_event_key' = 'count_recount:2026-10-20:750'
+  and metadata ->> 'applied_by_migration' is distinct from '091_reconcile_izaban_25_recount_lots.sql';
+
 commit;
 
 -- Validation after applying:
