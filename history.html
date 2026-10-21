@@ -366,7 +366,7 @@
               <div class="col-auto">
                 <label class="form-label small" for="adj_new_qty">Nueva cantidad</label>
                 <input id="adj_new_qty" type="number" class="form-control form-control-sm mono" min="0" style="width:80px" />
-                <div class="form-text">0 = eliminar item</div>
+                <div class="form-text">0 = retirar producto del despacho</div>
               </div>
               <div class="col">
                 <label class="form-label small" for="adj_reason">Motivo <span class="text-danger">*</span></label>
@@ -379,6 +379,12 @@
                 </button>
                 <button id="btn_adj_cancel" class="btn btn-outline-secondary btn-sm">Cancelar</button>
               </div>
+            </div>
+            <div id="adj_physical_return_wrap" class="form-check mt-3 d-none">
+              <input id="adj_physical_return" class="form-check-input" type="checkbox" />
+              <label class="form-check-label small" for="adj_physical_return">
+                Confirmo que las unidades regresaron físicamente al botiquín y pueden volver al inventario.
+              </label>
             </div>
           </div>
 
@@ -833,6 +839,7 @@
     let currentDispatchId = null;
     let currentDeliveryNo = null;
     let currentAdjustItemId = null;
+    let currentDispatchStatus = null;
 
     async function openDetailByDeliveryNo(deliveryNo){
       hideAlert("alert_modal");
@@ -842,6 +849,7 @@
 
       // Reset void section
       currentDispatchId = null;
+      currentDispatchStatus = null;
       el("m_void_section").classList.add("d-none");
       el("m_void_info").classList.add("d-none");
       el("void_reason").value = "";
@@ -877,7 +885,8 @@
         tb.innerHTML = "";
         const isAdmin = getSession().role === 'admin';
         const externalReconciled = isExternalReconciled(header);
-        const canEdit = isAdmin && header.status !== 'voided' && !externalReconciled;
+        const editableStatuses = new Set(['draft', 'confirmed', 'observed', 'validated']);
+        const canEdit = isAdmin && editableStatuses.has(header.status) && !externalReconciled;
 
         // Mostrar/ocultar columna de acción
         el("m_col_action").classList.toggle("d-none", !canEdit);
@@ -885,17 +894,26 @@
         el("m_adjust_section").classList.add("d-none");
 
         items.forEach(it => {
+            const removed = it.line_status === 'removed' || Number(it.qty || 0) === 0;
             const tr = document.createElement("tr");
+            if (removed) tr.classList.add("table-light", "text-muted");
             tr.innerHTML = `
             <td>
-                <div class="fw-semibold">${escapeHtml(it.product_name || "—")}</div>
+                <div class="fw-semibold ${removed ? 'text-decoration-line-through' : ''}">${escapeHtml(it.product_name || "—")}</div>
                 <div class="small text-muted mono">${escapeHtml(it.barcode || "")}</div>
+                ${removed ? `<span class="badge text-bg-secondary mt-1">Retirado por corrección</span>` : ''}
+                ${it.correction_reason ? `<div class="small mt-1">Motivo: ${escapeHtml(it.correction_reason)}</div>` : ''}
             </td>
-            <td class="text-center fw-semibold">${Number(it.qty || 0)}</td>
+            <td class="text-center">
+              <div class="fw-semibold">${Number(it.qty || 0)}</div>
+              ${Number(it.original_qty || 0) !== Number(it.qty || 0) ? `<div class="small text-muted">Original: ${Number(it.original_qty || 0)}</div>` : ''}
+            </td>
             ${canEdit ? `<td class="text-end">
+              ${removed ? '' : `
                 <button class="btn btn-outline-warning btn-sm py-0 px-1" data-adj-item="${escapeHtml(it.id || '')}" data-adj-name="${escapeHtml(it.product_name || '')}" data-adj-qty="${Number(it.qty || 0)}" title="Ajustar cantidad">
                   ✎
                 </button>
+              `}
             </td>` : ''}
             `;
             tb.appendChild(tr);
@@ -926,6 +944,7 @@
         // ===== Lógica de anulación y ajuste =====
         currentDispatchId = header.dispatch_id || header.id || null;
         currentDeliveryNo = header.delivery_no || null;
+        currentDispatchStatus = header.status || null;
 
         if (header.status === 'voided') {
           // Mostrar info de anulación
@@ -1015,7 +1034,10 @@
       el("adj_product").textContent = productName;
       el("adj_old_qty").textContent = String(currentQty);
       el("adj_new_qty").value = currentQty;
+      el("adj_new_qty").max = String(Math.max(0, currentQty - 1));
       el("adj_reason").value = "";
+      el("adj_physical_return").checked = false;
+      el("adj_physical_return_wrap").classList.toggle("d-none", currentDispatchStatus !== "validated");
       el("m_adjust_section").classList.remove("d-none");
       el("adj_new_qty").focus();
       el("adj_new_qty").select();
@@ -1023,6 +1045,7 @@
 
     function closeAdjustForm() {
       currentAdjustItemId = null;
+      el("adj_physical_return").checked = false;
       el("m_adjust_section").classList.add("d-none");
       hideAlert("alert_adjust");
       hideAlert("alert_adjust_ok");
@@ -1044,6 +1067,19 @@
         return;
       }
 
+      const oldQty = Number(el("adj_old_qty").textContent || 0);
+      if (newQty >= oldQty) {
+        showAlert("alert_adjust", "La nueva cantidad debe ser menor que la actual. Para agregar unidades, registre una nueva entrega.");
+        el("adj_new_qty").focus();
+        return;
+      }
+
+      if (currentDispatchStatus === "validated" && !el("adj_physical_return").checked) {
+        showAlert("alert_adjust", "Confirme que las unidades regresaron físicamente antes de devolverlas al inventario.");
+        el("adj_physical_return").focus();
+        return;
+      }
+
       const reason = (el("adj_reason").value || "").trim();
       if (!reason) {
         showAlert("alert_adjust", "Debe indicar un motivo para el ajuste.");
@@ -1051,7 +1087,7 @@
         return;
       }
 
-      const actionText = newQty === 0 ? "ELIMINAR este item del despacho" : `cambiar la cantidad de ${el("adj_old_qty").textContent} a ${newQty}`;
+      const actionText = newQty === 0 ? "RETIRAR este producto del despacho" : `cambiar la cantidad de ${el("adj_old_qty").textContent} a ${newQty}`;
       if (!confirm(`¿Está seguro de ${actionText}?\n\nProducto: ${el("adj_product").textContent}\nMotivo: ${reason}`)) {
         return;
       }
@@ -1069,10 +1105,11 @@
           p_dispatch_id:   currentDispatchId,
           p_item_id:       currentAdjustItemId,
           p_new_qty:       newQty,
-          p_reason:        reason
+          p_reason:        reason,
+          p_physical_return_confirmed: currentDispatchStatus === "validated" && el("adj_physical_return").checked
         });
 
-        showAlert("alert_adjust_ok", newQty === 0 ? "Item eliminado." : "Cantidad ajustada.");
+        showAlert("alert_adjust_ok", newQty === 0 ? "Producto retirado con trazabilidad." : "Cantidad corregida con trazabilidad.");
 
         // Refrescar el modal completo para ver cambios
         closeAdjustForm();
@@ -1117,7 +1154,7 @@
         setBtnLoading("btn_export_csv", "btn_csv_text", "btn_csv_spinner", true, "Generando…", "Exportar CSV");
 
         const csvLines = [];
-        csvLines.push("Entrega,Expediente,Fecha,Estado,Despachador,Barcode,Producto,Cantidad");
+        csvLines.push("Entrega,Expediente,Fecha,Estado,Despachador,Barcode,Producto,Estado producto,Cantidad original,Cantidad efectiva,Motivo correccion");
 
         for (const r of lastRenderedRows) {
           const items = await fetchDispatchDetail(r.delivery_no);
@@ -1126,7 +1163,7 @@
               r.delivery_no || "", r.expediente || "",
               fmtTime(r.confirmed_at || r.created_at),
               r.status || "", r.created_by_name || "",
-              "", "", r.total_units || 0
+              "", "", "", "", r.total_units || 0, ""
             ].map(csvEscape).join(","));
           } else {
             items.forEach(it => {
@@ -1134,7 +1171,11 @@
                 r.delivery_no || "", r.expediente || "",
                 fmtTime(r.confirmed_at || r.created_at),
                 r.status || "", r.created_by_name || "",
-                it.barcode || "", it.product_name || "", it.qty || 0
+                it.barcode || "", it.product_name || "",
+                it.line_status === "removed" ? "Retirado" : "Activo",
+                it.original_qty ?? it.qty ?? 0,
+                it.qty || 0,
+                it.correction_reason || ""
               ].map(csvEscape).join(","));
             });
           }
@@ -1223,11 +1264,13 @@
             <td>${fmtTime(d.confirmed_at || d.created_at)}</td>
             <td>${statusLabel(d.status)}</td>
             <td>${escapeHtml(d.created_by_name || '—')}</td>
-            <td>—</td><td>—</td><td>—</td>
+            <td>—</td><td>—</td><td>—</td><td>—</td>
           </tr>`;
         } else {
           d.items.forEach((it, idx) => {
-            rows += '<tr style="' + mainStyle + '">';
+            const removed = it.line_status === 'removed';
+            const itemStyle = removed ? 'color:#777;background:#f8fafc;' : '';
+            rows += '<tr style="' + mainStyle + itemStyle + '">';
             if (idx === 0) {
               rows += `
                 <td rowspan="${rowspan}">${d.delivery_no || '—'}</td>
@@ -1238,7 +1281,8 @@
             }
             rows += `
               <td style="font-family:monospace;font-size:11px">${escapeHtml(it.barcode || '')}</td>
-              <td>${escapeHtml(it.product_name || '—')}</td>
+              <td>${escapeHtml(it.product_name || '—')}${removed ? '<br><small>Retirado por corrección</small>' : ''}${it.correction_reason ? `<br><small>${escapeHtml(it.correction_reason)}</small>` : ''}</td>
+              <td>${removed ? 'Retirado' : 'Activo'}</td>
               <td style="text-align:center;font-weight:bold">${it.qty || 0}</td>
             </tr>`;
           });
@@ -1275,7 +1319,7 @@
   <thead>
     <tr>
       <th>Entrega</th><th>Expediente</th><th>Fecha</th><th>Estado</th><th>Despachador</th>
-      <th>Barcode</th><th>Producto</th><th style="text-align:center">Cant.</th>
+      <th>Barcode</th><th>Producto</th><th>Estado producto</th><th style="text-align:center">Cant. efectiva</th>
     </tr>
   </thead>
   <tbody>${rows}</tbody>
