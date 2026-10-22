@@ -1147,12 +1147,23 @@
       if(row.investigation_status === "resolved") return `<button class="btn btn-sm btn-outline-secondary" data-case-action="comment" data-case-id="${row.case_id}">Ver / anotar</button>`;
       const buttons = [];
       if(row.investigation_status === "pending_verification") buttons.push(`<button class="btn btn-sm btn-outline-primary" data-case-action="verify" data-case-id="${row.case_id}">Verificar</button>`);
-      if(row.verified_qty !== null && row.verified_qty !== undefined && row.stock_adjustment_status === "pending") buttons.push(`<button class="btn btn-sm btn-danger" data-case-action="apply" data-case-id="${row.case_id}">Aplicar stock</button>`);
+      if(row.verified_qty !== null && row.verified_qty !== undefined && row.stock_adjustment_status === "pending"){
+        buttons.push(`<button class="btn btn-sm btn-danger" data-case-action="apply" data-case-id="${row.case_id}">Aplicar al inventario</button>`);
+        buttons.push(`<button class="btn btn-sm btn-outline-success" data-case-action="resolve" data-case-id="${row.case_id}">Resolver sin ajuste</button>`);
+      }
       if(row.stock_adjustment_status !== "pending"){
         buttons.push(`<button class="btn btn-sm btn-outline-primary" data-case-action="comment" data-case-id="${row.case_id}">Seguimiento</button>`);
         buttons.push(`<button class="btn btn-sm btn-outline-success" data-case-action="resolve" data-case-id="${row.case_id}">Resolver</button>`);
+      }else if(row.verified_qty !== null && row.verified_qty !== undefined){
+        buttons.push(`<button class="btn btn-sm btn-outline-primary" data-case-action="comment" data-case-id="${row.case_id}">Seguimiento</button>`);
       }
       return buttons.join("");
+    }
+
+    function varianceNextStep(row){
+      if(row.investigation_status === "pending_verification") return "Realizar segundo conteo independiente";
+      if(row.stock_adjustment_status === "pending") return "Resolver sin ajuste si apareció; aplicar solo si la diferencia es real";
+      return row.next_step || (row.investigation_status === "resolved" ? "Caso cerrado con trazabilidad" : "Documentar investigación o resolución");
     }
 
     function filteredVarianceRows(){
@@ -1245,7 +1256,7 @@
           <div>
             <div class="small text-muted mb-1">Estado / accion</div>
             <div class="resolution-state">${varianceStockBadge(row)}${varianceStatusBadge(row)}</div>
-            <div class="resolution-step">${esc(row.next_step || "Revisar diferencia de conteo")}</div>
+            <div class="resolution-step">${esc(varianceNextStep(row))}</div>
             <div class="resolution-meta">
               <span>Primer conteo: ${esc(row.opened_by_name || row.counted_by_name || "-")}</span>
               ${row.verified_by_name ? `<span>Verifico: ${esc(row.verified_by_name)}</span>` : ""}
@@ -1290,6 +1301,7 @@
       el("variance_comment_note").value = "";
       el("variance_resolution_amount").value = "0";
       el("variance_resolution_note").value = "";
+      Array.from(el("variance_resolution_type").options).forEach(option => { option.disabled = false; });
       el("variance_modal_product").textContent = `${row.external_code || ""} - ${row.medicine_name || "Producto"}`;
 
       if(mode === "verify"){
@@ -1305,8 +1317,17 @@
         el("variance_comment_fields").classList.remove("d-none");
         el("btn_variance_modal_save_text").textContent = "Guardar seguimiento";
       }else{
+        const resolvesWithoutStock = row.stock_adjustment_status === "pending";
         el("variance_modal_title").textContent = "Resolver diferencia";
-        el("variance_modal_context").textContent = `Quedan ${units(row.pending_resolution_qty ?? Math.abs(Number(row.variance_qty || 0)))} unidades por resolver. Solo producto encontrado genera una entrada de inventario.`;
+        el("variance_modal_context").textContent = resolvesWithoutStock
+          ? `Quedan ${units(row.pending_resolution_qty ?? Math.abs(Number(row.variance_qty || 0)))} unidades. Si el producto apareció o fue un error documental, cierra el caso sin modificar inventario.`
+          : `Quedan ${units(row.pending_resolution_qty ?? Math.abs(Number(row.variance_qty || 0)))} unidades por resolver. Producto encontrado repone únicamente un ajuste ya aplicado.`;
+        if(resolvesWithoutStock){
+          Array.from(el("variance_resolution_type").options).forEach(option => {
+            option.disabled = !["found_recovered", "document_error"].includes(option.value);
+          });
+          el("variance_resolution_type").value = "found_recovered";
+        }
         el("variance_resolution_qty").value = String(Math.trunc(Number(row.pending_resolution_qty ?? Math.abs(Number(row.variance_qty || 0)))));
         el("variance_resolution_fields").classList.remove("d-none");
         el("btn_variance_modal_save_text").textContent = "Registrar resolucion";
@@ -1365,7 +1386,9 @@
             p_note:el("variance_resolution_note").value.trim(),
             p_idempotency_key:varianceOperationKey
           });
-          showOk("Resolucion registrada con trazabilidad.");
+          showOk(activeVarianceCase.stock_adjustment_status === "pending"
+            ? "Caso resuelto sin modificar el inventario."
+            : "Resolucion registrada con trazabilidad.");
         }
         setVarianceModalBusy(false);
         closeVarianceModal();
