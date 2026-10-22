@@ -259,10 +259,8 @@
       };
     }
 
-    function sessionIsLocallyUsable(session){
-      if(!session.token || !ROUTES[session.role]) return false;
-      const expiresAt = Date.parse(session.expiresAt || "");
-      return Number.isFinite(expiresAt) && expiresAt > Date.now();
+    function sessionHasKnownIdentity(session){
+      return Boolean(session.token && ROUTES[session.role]);
     }
 
     function redirectByRole(role){
@@ -404,7 +402,7 @@
     async function restoreStoredSession(){
       const session = getStoredSession();
       if(!session.token) return false;
-      if(!sessionIsLocallyUsable(session)){
+      if(!sessionHasKnownIdentity(session)){
         clearStoredSession();
         return false;
       }
@@ -416,9 +414,14 @@
           clearStoredSession();
           return false;
         }
+        const renewed = rows[0];
+        localStorage.setItem("dp_role", String(renewed.role || session.role).toLowerCase());
+        if(renewed.display_name) localStorage.setItem("dp_display_name", renewed.display_name);
+        if(renewed.user_id) localStorage.setItem("dp_user_id", renewed.user_id);
+        if(renewed.expires_at) localStorage.setItem("dp_expires_at", renewed.expires_at);
         localStorage.setItem("dp_last_activity", new Date().toISOString());
         if(QUICK_ACTION) return false;
-        return redirectByRole(session.role);
+        return redirectByRole(renewed.role || session.role);
       }catch(_){
         showAlert("No se pudo validar la sesión actual. Puedes intentarlo de nuevo con tu PIN.");
         return false;

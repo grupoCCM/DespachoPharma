@@ -1,8 +1,9 @@
 (function(){
   "use strict";
 
-  const host = document.querySelector("[data-app-nav]");
-  if(!host) return;
+  function renderNav(){
+    const host = document.querySelector("[data-app-nav]");
+    if(!host) return;
 
   const active = host.getAttribute("data-active") || "";
   const role = String(localStorage.getItem("dp_role") || "").toLowerCase();
@@ -88,7 +89,7 @@
     menus.forEach(menu => { menu.open = false; });
   });
 
-  document.addEventListener("keydown", function(event){
+    document.addEventListener("keydown", function(event){
     if(event.key !== "Escape") return;
     menus.forEach(menu => { menu.open = false; });
     if(nav && nav.classList.contains("is-open") && window.matchMedia("(max-width: 991.98px)").matches){
@@ -96,4 +97,11 @@
       if(toggle) toggle.setAttribute("aria-expanded", "false");
     }
   });
+  }
+
+  if(window.AppSession?.ready){
+    window.AppSession.ready.then(renderNav);
+  }else{
+    renderNav();
+  }
 })();

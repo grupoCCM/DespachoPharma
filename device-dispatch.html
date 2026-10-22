@@ -22,7 +22,8 @@
     }
   </style>
 </head>
-<body>
+<body data-session-roles="dispatch" data-session-redirect-admin="device-inventory.html">
+  <script src="app-session.js"></script>
   <nav class="navbar bg-white border-bottom">
     <div class="container">
       <a class="navbar-brand d-flex align-items-center" href="dispatch-menu.html">
@@ -291,6 +292,7 @@
     }
 
     (async function init(){
+      if(!await window.AppSession.requireSession({ roles:["dispatch"] })) return;
       const s=getSession();
       if(!s.token) return window.location.href="index.html";
       if(s.role !== "dispatch"){

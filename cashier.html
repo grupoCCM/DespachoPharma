@@ -31,7 +31,8 @@
   </style>
 </head>
 
-<body>
+<body data-session-roles="cashier,admin">
+  <script src="app-session.js"></script>
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg bg-white border-bottom">
     <div class="container">
@@ -857,6 +858,7 @@
      * INIT
      ***********************/
     (async function init(){
+      if(!await window.AppSession.requireSession({ roles:["cashier","admin"] })) return;
       const s = getSession();
       if (!s.token) return window.location.href = ROUTES.login;
 

@@ -304,16 +304,14 @@
       };
     }
 
-    function sessionIsLocallyUsable(session){
-      if(!session.token || !ROLE_DESTINATIONS[session.role]) return false;
-      const expiresAt = Date.parse(session.expiresAt || "");
-      return Number.isFinite(expiresAt) && expiresAt > Date.now();
+    function sessionHasKnownIdentity(session){
+      return Boolean(session.token && ROLE_DESTINATIONS[session.role]);
     }
 
     async function setupSessionNavigation(){
       const session = getStoredSession();
       if(!session.token) return;
-      if(!sessionIsLocallyUsable(session)){
+      if(!sessionHasKnownIdentity(session)){
         clearStoredSession();
         return;
       }
@@ -323,8 +321,19 @@
           clearStoredSession();
           return;
         }
-        const destination = ROLE_DESTINATIONS[session.role];
-        el("session_user").textContent = session.name ? `Usuario: ${session.name}` : "Sesión activa";
+        const renewed = rows[0];
+        const role = String(renewed.role || session.role).toLowerCase();
+        const name = renewed.display_name || session.name;
+        const destination = ROLE_DESTINATIONS[role];
+        if(!destination){
+          clearStoredSession();
+          return;
+        }
+        localStorage.setItem("dp_role", role);
+        if(name) localStorage.setItem("dp_display_name", name);
+        if(renewed.user_id) localStorage.setItem("dp_user_id", renewed.user_id);
+        if(renewed.expires_at) localStorage.setItem("dp_expires_at", renewed.expires_at);
+        el("session_user").textContent = name ? `Usuario: ${name}` : "Sesión activa";
         el("session_user").classList.remove("d-none");
         el("session_action").textContent = destination.label;
         el("session_action").href = destination.href;

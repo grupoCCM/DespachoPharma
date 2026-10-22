@@ -31,7 +31,8 @@
   </style>
 </head>
 
-<body>
+<body data-session-roles="dispatch" data-session-redirect-admin="catalog.html">
+  <script src="app-session.js"></script>
   <nav class="navbar bg-white border-bottom">
     <div class="container">
       <a class="navbar-brand d-flex align-items-center" href="dispatch.html">
@@ -645,6 +646,7 @@
      * INIT
      ***********************/
     (async function init(){
+      if(!await window.AppSession.requireSession({ roles:["dispatch"] })) return;
       const s = getSession();
       if(!s.token) return window.location.href = ROUTES.login;
 

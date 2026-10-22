@@ -113,7 +113,8 @@
   </style>
   <link href="app-nav.css" rel="stylesheet">
 </head>
-<body>
+<body data-session-roles="admin">
+  <script src="app-session.js"></script>
   <div data-app-nav data-active="purchasing"></div>
   <script src="app-nav.js"></script>
   <script src="app-time.js"></script>
@@ -856,6 +857,7 @@
     }
 
     async function init(){
+      if(!await window.AppSession.requireSession({ roles:["admin"] })) return;
       const s=getSession();
       if(!s.token) return window.location.href=ROUTES.login;
       if(s.role !== "admin") return window.location.href=s.role==="dispatch"?ROUTES.dispatch:s.role==="cashier"?ROUTES.cashier:ROUTES.login;
