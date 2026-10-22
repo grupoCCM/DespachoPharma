@@ -116,6 +116,7 @@
 <body>
   <div data-app-nav data-active="purchasing"></div>
   <script src="app-nav.js"></script>
+  <script src="app-time.js"></script>
 
   <main class="container py-4">
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3 no-print">
@@ -677,7 +678,7 @@
       el("summary_subtotal").textContent = money(total);
       el("summary_iva").textContent = money(ivaTotal);
       el("summary_total").textContent = money(totalTax);
-      el("order_meta").textContent = cart.length ? `Generado ${new Date().toLocaleString("es-SV")} - ${cart.length} productos - ${num(totalQty)} unidades` : "Sin líneas agregadas.";
+      el("order_meta").textContent = cart.length ? `Generado ${AppTime.formatDateTime(new Date())} - ${cart.length} productos - ${num(totalQty)} unidades` : "Sin líneas agregadas.";
       el("order_modal_meta").textContent = el("order_meta").textContent;
       el("btn_print").disabled = cart.length === 0;
       el("btn_download").disabled = cart.length === 0;
@@ -734,8 +735,8 @@
           throw new Error("No se pudo cargar el generador PDF. Revisa la conexión e intenta de nuevo.");
         }
 
-        const date = new Date().toISOString().slice(0,10);
-        const generatedAt = new Date().toLocaleString("es-SV");
+        const date = AppTime.todayYmd();
+        const generatedAt = AppTime.formatDateTime(new Date());
         const totalQty = cart.reduce((sum,row)=>sum + Number(row.qty||0), 0);
         const subtotal = cart.reduce((sum,row)=>sum + (Number(row.qty||0) * (row.manual_cost_no_tax || costUsed(row))), 0);
         const totalTax = cart.reduce((sum,row)=>sum + (Number(row.qty||0) * (row.manual_cost_tax || ((costUsed(row)) * 1.13))), 0);
@@ -841,7 +842,7 @@
 
     function printOrder(){
       if(!cart.length) return;
-      const date = new Date().toISOString().slice(0,10);
+      const date = AppTime.todayYmd();
       const win = window.open("", "_blank");
       if(!win){ showAlert("No se pudo abrir la ventana de impresión."); return; }
       win.document.write(buildOrderDocument(date));

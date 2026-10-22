@@ -53,6 +53,7 @@
 <body>
   <div data-app-nav data-active="history"></div>
   <script src="app-nav.js"></script>
+  <script src="app-time.js"></script>
 
   <main class="container py-4">
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
@@ -611,65 +612,35 @@
     function sanitizeDigits(v){ return (v || "").replace(/\D/g, ""); }
 
     function setDefaultDatesLast7(){
-      const now = new Date();
-      const to = new Date(now);
-      const from = new Date(now);
-      from.setDate(from.getDate() - 6);
-
-      el("date_from").value = toYmd(from);
-      el("date_to").value = toYmd(to);
+      const today = AppTime.todayYmd();
+      el("date_from").value = AppTime.addDaysYmd(today, -6);
+      el("date_to").value = today;
     }
 
     function setDefaultDatesToday(){
-      const now = new Date();
-      el("date_from").value = toYmd(now);
-      el("date_to").value = toYmd(now);
+      const today = AppTime.todayYmd();
+      el("date_from").value = today;
+      el("date_to").value = today;
     }
 
     function toYmd(d){
-      const y = d.getFullYear();
-      const m = String(d.getMonth()+1).padStart(2,"0");
-      const day = String(d.getDate()).padStart(2,"0");
-      return `${y}-${m}-${day}`;
+      return AppTime.todayYmd(d);
     }
 
     function isoFromDateInput(dateStr, endOfDay=false){
-      if (!dateStr) return null;
-      const [y,m,d] = dateStr.split("-").map(Number);
-      const dt = new Date(y, (m-1), d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
-      return dt.toISOString();
+      return AppTime.dateInputToIso(dateStr, endOfDay);
     }
 
     function fmtTime(ts){
-      if (!ts) return "—";
-      const d = new Date(ts);
-      return d.toLocaleString(undefined, { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
+      return AppTime.formatDateTime(ts, { fallback:"—" });
     }
 
     function exportDateDmy(ts){
-      if (!ts) return "";
-      const d = new Date(ts);
-      if (Number.isNaN(d.getTime())) return "";
-      const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone:"America/El_Salvador",
-        month:"2-digit",
-        day:"2-digit",
-        year:"numeric"
-      }).formatToParts(d);
-      const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-      return `${values.day}/${values.month}/${values.year}`;
+      return AppTime.formatDate(ts, "");
     }
 
     function exportTimeOnly(ts){
-      if (!ts) return "";
-      const d = new Date(ts);
-      if (Number.isNaN(d.getTime())) return "";
-      return new Intl.DateTimeFormat("es-SV", {
-        timeZone:"America/El_Salvador",
-        hour:"2-digit",
-        minute:"2-digit",
-        hour12:true
-      }).format(d);
+      return AppTime.formatTime(ts, { fallback:"" });
     }
 
     function fmtDateOnly(value){
@@ -1360,18 +1331,15 @@
     }
 
     function setDeviceDefaultDatesLast7(){
-      const now = new Date();
-      const to = new Date(now);
-      const from = new Date(now);
-      from.setDate(from.getDate() - 6);
-      el("device_date_from").value = toYmd(from);
-      el("device_date_to").value = toYmd(to);
+      const today = AppTime.todayYmd();
+      el("device_date_from").value = AppTime.addDaysYmd(today, -6);
+      el("device_date_to").value = today;
     }
 
     function setDeviceDefaultDatesToday(){
-      const now = new Date();
-      el("device_date_from").value = toYmd(now);
-      el("device_date_to").value = toYmd(now);
+      const today = AppTime.todayYmd();
+      el("device_date_from").value = today;
+      el("device_date_to").value = today;
     }
 
     function deviceStatusBadgeHtml(status){

@@ -182,6 +182,7 @@
     </div>
   </dialog>
 
+  <script src="app-time.js"></script>
   <script>
     /***********************
      * CONFIG (RELLENAR)
@@ -305,8 +306,7 @@
     }
 
     function followUpDateLabel(value){
-      const date = new Date(value);
-      return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("es-SV", { dateStyle:"short", timeStyle:"short" });
+      return AppTime.formatDateTime(value);
     }
 
     function getFollowUpReceipts(){

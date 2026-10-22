@@ -82,6 +82,7 @@
 <body>
   <div data-app-nav data-active="devices"></div>
   <script src="app-nav.js"></script>
+  <script src="app-time.js"></script>
 
   <main class="container py-4">
     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
@@ -648,9 +649,9 @@
 
     function esc(s){ return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m])); }
     function money(v){ return Number(v||0).toLocaleString("en-US",{style:"currency",currency:"USD"}); }
-    function dateTime(v){ if(!v) return "-"; const d=new Date(v); return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleString("es-SV"); }
-    function dateOnly(v){ if(!v) return "-"; const d=new Date(v); return Number.isNaN(d.getTime()) ? String(v) : new Intl.DateTimeFormat("es-SV",{timeZone:"America/El_Salvador",day:"2-digit",month:"2-digit",year:"numeric"}).format(d); }
-    function timeOnly(v){ if(!v) return "-"; const d=new Date(v); return Number.isNaN(d.getTime()) ? "-" : new Intl.DateTimeFormat("es-SV",{timeZone:"America/El_Salvador",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:true}).format(d); }
+    function dateTime(v){ return AppTime.formatDateTime(v, { fallback:v ? String(v) : "-" }); }
+    function dateOnly(v){ return AppTime.formatDate(v); }
+    function timeOnly(v){ return AppTime.formatTime(v, { seconds:true }); }
     function getSession(){ return { token:localStorage.getItem("dp_session_token")||"", role:(localStorage.getItem("dp_role")||"").toLowerCase(), name:localStorage.getItem("dp_display_name")||"" }; }
     function showAlert(id,msg){ const a=el(id); a.textContent=msg; a.classList.remove("d-none"); }
     function hideAlert(id){ const a=el(id); a.textContent=""; a.classList.add("d-none"); }
@@ -1226,9 +1227,7 @@
     }
 
     function localYmd(){
-      const parts = new Intl.DateTimeFormat("en-CA",{timeZone:"America/El_Salvador",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
-      const map = Object.fromEntries(parts.map(part => [part.type, part.value]));
-      return `${map.year}-${map.month}-${map.day}`;
+      return AppTime.todayYmd();
     }
 
     function downloadBlob(blob, filename){
