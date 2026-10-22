@@ -100,6 +100,13 @@
     .verification-row:last-child{ border-bottom:0; }
     .variance-modal{ width:min(680px,100%); max-height:calc(100vh - 32px); overflow:auto; background:#fff; border-radius:14px; box-shadow:0 24px 60px rgba(15,23,42,.28); }
     .variance-session-select{ min-width:240px; max-width:360px; }
+    .count-history-latest{ display:grid; grid-template-columns:minmax(260px,1.3fr) repeat(3,minmax(130px,.55fr)) auto; gap:14px; align-items:center; padding:14px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+    .count-history-table{ max-height:420px; }
+    .count-history-table table{ min-width:1040px; }
+    .count-history-result{ display:flex; flex-wrap:wrap; gap:5px; }
+    .count-history-modal{ width:min(760px,100%); max-height:calc(100vh - 32px); overflow:auto; background:#fff; border-radius:14px; box-shadow:0 24px 60px rgba(15,23,42,.28); }
+    .count-history-summary{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+    .count-history-summary > div{ padding:10px 0; border-bottom:1px solid var(--border); }
     .return-current{ border-top:1px solid var(--border); padding-top:16px; }
     .return-review{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; padding:14px 0 0; border-top:1px solid var(--border); }
     .return-lines{ max-height:340px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
@@ -110,7 +117,7 @@
     .return-doc-row:hover{ background:#f8fafc; }
     .return-doc-row:focus-visible{ outline:2px solid #0d6efd; outline-offset:-2px; }
     .resolution-empty{ padding:22px 16px; text-align:center; color:var(--muted); }
-    @media (max-width: 991.98px){ .resolution-row,.verification-row{ grid-template-columns:1fr; align-items:start; } }
+    @media (max-width: 991.98px){ .resolution-row,.verification-row,.count-history-latest{ grid-template-columns:1fr; align-items:start; } .count-history-summary{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
     @media (max-width: 575.98px){ .resolution-row{ grid-template-columns:1fr; } }
     .nav-module-separator{ width:1px; height:28px; background:var(--border); margin:0 .25rem; }
     .btn-device-module{ border-color:#0f766e; color:#0f766e; background:#ecfdf5; font-weight:700; }
@@ -518,6 +525,72 @@
       </div>
     </div>
 
+    <div class="app-card p-3 mb-3 admin-panel d-none" data-inventory-section="session">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <div class="fw-semibold">Historial de conteos</div>
+          <div class="text-muted small">Resultado confirmado del conteo y estado actual de conciliacion.</div>
+        </div>
+        <button id="btn_count_history_refresh" class="btn btn-outline-primary btn-sm" type="button">Actualizar historial</button>
+      </div>
+
+      <div id="count_history_latest" class="count-history-latest mt-3">
+        <div class="text-muted">Cargando ultimo conteo finalizado...</div>
+      </div>
+
+      <div class="row g-2 align-items-end mt-2">
+        <div class="col-12 col-lg-4">
+          <label class="form-label" for="count_history_query">Buscar</label>
+          <input id="count_history_query" class="form-control" placeholder="Nombre o usuario" autocomplete="off">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label" for="count_history_status">Estado</label>
+          <select id="count_history_status" class="form-select">
+            <option value="">Todos</option>
+            <option value="open">En curso</option>
+            <option value="closed">Finalizados</option>
+            <option value="cancelled">Cancelados</option>
+          </select>
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label" for="count_history_from">Desde</label>
+          <input id="count_history_from" class="form-control" type="date">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label" for="count_history_to">Hasta</label>
+          <input id="count_history_to" class="form-control" type="date">
+        </div>
+        <div class="col-6 col-lg-2 d-grid">
+          <button id="btn_count_history_search" class="btn btn-primary" type="button">Buscar</button>
+        </div>
+      </div>
+
+      <div class="audit-table-box count-history-table mt-3">
+        <table class="table table-sm align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Conteo / responsable</th>
+              <th>Progreso</th>
+              <th>Resultado</th>
+              <th>Conciliacion</th>
+              <th class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbody_count_history">
+            <tr><td colspan="6" class="text-center text-muted py-4">Cargando conteos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+        <div id="count_history_page_info" class="small text-muted">0 conteos</div>
+        <div class="btn-group btn-group-sm">
+          <button id="btn_count_history_prev" class="btn btn-outline-secondary" type="button" disabled>Anterior</button>
+          <button id="btn_count_history_next" class="btn btn-outline-secondary" type="button" disabled>Siguiente</button>
+        </div>
+      </div>
+    </div>
+
     <div class="row g-3 mb-3 admin-panel d-none" data-inventory-section="movements">
       <div class="col-6 col-lg-3">
         <div class="app-card p-3 metric">
@@ -801,6 +874,28 @@
     </div>
   </div>
 
+  <div id="count_history_modal" class="modal-backdrop-lite" role="dialog" aria-modal="true" aria-labelledby="count_history_modal_title" aria-hidden="true">
+    <div class="count-history-modal">
+      <div class="p-3 border-bottom d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <div id="count_history_modal_title" class="h5 mb-1">Resumen de conteo</div>
+          <div id="count_history_modal_meta" class="text-muted small"></div>
+        </div>
+        <button id="btn_count_history_modal_close" class="btn btn-outline-secondary btn-sm" type="button">Cerrar</button>
+      </div>
+      <div class="p-3">
+        <div id="count_history_modal_states" class="d-flex flex-wrap gap-2 mb-3"></div>
+        <div id="count_history_modal_summary" class="count-history-summary"></div>
+        <div id="count_history_modal_people" class="small text-muted mt-3"></div>
+        <div id="count_history_modal_note" class="alert alert-light border small mt-3 mb-0 d-none"></div>
+      </div>
+      <div class="p-3 border-top d-flex flex-wrap justify-content-end gap-2">
+        <button id="btn_count_history_modal_differences" class="btn btn-outline-primary" type="button">Ver diferencias</button>
+        <button id="btn_count_history_modal_print" class="btn btn-outline-dark" type="button">Imprimir PDF</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const SUPABASE_URL = "https://rewdmcyqxyzcoeiikoow.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
@@ -839,6 +934,14 @@
     let printableCountSessionId = null;
     let sessionItems = [];
     let sessionFilterTimer = null;
+    let countHistoryRows = [];
+    let countHistoryLatest = null;
+    let countHistoryOffset = 0;
+    let countHistoryTotal = 0;
+    let countHistoryLoaded = false;
+    let countHistoryTimer = null;
+    let activeCountHistoryRow = null;
+    const COUNT_HISTORY_LIMIT = 10;
     let findingRowIndex = null;
     let activeInventoryTab = "session";
     const inventoryTabLoaded = {
@@ -889,6 +992,37 @@
     }
     function conditionClass(status){ return status && status !== "ok" ? "finding-risk" : "finding-ok"; }
     function isFinding(row){ return row && row.condition_status && row.condition_status !== "ok"; }
+    function countSessionStatusBadge(status){
+      const map = {
+        open:["En curso","text-bg-primary"],
+        closed:["Finalizado","text-bg-success"],
+        cancelled:["Cancelado","text-bg-secondary"]
+      };
+      const value = map[status] || [status || "-","text-bg-light border"];
+      return `<span class="badge ${value[1]}">${esc(value[0])}</span>`;
+    }
+    function countResultBadge(status){
+      const map = {
+        in_progress:["En curso","text-bg-primary"],
+        cancelled:["Cancelado","text-bg-secondary"],
+        closed_incomplete:["Incompleto","text-bg-warning"],
+        clean:["Sin diferencias","text-bg-success"],
+        with_differences:["Con diferencias","text-bg-danger"]
+      };
+      const value = map[status] || [status || "-","text-bg-light border"];
+      return `<span class="badge ${value[1]}">${esc(value[0])}</span>`;
+    }
+    function countReconciliationBadge(status){
+      const map = {
+        not_applicable:["No aplica","text-bg-secondary"],
+        not_required:["No requerida","text-bg-light border"],
+        pending:["Pendiente","text-bg-warning"],
+        in_progress:["En conciliacion","text-bg-primary"],
+        reconciled:["Conciliado","text-bg-success"]
+      };
+      const value = map[status] || [status || "-","text-bg-light border"];
+      return `<span class="badge ${value[1]}">${esc(value[0])}</span>`;
+    }
     function showAlert(msg){ el("alert_page").textContent=msg; el("alert_page").classList.remove("d-none"); }
     function hideAlert(){ el("alert_page").textContent=""; el("alert_page").classList.add("d-none"); }
     function showOk(msg){ el("ok_page").textContent=msg; el("ok_page").classList.remove("d-none"); }
@@ -2099,6 +2233,141 @@
       }
     }
 
+    function countHistoryParticipants(row){
+      return Array.isArray(row?.participant_names) ? row.participant_names.filter(Boolean) : [];
+    }
+
+    function bindCountHistoryActions(scope=document){
+      scope.querySelectorAll("[data-count-history-summary]").forEach(btn => {
+        btn.addEventListener("click", () => openCountHistoryModal(countHistoryRows[Number(btn.dataset.countHistorySummary)]));
+      });
+      scope.querySelectorAll("[data-count-history-print]").forEach(btn => {
+        btn.addEventListener("click", () => printHistoricalCount(countHistoryRows[Number(btn.dataset.countHistoryPrint)]));
+      });
+      scope.querySelectorAll("[data-count-history-latest]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          if(btn.dataset.countHistoryLatest === "print") printHistoricalCount(countHistoryLatest);
+          else openCountHistoryModal(countHistoryLatest);
+        });
+      });
+    }
+
+    function renderCountHistoryLatest(row){
+      countHistoryLatest = row || null;
+      const box = el("count_history_latest");
+      if(!row){
+        box.innerHTML = `<div class="text-muted">Aun no hay conteos finalizados.</div>`;
+        return;
+      }
+      box.innerHTML = `
+        <div>
+          <div class="small text-muted">Ultimo conteo finalizado</div>
+          <div class="fw-semibold">${esc(row.title || "Conteo fisico")}</div>
+          <div class="small text-muted">${fmtDate(row.closed_at || row.started_at)} · ${esc(row.started_by_name || "-")}</div>
+        </div>
+        <div><div class="small text-muted">Productos</div><div class="fw-semibold">${units(row.counted_items)} / ${units(row.total_items)}</div></div>
+        <div><div class="small text-muted">Faltantes</div><div class="fw-semibold text-danger">${units(row.shortage_qty)}</div></div>
+        <div><div class="small text-muted">Sobrantes</div><div class="fw-semibold text-success">${units(row.surplus_qty)}</div></div>
+        <div>
+          <div class="count-history-result mb-2">${countResultBadge(row.result_status)}${countReconciliationBadge(row.reconciliation_status)}</div>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-primary" type="button" data-count-history-latest="summary">Resumen</button>
+            <button class="btn btn-outline-dark" type="button" data-count-history-latest="print">Imprimir</button>
+          </div>
+        </div>`;
+      bindCountHistoryActions(box);
+    }
+
+    function renderCountHistory(payload){
+      countHistoryRows = Array.isArray(payload?.rows) ? payload.rows : [];
+      countHistoryTotal = Number(payload?.total || 0);
+      countHistoryOffset = Number(payload?.offset || 0);
+      renderCountHistoryLatest(payload?.latest_completed || null);
+      el("tbody_count_history").innerHTML = countHistoryRows.length ? countHistoryRows.map((row, idx) => {
+        const participants = countHistoryParticipants(row);
+        const progress = `${units(row.counted_items)} / ${units(row.total_items)}`;
+        const pending = Number(row.pending_items || 0);
+        return `<tr>
+          <td><div class="fw-semibold">${new Date(row.started_at).toLocaleDateString("es-SV")}</div><div class="small text-muted">${new Date(row.started_at).toLocaleTimeString("es-SV",{hour:"2-digit",minute:"2-digit"})}</div></td>
+          <td><div class="fw-semibold">${esc(row.title || "Conteo fisico")}</div><div class="small text-muted">Responsable: ${esc(row.started_by_name || "-")}${participants.length ? ` · ${esc(participants.join(", "))}` : ""}</div></td>
+          <td><div class="fw-semibold">${progress}</div><div class="small ${pending ? "text-warning" : "text-muted"}">${pending ? `${units(pending)} pendientes` : "Completo"}</div></td>
+          <td><div class="count-history-result">${countSessionStatusBadge(row.status)}${countResultBadge(row.result_status)}</div><div class="small text-muted mt-1">Falt. ${units(row.shortage_qty)} · Sobr. ${units(row.surplus_qty)} · Hall. ${units(row.finding_items)}</div></td>
+          <td>${countReconciliationBadge(row.reconciliation_status)}<div class="small text-muted mt-1">${units(row.open_case_count)} abiertos · ${units(row.resolved_case_count)} cerrados</div></td>
+          <td class="text-end"><div class="btn-group btn-group-sm"><button class="btn btn-outline-primary" type="button" data-count-history-summary="${idx}">Resumen</button><button class="btn btn-outline-dark" type="button" data-count-history-print="${idx}">Imprimir</button></div></td>
+        </tr>`;
+      }).join("") : `<tr><td colspan="6" class="text-center text-muted py-4">No hay conteos para estos filtros.</td></tr>`;
+      const from = countHistoryTotal ? countHistoryOffset + 1 : 0;
+      const to = Math.min(countHistoryOffset + countHistoryRows.length, countHistoryTotal);
+      el("count_history_page_info").textContent = `${from}-${to} de ${num(countHistoryTotal)} conteos`;
+      el("btn_count_history_prev").disabled = countHistoryOffset <= 0;
+      el("btn_count_history_next").disabled = countHistoryOffset + COUNT_HISTORY_LIMIT >= countHistoryTotal;
+      bindCountHistoryActions(el("tbody_count_history"));
+    }
+
+    async function loadCountHistory(resetPage=false){
+      if(!isAdmin()) return;
+      if(resetPage) countHistoryOffset = 0;
+      try{
+        const s = getSession();
+        const payload = await callRpc("rpc_inventory_count_history", {
+          p_session_token:s.token,
+          p_query:el("count_history_query").value.trim(),
+          p_status:el("count_history_status").value,
+          p_date_from:el("count_history_from").value || null,
+          p_date_to:el("count_history_to").value || null,
+          p_limit:COUNT_HISTORY_LIMIT,
+          p_offset:countHistoryOffset
+        });
+        renderCountHistory(payload || {});
+        countHistoryLoaded = true;
+      }catch(err){
+        el("tbody_count_history").innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${esc(err.message || "No se pudo cargar el historial.")}</td></tr>`;
+      }
+    }
+
+    function openCountHistoryModal(row){
+      if(!row) return;
+      activeCountHistoryRow = row;
+      el("count_history_modal_title").textContent = row.title || "Conteo fisico";
+      el("count_history_modal_meta").textContent = `Inicio ${fmtDate(row.started_at)} · Cierre ${fmtDate(row.closed_at)}`;
+      el("count_history_modal_states").innerHTML = `${countSessionStatusBadge(row.status)}${countResultBadge(row.result_status)}${countReconciliationBadge(row.reconciliation_status)}`;
+      const metrics = [
+        ["Productos", `${units(row.counted_items)} / ${units(row.total_items)}`],
+        ["Pendientes", units(row.pending_items)],
+        ["Faltantes", `${units(row.shortage_qty)} unid.`],
+        ["Sobrantes", `${units(row.surplus_qty)} unid.`],
+        ["Hallazgos", `${units(row.finding_items)} (${units(row.finding_qty)} unid.)`],
+        ["Valor revisable", money(row.variance_abs_value)],
+        ["Casos abiertos", units(row.open_case_count)],
+        ["Casos solventados", units(row.resolved_case_count)]
+      ];
+      el("count_history_modal_summary").innerHTML = metrics.map(metric => `<div><div class="small text-muted">${esc(metric[0])}</div><div class="fw-semibold">${esc(metric[1])}</div></div>`).join("");
+      const participants = countHistoryParticipants(row);
+      el("count_history_modal_people").textContent = `Inicio: ${row.started_by_name || "-"}. Cierre: ${row.closed_by_name || "-"}. Participantes: ${participants.join(", ") || "-"}.`;
+      el("count_history_modal_note").textContent = row.note || "";
+      el("count_history_modal_note").classList.toggle("d-none", !row.note);
+      el("btn_count_history_modal_differences").disabled = Number(row.case_count || 0) === 0;
+      el("count_history_modal").classList.add("show");
+      el("count_history_modal").setAttribute("aria-hidden", "false");
+    }
+
+    function closeCountHistoryModal(){
+      activeCountHistoryRow = null;
+      el("count_history_modal").classList.remove("show");
+      el("count_history_modal").setAttribute("aria-hidden", "true");
+    }
+
+    async function printHistoricalCount(row){
+      if(!row?.id) return;
+      hideAlert();
+      try{
+        const payload = await fetchSessionPrintPayload(row.id);
+        printSessionPayload(payload);
+      }catch(err){
+        showAlert(err.message || "No se pudo reimprimir el conteo.");
+      }
+    }
+
     async function saveManualCount(){
       hideAlert();
       hideOk();
@@ -2449,6 +2718,8 @@
         renderSessionSummary(null);
         await loadCurrentSession();
         inventoryTabLoaded.session = true;
+        countHistoryLoaded = false;
+        if(isAdmin()) await loadCountHistory(true);
         markAuditStale();
         await reloadAuditIfVisible();
       }catch(err){
@@ -2678,6 +2949,7 @@
           await loadCurrentSession();
           inventoryTabLoaded.session = true;
         }
+        if(isAdmin() && (force || !countHistoryLoaded)) await loadCountHistory(force);
         return;
       }
       if(target === "point"){
@@ -2749,6 +3021,33 @@
           const action = button.dataset.caseAction;
           if(action === "apply") await applyVarianceStock(row);
           else openVarianceModal(row, action);
+        });
+        el("btn_count_history_refresh").addEventListener("click", () => loadCountHistory(false));
+        el("btn_count_history_search").addEventListener("click", () => loadCountHistory(true));
+        el("count_history_status").addEventListener("change", () => loadCountHistory(true));
+        el("count_history_from").addEventListener("change", () => loadCountHistory(true));
+        el("count_history_to").addEventListener("change", () => loadCountHistory(true));
+        el("count_history_query").addEventListener("input", () => {
+          clearTimeout(countHistoryTimer);
+          countHistoryTimer = setTimeout(() => loadCountHistory(true), 250);
+        });
+        el("btn_count_history_prev").addEventListener("click", async () => {
+          countHistoryOffset = Math.max(0, countHistoryOffset - COUNT_HISTORY_LIMIT);
+          await loadCountHistory(false);
+        });
+        el("btn_count_history_next").addEventListener("click", async () => {
+          countHistoryOffset += COUNT_HISTORY_LIMIT;
+          await loadCountHistory(false);
+        });
+        el("btn_count_history_modal_close").addEventListener("click", closeCountHistoryModal);
+        el("count_history_modal").addEventListener("click", e => { if(e.target === el("count_history_modal")) closeCountHistoryModal(); });
+        el("btn_count_history_modal_print").addEventListener("click", () => printHistoricalCount(activeCountHistoryRow));
+        el("btn_count_history_modal_differences").addEventListener("click", async () => {
+          if(!activeCountHistoryRow?.id) return;
+          selectedVarianceSessionId = activeCountHistoryRow.id;
+          closeCountHistoryModal();
+          showInventoryTab("differences");
+          await loadInventoryTab("differences", true);
         });
         el("btn_reclassify").addEventListener("click", submitReclassification);
         el("btn_return_new").addEventListener("click", openNewSupplierReturn);
@@ -2854,6 +3153,7 @@
       document.addEventListener("keydown", e => {
         if(e.key === "Escape" && el("finding_modal").classList.contains("show")) closeFindingModal();
         if(e.key === "Escape" && el("variance_modal").classList.contains("show")) closeVarianceModal();
+        if(e.key === "Escape" && el("count_history_modal").classList.contains("show")) closeCountHistoryModal();
       });
       document.addEventListener("click", e => {
         if(!el("q").contains(e.target) && !el("suggestions").contains(e.target)) hideSuggestions();

@@ -42,3 +42,18 @@ Solo `found_recovered` crea una entrada de inventario. Reintegro, pago, perdida 
 - 765, 766, 789 y 790 corresponden a compras historicas duplicadas ya documentadas.
 
 La clasificacion historica no crea movimientos nuevos ni altera el conteo original.
+
+## Historial de conteos
+
+El administrador dispone de un historial paginado de sesiones de conteo. Cada
+fila separa dos conceptos:
+
+- **Resultado confirmado:** usa la segunda verificacion cuando existe; en los
+  demas productos conserva `expected_qty`, `counted_qty`, costo y hallazgos de
+  la sesion. Aplicar o conciliar una diferencia no reescribe ese resultado.
+- **Conciliacion actual:** muestra si los expedientes de diferencias siguen
+  pendientes, estan en proceso o ya fueron resueltos.
+
+Los conteos finalizados y cancelados no se editan. El detalle y la reimpresion
+se reconstruyen por `session_id`, por lo que siguen disponibles despues de
+recargar la pagina o iniciar sesion desde otro equipo.
