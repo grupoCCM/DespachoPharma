@@ -100,6 +100,7 @@
 <body>
   <div data-app-nav data-active="dashboard"></div>
   <script src="app-nav.js"></script>
+  <script src="app-time.js"></script>
 
   <main class="container py-4">
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
@@ -843,11 +844,9 @@
 
     function sfOutcomeLabel(value){ return value === "partial_purchase" ? "Compra parcial" : "Sin compra"; }
     function sfDateParts(value){
-      const date = new Date(value);
-      if(Number.isNaN(date.getTime())) return { date:"-", time:"-" };
       return {
-        date:date.toLocaleDateString("es-SV", { day:"2-digit", month:"2-digit", year:"numeric" }),
-        time:date.toLocaleTimeString("es-SV", { hour:"2-digit", minute:"2-digit" })
+        date:AppTime.formatDate(value),
+        time:AppTime.formatTime(value)
       };
     }
     function sfMonthRange(){
@@ -986,7 +985,7 @@
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `seguimiento_venta_${new Date().toISOString().slice(0,10)}.csv`;
+      anchor.download = `seguimiento_venta_${AppTime.todayYmd()}.csv`;
       anchor.click();
       URL.revokeObjectURL(url);
     }
@@ -1443,8 +1442,7 @@
       document.querySelectorAll("[data-dashboard-tab]").forEach(btn => {
         btn.addEventListener("click", () => switchDashboardTab(btn.dataset.dashboardTab || "main"));
       });
-      const sfNow = new Date();
-      el("sf_month").value = `${sfNow.getFullYear()}-${String(sfNow.getMonth() + 1).padStart(2,"0")}`;
+      el("sf_month").value = AppTime.currentMonth();
       el("sf_month").addEventListener("change", loadSalesFollowUp);
       ["sf_outcome_filter","sf_reason_filter","sf_status_filter"].forEach(id => el(id).addEventListener("change", sfRenderRecords));
       el("sf_search").addEventListener("input", sfRenderRecords);

@@ -32,6 +32,7 @@
 <body>
   <div data-app-nav data-active="catalog"></div>
   <script src="app-nav.js"></script>
+  <script src="app-time.js"></script>
 
   <main class="container py-4">
     <div class="row g-3">
@@ -506,11 +507,7 @@
     }
 
     function fmtDate(ts){
-      try{
-        const d = new Date(ts);
-        if(isNaN(d.getTime())) return esc(ts||"");
-        return d.toLocaleString("es-SV", { year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" });
-      }catch{ return esc(ts||""); }
+      return AppTime.formatDateTime(ts, { fallback:esc(ts || "") });
     }
 
     /***********************

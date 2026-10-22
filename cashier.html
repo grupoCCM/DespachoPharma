@@ -276,6 +276,7 @@
 
   <!-- Bootstrap bundle -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="app-time.js"></script>
 
   <script>
     /***********************
@@ -371,27 +372,17 @@
     function sanitizeDigits(v){ return (v || "").replace(/\D/g, ""); }
 
     function isoFromDateInput(dateStr, endOfDay=false){
-      // dateStr: "YYYY-MM-DD" in local timezone
-      if (!dateStr) return null;
-      const [y,m,d] = dateStr.split("-").map(Number);
-      const dt = new Date(y, (m-1), d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
-      return dt.toISOString();
+      return AppTime.dateInputToIso(dateStr, endOfDay);
     }
 
     function setDefaultDatesToday(){
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = String(now.getMonth()+1).padStart(2,"0");
-      const d = String(now.getDate()).padStart(2,"0");
-      const today = `${y}-${m}-${d}`;
+      const today = AppTime.todayYmd();
       el("date_from").value = today;
       el("date_to").value = today;
     }
 
     function fmtTime(ts){
-      if (!ts) return "—";
-      const d = new Date(ts);
-      return d.toLocaleString(undefined, { hour: "2-digit", minute:"2-digit", year:"numeric", month:"2-digit", day:"2-digit" });
+      return AppTime.formatDateTime(ts, { fallback:"—" });
     }
 
     function escapeHtml(str){

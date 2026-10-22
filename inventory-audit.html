@@ -133,6 +133,7 @@
 <body>
   <div data-app-nav data-active="inventory" data-mode="auto"></div>
   <script src="app-nav.js"></script>
+  <script src="app-time.js"></script>
 
   <main class="container py-4">
     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
@@ -959,7 +960,7 @@
     function units(v){ return new Intl.NumberFormat("es-SV",{maximumFractionDigits:0}).format(Math.trunc(Number(v || 0))); }
     function money(v){ return v === null || v === undefined ? "-" : new Intl.NumberFormat("es-SV",{style:"currency",currency:"USD"}).format(Number(v || 0)); }
     function esc(value){ return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch])); }
-    function fmtDate(value){ if(!value) return "-"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString("es-SV"); }
+    function fmtDate(value){ return AppTime.formatDateTime(value); }
     function plural(n, one, many){ return Number(n || 0) === 1 ? one : many; }
     function sessionAgeDays(session){
       if(!session?.started_at) return 0;
@@ -1402,7 +1403,7 @@
       }
       if(!selectedVarianceSessionId && varianceSessionsCache.length) selectedVarianceSessionId = varianceSessionsCache[0].id;
       el("variance_session_select").innerHTML = varianceSessionsCache.length
-        ? varianceSessionsCache.map(row => `<option value="${row.id}" ${String(row.id) === String(selectedVarianceSessionId) ? "selected" : ""}>${esc(row.title || "Conteo fisico")} - ${new Date(row.started_at).toLocaleDateString("es-SV")} (${num(row.open_case_count)} abiertos)</option>`).join("")
+        ? varianceSessionsCache.map(row => `<option value="${row.id}" ${String(row.id) === String(selectedVarianceSessionId) ? "selected" : ""}>${esc(row.title || "Conteo fisico")} - ${AppTime.formatDate(row.started_at)} (${num(row.open_case_count)} abiertos)</option>`).join("")
         : `<option value="">Sin conteos con diferencias</option>`;
     }
 
@@ -1931,7 +1932,7 @@
       el("return_supplier").value = "";
       el("return_sheet").value = "";
       el("return_note").value = "";
-      el("return_date").value = new Date().toISOString().slice(0, 10);
+      el("return_date").value = AppTime.todayYmd();
     }
 
     function openNewSupplierReturn(){
@@ -2295,7 +2296,7 @@
         const progress = `${units(row.counted_items)} / ${units(row.total_items)}`;
         const pending = Number(row.pending_items || 0);
         return `<tr>
-          <td><div class="fw-semibold">${new Date(row.started_at).toLocaleDateString("es-SV")}</div><div class="small text-muted">${new Date(row.started_at).toLocaleTimeString("es-SV",{hour:"2-digit",minute:"2-digit"})}</div></td>
+          <td><div class="fw-semibold">${AppTime.formatDate(row.started_at)}</div><div class="small text-muted">${AppTime.formatTime(row.started_at)}</div></td>
           <td><div class="fw-semibold">${esc(row.title || "Conteo fisico")}</div><div class="small text-muted">Responsable: ${esc(row.started_by_name || "-")}${participants.length ? ` · ${esc(participants.join(", "))}` : ""}</div></td>
           <td><div class="fw-semibold">${progress}</div><div class="small ${pending ? "text-warning" : "text-muted"}">${pending ? `${units(pending)} pendientes` : "Completo"}</div></td>
           <td><div class="count-history-result">${countSessionStatusBadge(row.status)}${countResultBadge(row.result_status)}</div><div class="small text-muted mt-1">Falt. ${units(row.shortage_qty)} · Sobr. ${units(row.surplus_qty)} · Hall. ${units(row.finding_items)}</div></td>
@@ -2570,7 +2571,7 @@
       const shortageQty = diffRows.reduce((sum,row) => sum + Math.max(0, -Number(resultVariance(row) || 0)), 0);
       const surplusQty = diffRows.reduce((sum,row) => sum + Math.max(0, Number(resultVariance(row) || 0)), 0);
       const findingQty = findingRows.reduce((sum,row) => sum + Math.max(0, Number(row.condition_qty || 0)), 0);
-      const nowText = new Date().toLocaleString("es-SV");
+      const nowText = AppTime.formatDateTime(new Date());
       const statusText = session.status === "closed" ? "Finalizado" : session.status === "cancelled" ? "Cancelado" : "Abierto";
       const title = `Conteo fisico ${statusText} - Botiquín CCM`;
       const rowsHtml = rows.map(row => {
@@ -3080,8 +3081,8 @@
         el("btn_return_apply").addEventListener("click", applySupplierReturn);
         el("btn_return_void").addEventListener("click", voidSupplierReturnDraft);
         el("btn_return_reconcile").addEventListener("click", reconcileSupplierReturnCredit);
-        el("return_date").value = new Date().toISOString().slice(0, 10);
-        el("return_credit_date").value = new Date().toISOString().slice(0, 10);
+        el("return_date").value = AppTime.todayYmd();
+        el("return_credit_date").value = AppTime.todayYmd();
         el("return_lot_q").addEventListener("input", () => {
           clearTimeout(returnLotTimer);
           returnLotTimer = setTimeout(suggestReturnLots, 250);
