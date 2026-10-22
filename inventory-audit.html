@@ -910,6 +910,7 @@
     let varianceSummaryCache = {};
     let varianceSessionsCache = [];
     let selectedVarianceSessionId = "";
+    let selectedVarianceSessionFallback = null;
     let varianceFilter = "open";
     let activeVarianceCase = null;
     let varianceModalMode = "";
@@ -1060,6 +1061,7 @@
     function markAuditStale(){
       inventoryTabLoaded.differences = false;
       inventoryTabLoaded.movements = false;
+      countHistoryLoaded = false;
     }
     async function reloadAuditIfVisible(){
       if(activeInventoryTab === "differences" || activeInventoryTab === "movements"){
@@ -1393,6 +1395,11 @@
 
     function renderVarianceSessions(rows){
       varianceSessionsCache = Array.isArray(rows) ? rows : [];
+      const selectedIsMissing = selectedVarianceSessionId
+        && !varianceSessionsCache.some(row => String(row.id) === String(selectedVarianceSessionId));
+      if(selectedIsMissing && String(selectedVarianceSessionFallback?.id || "") === String(selectedVarianceSessionId)){
+        varianceSessionsCache = [selectedVarianceSessionFallback, ...varianceSessionsCache];
+      }
       if(!selectedVarianceSessionId && varianceSessionsCache.length) selectedVarianceSessionId = varianceSessionsCache[0].id;
       el("variance_session_select").innerHTML = varianceSessionsCache.length
         ? varianceSessionsCache.map(row => `<option value="${row.id}" ${String(row.id) === String(selectedVarianceSessionId) ? "selected" : ""}>${esc(row.title || "Conteo fisico")} - ${new Date(row.started_at).toLocaleDateString("es-SV")} (${num(row.open_case_count)} abiertos)</option>`).join("")
@@ -2346,7 +2353,7 @@
       el("count_history_modal_people").textContent = `Inicio: ${row.started_by_name || "-"}. Cierre: ${row.closed_by_name || "-"}. Participantes: ${participants.join(", ") || "-"}.`;
       el("count_history_modal_note").textContent = row.note || "";
       el("count_history_modal_note").classList.toggle("d-none", !row.note);
-      el("btn_count_history_modal_differences").disabled = Number(row.case_count || 0) === 0;
+      el("btn_count_history_modal_differences").disabled = row.status === "cancelled" || Number(row.case_count || 0) === 0;
       el("count_history_modal").classList.add("show");
       el("count_history_modal").setAttribute("aria-hidden", "false");
     }
@@ -2554,29 +2561,34 @@
     function printSessionPayload(payload){
       const session = payload?.session || {};
       const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+      const resultCounted = row => row.result_counted_qty ?? row.counted_qty;
+      const resultVariance = row => row.result_variance_qty ?? row.variance_qty;
       const countedRows = rows.filter(row => row.status === "counted" || row.status === "applied");
       const pendingRows = rows.filter(row => row.status === "pending");
-      const diffRows = rows.filter(row => Number(row.variance_qty || 0) !== 0);
+      const diffRows = rows.filter(row => Number(resultVariance(row) || 0) !== 0);
       const findingRows = rows.filter(row => isFinding(row));
-      const shortageQty = diffRows.reduce((sum,row) => sum + Math.max(0, -Number(row.variance_qty || 0)), 0);
-      const surplusQty = diffRows.reduce((sum,row) => sum + Math.max(0, Number(row.variance_qty || 0)), 0);
+      const shortageQty = diffRows.reduce((sum,row) => sum + Math.max(0, -Number(resultVariance(row) || 0)), 0);
+      const surplusQty = diffRows.reduce((sum,row) => sum + Math.max(0, Number(resultVariance(row) || 0)), 0);
       const findingQty = findingRows.reduce((sum,row) => sum + Math.max(0, Number(row.condition_qty || 0)), 0);
       const nowText = new Date().toLocaleString("es-SV");
       const statusText = session.status === "closed" ? "Finalizado" : session.status === "cancelled" ? "Cancelado" : "Abierto";
       const title = `Conteo fisico ${statusText} - Botiquín CCM`;
       const rowsHtml = rows.map(row => {
-        const counted = row.counted_qty === null || row.counted_qty === undefined ? "" : units(row.counted_qty);
-        const diff = row.variance_qty === null || row.variance_qty === undefined ? "" : units(row.variance_qty);
-        const diffClass = Number(row.variance_qty || 0) < 0 ? "neg" : Number(row.variance_qty || 0) > 0 ? "pos" : "";
-        const countedBy = row.counted_by_name || (row.status === "pending" ? "Pendiente" : getSession().name || "-");
+        const countedValue = resultCounted(row);
+        const varianceValue = resultVariance(row);
+        const counted = countedValue === null || countedValue === undefined ? "" : units(countedValue);
+        const diff = varianceValue === null || varianceValue === undefined ? "" : units(varianceValue);
+        const diffClass = Number(varianceValue || 0) < 0 ? "neg" : Number(varianceValue || 0) > 0 ? "pos" : "";
+        const countedBy = row.result_counted_by_name || row.counted_by_name || (row.status === "pending" ? "Pendiente" : getSession().name || "-");
+        const resultLabel = row.result_source === "verified" ? "Confirmado" : row.status || "-";
         return `<tr>
           <td>${esc(row.external_code || "")}</td>
           <td><strong>${esc(row.medicine_name || "-")}</strong><br><span>${esc(row.model || "")} ${esc(row.secondary_name || "")}</span></td>
           <td class="num">${units(row.expected_qty)}</td>
           <td class="num">${counted}</td>
           <td class="num ${diffClass}">${diff}</td>
-          <td>${esc(row.status || "-")}</td>
-          <td>${esc(countedBy)}<br><span>${row.counted_at ? fmtDate(row.counted_at) : ""}</span></td>
+          <td>${esc(resultLabel)}</td>
+          <td>${esc(countedBy)}<br><span>${row.result_counted_at ? fmtDate(row.result_counted_at) : row.counted_at ? fmtDate(row.counted_at) : ""}</span></td>
         </tr>`;
       }).join("");
       const diffRowsHtml = diffRows.map(row => `
@@ -2584,15 +2596,15 @@
           <td>${esc(row.external_code || "")}</td>
           <td><strong>${esc(row.medicine_name || "-")}</strong><br><span>${esc(row.model || "")} ${esc(row.secondary_name || "")}</span></td>
           <td class="num">${units(row.expected_qty)}</td>
-          <td class="num">${units(row.counted_qty)}</td>
-          <td class="num ${Number(row.variance_qty || 0) < 0 ? "neg" : "pos"}">${units(row.variance_qty)}</td>
+          <td class="num">${units(resultCounted(row))}</td>
+          <td class="num ${Number(resultVariance(row) || 0) < 0 ? "neg" : "pos"}">${units(resultVariance(row))}</td>
         </tr>`).join("");
       const findingRowsHtml = findingRows.map(row => `
         <tr>
           <td>${esc(row.external_code || "")}</td>
           <td><strong>${esc(row.medicine_name || "-")}</strong><br><span>${esc(row.model || "")} ${esc(row.secondary_name || "")}</span></td>
           <td class="num">${units(row.expected_qty)}</td>
-          <td class="num">${units(row.counted_qty)}</td>
+          <td class="num">${units(resultCounted(row))}</td>
           <td class="num">${units(row.condition_qty)}</td>
           <td><strong>${esc(conditionLabel(row.condition_status))}</strong><br><span>${esc(row.condition_note || "Sin comentario")}</span></td>
         </tr>`).join("");
@@ -3011,6 +3023,7 @@
         });
         el("variance_session_select").addEventListener("change", async () => {
           selectedVarianceSessionId = el("variance_session_select").value;
+          selectedVarianceSessionFallback = null;
           await loadAudit();
         });
         el("resolution_list").addEventListener("click", async event => {
@@ -3045,6 +3058,12 @@
         el("btn_count_history_modal_differences").addEventListener("click", async () => {
           if(!activeCountHistoryRow?.id) return;
           selectedVarianceSessionId = activeCountHistoryRow.id;
+          selectedVarianceSessionFallback = {
+            id:activeCountHistoryRow.id,
+            title:activeCountHistoryRow.title,
+            started_at:activeCountHistoryRow.started_at,
+            open_case_count:activeCountHistoryRow.open_case_count
+          };
           closeCountHistoryModal();
           showInventoryTab("differences");
           await loadInventoryTab("differences", true);

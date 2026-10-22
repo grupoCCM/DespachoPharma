@@ -57,3 +57,11 @@ fila separa dos conceptos:
 Los conteos finalizados y cancelados no se editan. El detalle y la reimpresion
 se reconstruyen por `session_id`, por lo que siguen disponibles despues de
 recargar la pagina o iniciar sesion desde otro equipo.
+
+## Integracion con el historial de conteos
+
+- El resumen y la reimpresion usan el segundo conteo confirmado cuando existe; el primer conteo permanece intacto como evidencia.
+- Cancelar una sesion sin ajustes cierra sus expedientes sin mover inventario. Si ya existen ajustes o resoluciones, la cancelacion se bloquea.
+- Las RPC que aplican inventario o resoluciones rechazan casos pertenecientes a sesiones canceladas.
+- Los cambios de verificacion, ajuste o resolucion invalidan la lectura en memoria del historial para que se recargue al volver a Conteo fisico.
+- Desde el historial se puede abrir el detalle de diferencias aunque la sesion ya no figure entre las 40 mas recientes del selector operativo.
