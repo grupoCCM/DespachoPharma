@@ -80,6 +80,10 @@
     .sf-reason-list{ max-height:380px; overflow:auto; }
     .sf-status-active{ background:#dcfce7; color:#166534; }
     .sf-status-voided{ background:#e2e8f0; color:#475569; }
+    .list-pager{ min-height:38px; display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding-top:.65rem; color:#64748b; font-size:.8rem; }
+    .list-pager[hidden]{ display:none; }
+    .list-pager-actions{ display:flex; align-items:center; gap:.4rem; }
+    .list-pager .btn{ min-width:82px; }
     .nav-module-separator{ width:1px; height:28px; background:var(--border); margin:0 .25rem; }
     .btn-device-module{ border-color:#0f766e; color:#0f766e; background:#ecfdf5; font-weight:700; }
     .btn-device-module:hover,.btn-device-module:focus{ background:#0f766e; color:#fff; border-color:#0f766e; }
@@ -91,6 +95,8 @@
       .sf-bar-row{ grid-template-columns:1fr 64px; }
       .sf-bar-row .bar-track{ grid-column:1; grid-row:2; }
       .sf-table-wrap{ max-height:68vh; }
+      .list-pager{ flex-direction:column; align-items:stretch; }
+      .list-pager-actions{ flex-wrap:wrap; justify-content:space-between; }
       .nav-module-separator{ display:none; }
     }
   </style>
@@ -310,6 +316,7 @@
               <tbody id="tbody_monthly_compare"></tbody>
             </table>
           </div>
+          <div id="pager_monthly_compare" class="list-pager" hidden></div>
         </div>
       </div>
 
@@ -357,6 +364,7 @@
               <tbody id="tbody_top_units"></tbody>
             </table>
           </div>
+          <div id="pager_top_units" class="list-pager" hidden></div>
         </div>
       </div>
 
@@ -369,6 +377,7 @@
               <tbody id="tbody_top_profit"></tbody>
             </table>
           </div>
+          <div id="pager_top_profit" class="list-pager" hidden></div>
         </div>
       </div>
 
@@ -381,6 +390,7 @@
               <tbody id="tbody_recommendations"></tbody>
             </table>
           </div>
+          <div id="pager_recommendations" class="list-pager" hidden></div>
         </div>
       </div>
 
@@ -393,6 +403,7 @@
               <tbody id="tbody_negative"></tbody>
             </table>
           </div>
+          <div id="pager_negative" class="list-pager" hidden></div>
         </div>
       </div>
     </div>
@@ -471,6 +482,7 @@
             </tbody>
           </table>
         </div>
+        <div id="pager_price_margin" class="list-pager" hidden></div>
       </div>
     </section>
 
@@ -531,6 +543,7 @@
             <div class="fw-semibold mb-1">Actividad por fecha</div>
             <div class="small text-muted mb-3">Registros y pacientes únicos por día.</div>
             <div id="sf_trend" class="small"><div class="text-center text-muted py-4">Sin datos.</div></div>
+            <div id="pager_sf_trend" class="list-pager" hidden></div>
           </div>
         </div>
       </div>
@@ -553,6 +566,7 @@
             <tbody id="sf_records_body"><tr><td colspan="7" class="text-center text-muted py-4">Cargando...</td></tr></tbody>
           </table>
         </div>
+        <div id="pager_sf_records" class="list-pager" hidden></div>
       </div>
     </section>
 
@@ -616,8 +630,20 @@
     let activeDashboardTab = "main";
     let priceMarginSearch = "";
     let priceMarginTimer = null;
+    let priceMarginData = { summary:{}, rows:[] };
     let salesFollowUpData = { summary:{}, reasons:[], trend:[], records:[], catalog:[] };
     let salesFollowUpLoaded = false;
+    const LIST_PAGE_SIZES = {
+      monthly:6,
+      topUnits:5,
+      topProfit:5,
+      recommendations:5,
+      negative:5,
+      priceMargin:10,
+      salesTrend:6,
+      salesRecords:10
+    };
+    const listPages = Object.fromEntries(Object.keys(LIST_PAGE_SIZES).map(key => [key, 1]));
 
     function getSession(){
       return {
@@ -832,6 +858,46 @@
       return rows && rows.length ? rows.map(render).join("") : `<tr><td colspan="${colspan}" class="text-center text-muted py-4">Sin datos.</td></tr>`;
     }
 
+    function resetListPages(keys=Object.keys(listPages)){
+      keys.forEach(key => { listPages[key] = 1; });
+    }
+
+    function pageRows(rows, key){
+      const source = Array.isArray(rows) ? rows : [];
+      const pageSize = LIST_PAGE_SIZES[key];
+      const totalPages = Math.max(1, Math.ceil(source.length / pageSize));
+      listPages[key] = Math.min(Math.max(1, listPages[key] || 1), totalPages);
+      const start = (listPages[key] - 1) * pageSize;
+      return source.slice(start, start + pageSize);
+    }
+
+    function renderListPager(id, rows, key, rerender){
+      const node = el(id);
+      const total = Array.isArray(rows) ? rows.length : 0;
+      const pageSize = LIST_PAGE_SIZES[key];
+      if(!node) return;
+      if(!total || total <= pageSize){
+        node.hidden = true;
+        node.innerHTML = "";
+        return;
+      }
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const page = Math.min(Math.max(1, listPages[key] || 1), totalPages);
+      const start = (page - 1) * pageSize + 1;
+      const end = Math.min(total, page * pageSize);
+      node.hidden = false;
+      node.innerHTML = `<span>Mostrando ${num(start)}–${num(end)} de ${num(total)}</span>
+        <div class="list-pager-actions">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-page-step="-1" ${page <= 1 ? "disabled" : ""}>Anterior</button>
+          <span>Página ${num(page)} de ${num(totalPages)}</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-page-step="1" ${page >= totalPages ? "disabled" : ""}>Siguiente</button>
+        </div>`;
+      node.querySelectorAll("[data-page-step]").forEach(button => button.addEventListener("click", () => {
+        listPages[key] = Math.min(totalPages, Math.max(1, page + Number(button.dataset.pageStep || 0)));
+        rerender();
+      }));
+    }
+
     function switchDashboardTab(tab){
       activeDashboardTab = tab || "main";
       document.querySelectorAll("[data-dashboard-tab]").forEach(btn => {
@@ -877,8 +943,9 @@
     }
     function sfRenderRecords(){
       const rows = sfFilteredRecords();
-      el("sf_records_hint").textContent = `${num(rows.length)} resultados visibles.`;
-      el("sf_records_body").innerHTML = tableRows(rows, row => {
+      const visibleRows = pageRows(rows, "salesRecords");
+      el("sf_records_hint").textContent = `${num(rows.length)} resultados · ${num(LIST_PAGE_SIZES.salesRecords)} por página.`;
+      el("sf_records_body").innerHTML = tableRows(visibleRows, row => {
         const date = sfDateParts(row.created_at);
         const statusClass = row.status === "voided" ? "sf-status-voided" : "sf-status-active";
         const statusLabel = row.status === "voided" ? "Anulado" : "Activo";
@@ -897,6 +964,13 @@
           </div></td>
         </tr>`;
       }, 7);
+      renderListPager("pager_sf_records", rows, "salesRecords", sfRenderRecords);
+    }
+    function sfRenderTrend(){
+      const rows = (salesFollowUpData.trend || []).slice(-12).reverse();
+      const visibleRows = pageRows(rows, "salesTrend");
+      el("sf_trend").innerHTML = visibleRows.length ? visibleRows.map(row => `<div class="d-flex justify-content-between gap-2 py-2 border-bottom"><span>${esc(dateLabel(row.day))}</span><span><strong>${num(row.records)}</strong> registros · ${num(row.patients)} pacientes</span></div>`).join("") : `<div class="text-center text-muted py-4">Sin datos.</div>`;
+      renderListPager("pager_sf_trend", rows, "salesTrend", sfRenderTrend);
     }
     function sfRenderOverview(){
       const data = salesFollowUpData || {};
@@ -914,8 +988,7 @@
           <div class="text-end fw-semibold">${num(row.qty)} <span class="small text-muted">${num(row.pct,1)}%</span></div>
         </div>`).join("") : `<div class="text-center text-muted py-4">Sin datos.</div>`;
 
-      const trend = (data.trend || []).slice(-12).reverse();
-      el("sf_trend").innerHTML = trend.length ? trend.map(row => `<div class="d-flex justify-content-between gap-2 py-2 border-bottom"><span>${esc(dateLabel(row.day))}</span><span><strong>${num(row.records)}</strong> registros · ${num(row.patients)} pacientes</span></div>`).join("") : `<div class="text-center text-muted py-4">Sin datos.</div>`;
+      sfRenderTrend();
 
       const activeCatalog = (data.catalog || []).filter(row => row.active);
       const currentFilter = el("sf_reason_filter").value;
@@ -935,6 +1008,7 @@
       try{
         const session = getSession();
         const range = sfMonthRange();
+        resetListPages(["salesTrend","salesRecords"]);
         salesFollowUpData = await callRpc("rpc_sales_follow_up_admin_overview", {
           p_session_token:session.token,
           p_start_date:range.start,
@@ -1003,8 +1077,10 @@
     }
     function renderPriceMargin(payload){
       const data = payload || {};
+      priceMarginData = data;
       const s = data.summary || {};
       const rows = Array.isArray(data.rows) ? data.rows : [];
+      const visibleRows = pageRows(rows, "priceMargin");
       const isSearching = Boolean(data.search || priceMarginSearch);
       el("pm_total").textContent = num(s.total_review_items);
       el("pm_critical").textContent = num(s.critical_items);
@@ -1013,7 +1089,7 @@
       el("pm_search_hint").textContent = isSearching
         ? "Mostrando coincidencias de busqueda, aunque no tengan alerta."
         : "Mostrando solo productos con alerta. Busca para revisar cualquier producto.";
-      el("tbody_price_margin").innerHTML = tableRows(rows, row => {
+      el("tbody_price_margin").innerHTML = tableRows(visibleRows, row => {
         const rowClass = row.margin_status === "critical" ? "pm-row-critical" : row.margin_status === "review" ? "pm-row-review" : "";
         const alerts = [];
         if(row.negotiation_risk) alerts.push(`<span class="status-pill status-risk">Ref. limita</span>`);
@@ -1082,6 +1158,7 @@
           </td>
         </tr>`;
       }, 8);
+      renderListPager("pager_price_margin", rows, "priceMargin", () => renderPriceMargin(priceMarginData));
     }
 
     function renderBars(containerId, rows, valueKey, labelFn, valueFn, fillClass=""){
@@ -1124,7 +1201,8 @@
       const selected = el("month_filter").value;
       const rows = selected ? monthly.filter(row => row.month === selected) : monthly;
       const desc = rows.slice().sort((a,b) => String(b.month).localeCompare(String(a.month)));
-      el("tbody_monthly_compare").innerHTML = tableRows(desc, row => {
+      const visibleRows = pageRows(desc, "monthly");
+      el("tbody_monthly_compare").innerHTML = tableRows(visibleRows, row => {
         const prev = prevMonth(monthly, row.month);
         return `<tr>
           <td class="fw-semibold">${monthLabel(row.month)}</td>
@@ -1136,6 +1214,7 @@
           <td class="text-end">${pct(row.margin_pct)}</td>
         </tr>`;
       }, 7);
+      renderListPager("pager_monthly_compare", desc, "monthly", () => renderMonthlyCompare(monthly));
     }
 
     function renderMonthlyInsight(monthly, penetration){
@@ -1274,6 +1353,38 @@
       el("month_filter_hint").textContent = el("month_filter").value ? "Mostrando el mes elegido contra su mes anterior." : "Mostrando todos los meses; el diagnostico usa el ultimo mes disponible.";
     }
 
+    function renderTopUnits(rows){
+      const source = Array.isArray(rows) ? rows : [];
+      el("tbody_top_units").innerHTML = tableRows(pageRows(source, "topUnits"), row => `
+        <tr><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td class="text-end">${num(row.units)}</td><td class="text-end">${money(row.net_sales)}</td></tr>
+      `, 3);
+      renderListPager("pager_top_units", source, "topUnits", () => renderTopUnits(source));
+    }
+
+    function renderTopProfit(rows){
+      const source = Array.isArray(rows) ? rows : [];
+      el("tbody_top_profit").innerHTML = tableRows(pageRows(source, "topProfit"), row => `
+        <tr><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td class="text-end">${money(row.profit)}</td><td class="text-end">${pct(row.margin_pct)}</td></tr>
+      `, 3);
+      renderListPager("pager_top_profit", source, "topProfit", () => renderTopProfit(source));
+    }
+
+    function renderRecommendations(rows){
+      const source = Array.isArray(rows) ? rows : [];
+      el("tbody_recommendations").innerHTML = tableRows(pageRows(source, "recommendations"), row => `
+        <tr><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td>${row.action || "-"}</td><td class="text-end">${num(row.suggested_qty)}</td><td class="text-end">${money(row.estimated_purchase_value)}</td></tr>
+      `, 4);
+      renderListPager("pager_recommendations", source, "recommendations", () => renderRecommendations(source));
+    }
+
+    function renderNegativeMargin(rows){
+      const source = Array.isArray(rows) ? rows : [];
+      el("tbody_negative").innerHTML = tableRows(pageRows(source, "negative"), row => `
+        <tr><td>${shortDate(row.sale_date)}</td><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td class="text-end">${money(row.net_sale)}</td><td class="text-end text-danger">${money(row.profit)}</td></tr>
+      `, 4);
+      renderListPager("pager_negative", source, "negative", () => renderNegativeMargin(source));
+    }
+
     function renderDashboard(data){
       dashboardData = data || {};
       const s = data.summary || {};
@@ -1301,21 +1412,10 @@
       renderMonthOptions(monthly);
       renderMonthlyViews(monthly, penetration);
 
-      el("tbody_top_units").innerHTML = tableRows(data.top_units, row => `
-        <tr><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td class="text-end">${num(row.units)}</td><td class="text-end">${money(row.net_sales)}</td></tr>
-      `, 3);
-
-      el("tbody_top_profit").innerHTML = tableRows(data.top_profit, row => `
-        <tr><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td class="text-end">${money(row.profit)}</td><td class="text-end">${pct(row.margin_pct)}</td></tr>
-      `, 3);
-
-      el("tbody_recommendations").innerHTML = tableRows(data.recommendations, row => `
-        <tr><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td>${row.action || "-"}</td><td class="text-end">${num(row.suggested_qty)}</td><td class="text-end">${money(row.estimated_purchase_value)}</td></tr>
-      `, 4);
-
-      el("tbody_negative").innerHTML = tableRows(data.negative_margin, row => `
-        <tr><td>${shortDate(row.sale_date)}</td><td><div class="truncate">${row.medicine_name || "-"}</div><div class="small text-muted">${row.external_code || ""}</div></td><td class="text-end">${money(row.net_sale)}</td><td class="text-end text-danger">${money(row.profit)}</td></tr>
-      `, 4);
+      renderTopUnits(data.top_units);
+      renderTopProfit(data.top_profit);
+      renderRecommendations(data.recommendations);
+      renderNegativeMargin(data.negative_margin);
       renderPriceMargin(data.price_margin || {});
     }
 
@@ -1323,6 +1423,7 @@
       hideAlert();
       setLoading(true);
       try{
+        resetListPages(["monthly","topUnits","topProfit","recommendations","negative","priceMargin"]);
         const s = getSession();
         const [data, priceMargin] = await Promise.all([
           callRpc("rpc_dashboard_overview", { p_session_token:s.token }),
@@ -1354,6 +1455,7 @@
       hideAlert();
       setLoading(true);
       try{
+        resetListPages(["priceMargin"]);
         const s = getSession();
         const priceMargin = await fetchPriceMargin(s);
         renderPriceMargin(priceMargin || {});
@@ -1444,8 +1546,14 @@
       });
       el("sf_month").value = AppTime.currentMonth();
       el("sf_month").addEventListener("change", loadSalesFollowUp);
-      ["sf_outcome_filter","sf_reason_filter","sf_status_filter"].forEach(id => el(id).addEventListener("change", sfRenderRecords));
-      el("sf_search").addEventListener("input", sfRenderRecords);
+      ["sf_outcome_filter","sf_reason_filter","sf_status_filter"].forEach(id => el(id).addEventListener("change", () => {
+        resetListPages(["salesRecords"]);
+        sfRenderRecords();
+      }));
+      el("sf_search").addEventListener("input", () => {
+        resetListPages(["salesRecords"]);
+        sfRenderRecords();
+      });
       el("sf_btn_new").addEventListener("click", () => sfOpenEvent());
       el("sf_btn_export").addEventListener("click", sfExportCsv);
       el("sf_btn_reasons").addEventListener("click", () => { sfSetDialogAlert("sf_reason_alert", ""); sfRenderReasonList(); el("sf_reasons_dialog").showModal(); });
@@ -1493,6 +1601,7 @@
       document.querySelectorAll("[data-sf-close]").forEach(button => button.addEventListener("click", () => el(button.dataset.sfClose).close()));
       ["sf_event_dialog","sf_reasons_dialog","sf_void_dialog"].forEach(id => el(id).addEventListener("click", event => { if(event.target === el(id)) el(id).close(); }));
       el("month_filter").addEventListener("change", () => {
+        resetListPages(["monthly"]);
         const monthly = (dashboardData?.monthly_sales || []).slice().sort((a,b) => String(a.month).localeCompare(String(b.month)));
         const penetration = (dashboardData?.penetration || []).slice().sort((a,b) => String(b.month).localeCompare(String(a.month)));
         renderMonthlyViews(monthly, penetration);
