@@ -5,6 +5,8 @@
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJld2RtY3lxeHl6Y29laWlrb293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDcxMDMsImV4cCI6MjA4NjU4MzEwM30.vRkCRFYez3zeL67Ik_niDrPu9wGt53gEqE6LLf_SUHE";
   const SESSION_KEYS = ["dp_session_token","dp_role","dp_display_name","dp_user_id","dp_expires_at","dp_last_activity"];
   const RENEW_AFTER_MS = 4 * 60 * 1000;
+  const SLOW_VALIDATION_AFTER_MS = 4 * 1000;
+  const VALIDATION_TIMEOUT_MS = 10 * 1000;
   const RETRY_AFTER_MS = 30 * 1000;
   const ROLE_HOME = {
     admin: "dashboard.html",
@@ -139,7 +141,7 @@
 
   async function callTouch(token){
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUT_MS);
     try{
       const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/rpc_session_touch`, {
         method: "POST",
@@ -163,7 +165,14 @@
 
   function scheduleRetry(){
     clearTimeout(retryTimer);
-    retryTimer = setTimeout(() => validateSession({ force:true, lockDuringValidation:true }), RETRY_AFTER_MS);
+    retryTimer = setTimeout(() => validateSession({ force:true, lockDuringValidation:false }), RETRY_AFTER_MS);
+  }
+
+  function validationFailureMessage(error){
+    if(error?.name === "AbortError"){
+      return "La validación tardó más de lo esperado. Vuelve a intentarlo.";
+    }
+    return "No pudimos comunicarnos con el sistema en este momento. Vuelve a intentarlo.";
   }
 
   async function validateSession(options){
@@ -185,7 +194,13 @@
     }
 
     validationPromise = (async () => {
+      let slowTimer = null;
       try{
+        if(settings.lockDuringValidation){
+          slowTimer = setTimeout(() => {
+            setGuardState("pending", "La validación está tardando", "Seguimos intentando confirmar tu sesión. Espera unos segundos.");
+          }, SLOW_VALIDATION_AFTER_MS);
+        }
         const rows = await callTouch(current.token);
         if(!Array.isArray(rows) || rows.length === 0){
           loginRedirect();
@@ -208,14 +223,16 @@
         }
         bindActivity();
         return true;
-      }catch(_){
+      }catch(error){
+        console.warn("No se pudo validar la sesión.", error);
         const expiresAt = parseExpiry(storedSession().expiresAt);
         if(!readySession || !expiresAt || Date.now() >= expiresAt || settings.lockDuringValidation){
-          setGuardState("locked", "No se pudo validar la sesión", "Comprueba la conexión y vuelve a intentarlo. La información digitada permanece en esta pantalla.");
+          setGuardState("locked", "No se pudo validar la sesión", validationFailureMessage(error));
           scheduleRetry();
         }
         return false;
       }finally{
+        clearTimeout(slowTimer);
         validationPromise = null;
       }
     })();

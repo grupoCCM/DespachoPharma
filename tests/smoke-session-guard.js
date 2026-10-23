@@ -51,6 +51,7 @@ async function mockSupabase(page, sessionRow, options = {}){
       return;
     }
     const name = route.request().url().split("/").pop();
+    if(name === "rpc_session_touch" && options.onTouch) options.onTouch();
     const payload = name === "rpc_session_touch" ? (sessionRow ? [sessionRow] : []) : [];
     await route.fulfill({ status:200, contentType:"application/json", body:JSON.stringify(payload) });
   });
@@ -70,6 +71,7 @@ async function mockSupabase(page, sessionRow, options = {}){
     await noSession.close();
 
     const valid = await browser.newPage();
+    let validTouchCount = 0;
     const renewedExpiry = new Date(Date.now() + (30 * 60 * 1000)).toISOString();
     await seedSession(valid, {
       token:"valid-token",
@@ -84,12 +86,41 @@ async function mockSupabase(page, sessionRow, options = {}){
       display_name:"Admin",
       role:"admin",
       expires_at:renewedExpiry
-    });
+    }, { onTouch:() => { validTouchCount += 1; } });
     await valid.goto(`${baseUrl}/dashboard.html`);
     await valid.locator("html:not(.app-session-pending):not(.app-session-locked)").waitFor();
     assert.strictEqual(await valid.locator(".app-admin-nav").count(), 1);
     assert.strictEqual(await valid.evaluate(() => localStorage.getItem("dp_expires_at")), renewedExpiry);
+    assert.strictEqual(validTouchCount, 1, "a protected page must validate the session only once during startup");
     await valid.close();
+
+    const slow = await browser.newPage();
+    await seedSession(slow, {
+      token:"slow-token",
+      role:"dispatch",
+      name:"Despacho",
+      userId:"33333333-3333-3333-3333-333333333333",
+      expiresAt:renewedExpiry
+    });
+    await slow.route("https://rewdmcyqxyzcoeiikoow.supabase.co/rest/v1/rpc/**", async route => {
+      const name = route.request().url().split("/").pop();
+      if(name !== "rpc_session_touch"){
+        await route.fulfill({ status:200, contentType:"application/json", body:"[]" });
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 4500));
+      await route.fulfill({ status:200, contentType:"application/json", body:JSON.stringify([{
+        session_id:"44444444-4444-4444-4444-444444444444",
+        user_id:"33333333-3333-3333-3333-333333333333",
+        display_name:"Despacho",
+        role:"dispatch",
+        expires_at:renewedExpiry
+      }]) });
+    });
+    await slow.goto(`${baseUrl}/dispatch-menu.html`);
+    await slow.locator("#app_session_guard_title", { hasText:"La validación está tardando" }).waitFor({ timeout:5000 });
+    await slow.locator("html:not(.app-session-pending):not(.app-session-locked)").waitFor({ timeout:7000 });
+    await slow.close();
 
     const roleRedirect = await browser.newPage();
     await seedSession(roleRedirect, {
@@ -122,6 +153,7 @@ async function mockSupabase(page, sessionRow, options = {}){
     await mockSupabase(rejected, null);
     await rejected.goto(`${baseUrl}/dashboard.html`);
     await rejected.waitForURL(`${baseUrl}/index.html`);
+    await rejected.waitForFunction(() => localStorage.getItem("dp_session_token") === null);
     assert.strictEqual(await rejected.evaluate(() => localStorage.getItem("dp_session_token")), null);
     await rejected.close();
 
@@ -137,6 +169,7 @@ async function mockSupabase(page, sessionRow, options = {}){
     await offline.goto(`${baseUrl}/dashboard.html`);
     await offline.locator("html.app-session-locked").waitFor();
     assert.strictEqual(await offline.locator("#app_session_retry").isVisible(), true);
+    assert.strictEqual(await offline.locator("#app_session_guard_message").textContent(), "No pudimos comunicarnos con el sistema en este momento. Vuelve a intentarlo.");
     assert.strictEqual(await offline.locator(".app-admin-nav").count(), 0);
     assert.strictEqual(await offline.evaluate(() => localStorage.getItem("dp_session_token")), "offline-token");
     await offline.close();
@@ -199,7 +232,16 @@ async function mockSupabase(page, sessionRow, options = {}){
     assert.strictEqual(await publicWithSession.evaluate(() => localStorage.getItem("dp_expires_at")), renewedExpiry);
     await publicWithSession.close();
 
-    console.log("session guard smoke: renewal, role routing, timed expiry, rejection, offline lock and public session sync OK");
+    const loginNetworkFailure = await browser.newPage();
+    await loginNetworkFailure.route("https://rewdmcyqxyzcoeiikoow.supabase.co/rest/v1/rpc/**", route => route.abort("failed"));
+    await loginNetworkFailure.goto(`${baseUrl}/index.html`);
+    await loginNetworkFailure.locator("#pin_input").fill("1234");
+    await loginNetworkFailure.locator("#btn_login").click();
+    await loginNetworkFailure.locator("#alert_login").waitFor();
+    assert.strictEqual(await loginNetworkFailure.locator("#alert_login").textContent(), "No pudimos comunicarnos con el sistema en este momento. Vuelve a intentarlo.");
+    await loginNetworkFailure.close();
+
+    console.log("session guard smoke: single startup touch, slow response, renewal, role routing, timed expiry, rejection, offline lock, friendly login error and public session sync OK");
   }finally{
     await browser.close();
     await new Promise(resolve => server.close(resolve));

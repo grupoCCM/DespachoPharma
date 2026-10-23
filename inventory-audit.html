@@ -131,7 +131,7 @@
   <link href="app-nav.css" rel="stylesheet">
 </head>
 <body data-session-roles="admin,dispatch,cashier">
-  <script src="app-session.js"></script>
+  <script src="app-session.js?v=20261023-1"></script>
   <div data-app-nav data-active="inventory" data-mode="auto"></div>
   <script src="app-nav.js"></script>
   <script src="app-time.js"></script>
@@ -3021,8 +3021,6 @@
       if(!["admin","dispatch","cashier"].includes(s.role)){
         return window.location.href = ROUTES.login;
       }
-      const ok = await touchSession();
-      if(!ok) return logoutAndGoLogin();
       el("nav_user").textContent = s.name || "-";
       if(s.role !== "admin"){
         document.querySelectorAll(".nav-admin-only").forEach(node => node.classList.add("d-none"));
