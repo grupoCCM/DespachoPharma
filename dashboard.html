@@ -98,7 +98,7 @@
 </head>
 
 <body data-session-roles="admin">
-  <script src="app-session.js"></script>
+  <script src="app-session.js?v=20261023-1"></script>
   <div data-app-nav data-active="dashboard"></div>
   <script src="app-nav.js"></script>
   <script src="app-time.js"></script>
@@ -1425,8 +1425,6 @@
       if(!await window.AppSession.requireSession({ roles:["admin"] })) return;
       const s = getSession();
       if(!s.token) return window.location.href = ROUTES.login;
-      const ok = await touchSession();
-      if(!ok) return logoutAndGoLogin();
       el("nav_user").textContent = s.name || "-";
       el("btn_logout").addEventListener("click", logoutAndGoLogin);
       el("btn_refresh").addEventListener("click", () => activeDashboardTab === "sales_follow_up"

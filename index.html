@@ -516,7 +516,10 @@
         }
 
       } catch(err){
-        showAlert(err.message || "No se pudo iniciar sesion.");
+        const isConnectionError = err?.name === "TypeError" || /failed to fetch|networkerror|load failed/i.test(err?.message || "");
+        showAlert(isConnectionError
+          ? "No pudimos comunicarnos con el sistema en este momento. Vuelve a intentarlo."
+          : (err.message || "No se pudo iniciar sesión."));
       } finally {
         setLoading(false);
         if(resetPinAfterSubmit) preparePinRetry();
